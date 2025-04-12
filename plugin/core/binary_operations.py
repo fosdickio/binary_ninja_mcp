@@ -1,6 +1,8 @@
 import binaryninja as bn
 from typing import Optional, List, Dict, Any, Union
 from .config import BinaryNinjaConfig
+from binaryninja.enums import TypeClass, StructureVariant
+
 
 
 class BinaryOperations:
@@ -775,3 +777,145 @@ class BinaryOperations:
         except Exception as e:
             bn.log_error(f"Error annotating instruction at {hex(addr)}: {str(e)}")
             return f"0x{addr:08x}  {hex_bytes} ; [Error: {str(e)}]"
+            
+    def get_functions_containing_address(self, address: int) -> list:
+        """Get functions containing a specific address.
+        
+        Args:
+            address: The instruction address to find containing functions for
+            
+        Returns:
+            List of function names containing the address
+        """
+        if not self.current_view:
+            raise RuntimeError("No binary loaded")
+            
+        try:
+            functions = list(self.current_view.get_functions_containing(address))
+            return [func.name for func in functions]
+        except Exception as e:
+            bn.log_error(f"Error getting functions containing address {hex(address)}: {e}")
+            return []
+            
+    def get_function_code_references(self, function_name: str) -> list:
+        """Get all code references to a function.
+        
+        Args:
+            function_name: Name of the function to find references to
+            
+        Returns:
+            List of dictionaries containing function names and addresses that reference the target function
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+            
+        try:
+            # First, get the function by name
+            func = self.get_function_by_name_or_address(function_name)
+            if not func:
+                bn.log_error(f"Function not found: {function_name}")
+                return []
+                
+            # Get all code references to the function's start address
+            code_refs = []
+            for ref in list(self._current_view.get_code_refs(func.start)):
+                try:
+                    # For each reference, get the containing function and address
+                    if ref.function:
+                        code_refs.append({
+                            "function": ref.function.name,
+                            "address": hex(ref.address)
+                        })
+                except Exception as e:
+                    bn.log_error(f"Error processing reference at {hex(ref.address)}: {e}")
+                    
+            return code_refs
+        except Exception as e:
+            bn.log_error(f"Error getting code references for function {function_name}: {e}")
+            return []
+            
+    def get_user_defined_type(self, type_name: str) -> Optional[Dict[str, Any]]:
+        """Get the definition of a user-defined type (struct, enum, etc.)
+        
+        Args:
+            type_name: Name of the user-defined type to retrieve
+            
+        Returns:
+            Dictionary with type information and definition, or None if not found
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+            
+        try:
+            # Check if we have a user type container
+            if not hasattr(self._current_view, "user_type_container") or not self._current_view.user_type_container:
+                bn.log_info(f"No user type container available")
+                return None
+                
+            # Search for the requested type by name
+            found_type = None
+            found_type_id = None
+            
+            for type_id in self._current_view.user_type_container.types.keys():
+                current_type = self._current_view.user_type_container.types[type_id]
+                type_name_from_container = current_type[0]
+                
+                if type_name_from_container == type_name:
+                    found_type = current_type
+                    found_type_id = type_id
+                    break
+                    
+            if not found_type or not found_type_id:
+                bn.log_info(f"Type not found: {type_name}")
+                return None
+                
+            # Determine the type category (struct, enum, etc.)
+            type_category = "unknown"
+            type_object = found_type[1]
+            bn.log_info(f"Stage1")
+            bn.log_info(f"Stage1.5 {type_object.type_class} {StructureVariant.StructStructureType}")
+            if type_object.type_class == TypeClass.EnumerationTypeClass:
+                type_category = "enum"
+            elif type_object.type_class == TypeClass.StructureTypeClass:
+                if type_object.type == StructureVariant.StructStructureType:
+                    type_category = "struct"
+                elif type_object.type == StructureVariant.UnionStructureType:
+                    type_category = "union"
+                elif type_object.type == StructureVariant.ClassStructureType:
+                    type_category = "class"
+            elif type_object.type_class == TypeClass.NamedTypeReferenceClass:
+                type_category = "typedef"
+
+            # Generate the C++ style definition
+            definition_lines = []
+            
+            try:
+                if type_category == "struct" or type_category == "class" or type_category == "union":
+                    definition_lines.append(f"{type_category} {type_name} {{")
+                    for member in type_object.members:
+                        if hasattr(member, "name") and hasattr(member, "type"):
+                            definition_lines.append(f"    {member.type} {member.name};")
+                    definition_lines.append("};")
+                elif type_category == "enum":
+                    definition_lines.append(f"enum {type_name} {{")
+                    for member in type_object.members:
+                        if hasattr(member, "name") and hasattr(member, "value"):
+                            definition_lines.append(f"    {member.name} = {member.value},")
+                    definition_lines.append("};")
+                elif type_category == "typedef":
+                    str_type_object = str(type_object)
+                    definition_lines.append(f"typedef {str_type_object};")
+            except Exception as e:
+                bn.log_error(f"Error getting type lines: {e}")
+
+            # Construct the final definition string
+            definition = "\n".join(definition_lines)
+            
+            return {
+                "name": type_name,
+                "type": type_category,
+                "definition": definition
+            }
+        except Exception as e:
+            bn.log_error(f"Error getting user-defined type {type_name}: {e}")
+            return None

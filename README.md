@@ -50,6 +50,9 @@ The following table details which integrations with Binary Ninja are currently s
 | `delete_comment` | Delete the comment at a specific address. |
 | `delete_function_comment` | Delete the comment for a function. |
 | `get_assembly_function` | Get the assembly representation of a function by name or address. |
+| `function_at` | Retrive the name of the function the address belongs to. |
+| `code_references` | Retrive names and addresses of functions that call the given function. |
+| `get_user_defined_type` | Retrive definition of a user defined type (struct, enumeration, typedef, union). |
 
 ## Prerequisites
 

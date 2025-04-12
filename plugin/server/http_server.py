@@ -231,6 +231,149 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         500,
                     )
 
+            elif path == "/functionAt":
+                address_str = params.get("address")
+                if not address_str:
+                    self._send_json_response(
+                        {
+                            "error": "Missing address parameter",
+                            "help": "Required parameter: address (in hex format, e.g., 0x41d100) the address of an insruction",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                    
+                try:
+                    # Convert hex string to integer
+                    if isinstance(address_str, str) and address_str.startswith("0x"):
+                        offset = int(address_str, 16)
+                    else:
+                        offset = int(address_str)
+                        
+                    # Add function to binary_operations.py
+                    function_names = self.binary_ops.get_functions_containing_address(offset)
+                    
+                    self._send_json_response(
+                        {
+                            "address": hex(offset),
+                            "functions": function_names
+                        }
+                    )
+                except ValueError:
+                    self._send_json_response(
+                        {
+                            "error": "Invalid address format",
+                            "help": "Address must be a valid hexadecimal (0x...) or decimal number",
+                            "received": address_str,
+                        },
+                        400,
+                    )
+                except Exception as e:
+                    bn.log_error(f"Error handling function_at request: {e}")
+                    self._send_json_response(
+                        {
+                            "error": str(e),
+                            "address": address_str,
+                        },
+                        500,
+                    )
+                    
+            elif path == "/codeReferences":
+                function_name = params.get("function")
+                if not function_name:
+                    self._send_json_response(
+                        {
+                            "error": "Missing function parameter",
+                            "help": "Required parameter: function (name of the function to find references to)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                    
+                try:
+                    # Get function information first to confirm it exists
+                    func_info = self.binary_ops.get_function_info(function_name)
+                    if not func_info:
+                        self._send_json_response(
+                            {
+                                "error": "Function not found",
+                                "requested_function": function_name
+                            },
+                            404,
+                        )
+                        return
+                        
+                    # Get all code references to this function
+                    code_refs = self.binary_ops.get_function_code_references(function_name)
+                    
+                    self._send_json_response(
+                        {
+                            "function": function_name,
+                            "code_references": code_refs
+                        }
+                    )
+                except Exception as e:
+                    bn.log_error(f"Error handling code_references request: {e}")
+                    self._send_json_response(
+                        {
+                            "error": str(e),
+                            "function": function_name,
+                        },
+                        500,
+                    )
+                    
+            elif path == "/getUserDefinedType":
+                type_name = params.get("name")
+                if not type_name:
+                    self._send_json_response(
+                        {
+                            "error": "Missing name parameter",
+                            "help": "Required parameter: name (name of the user-defined type to retrieve)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                    
+                try:
+                    # Get the user-defined type definition
+                    type_info = self.binary_ops.get_user_defined_type(type_name)
+                    
+                    if type_info:
+                        self._send_json_response(type_info)
+                    else:
+                        # If type not found, list available types for reference
+                        available_types = {}
+                        
+                        try:
+                            if (hasattr(self.binary_ops._current_view, "user_type_container") and 
+                                self.binary_ops._current_view.user_type_container):
+                                for type_id in self.binary_ops._current_view.user_type_container.types.keys():
+                                    current_type = self.binary_ops._current_view.user_type_container.types[type_id]
+                                    available_types[current_type[0]] = str(current_type[1].type) if hasattr(current_type[1], "type") else "unknown"
+                        except Exception as e:
+                            bn.log_error(f"Error listing available types: {e}")
+                            
+                        self._send_json_response(
+                            {
+                                "error": "Type not found",
+                                "requested_type": type_name,
+                                "available_types": available_types
+                            },
+                            404,
+                        )
+                except Exception as e:
+                    bn.log_error(f"Error handling getUserDefinedType request: {e}")
+                    self._send_json_response(
+                        {
+                            "error": str(e),
+                            "type_name": type_name,
+                        },
+                        500,
+                    )
+                    
             elif path == "/comment":
                 if self.command == "GET":
                     address = params.get("address")

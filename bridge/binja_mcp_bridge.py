@@ -201,7 +201,27 @@ def delete_function_comment(function_name: str) -> str:
     """
     return safe_post("comment/function", {"name": function_name, "_method": "DELETE"})
 
+@mcp.tool()
+def function_at(address: str) -> str:
+    """
+    Retrive the name of the function the address belongs to. Address must be in hexadecimal format 0x00001
+    """
+    return safe_get("functionAt", {"address": address})
 
+@mcp.tool()
+def code_references(function_name: str) -> str:
+    """
+    Retrive names and addresses of functions that call the given function_name
+    """
+    return safe_get("codeReferences", {"function": function_name})
+    
+@mcp.tool()
+def get_user_defined_type(type_name: str) -> str:
+    """
+    Retrive definition of a user defined type (struct, enumeration, typedef, union)
+    """
+    return safe_get("getUserDefinedType", {"name": type_name})
+    
 if __name__ == "__main__":
     print("Starting MCP bridge service...")
     mcp.run()
