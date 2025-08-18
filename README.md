@@ -1,4 +1,5 @@
 # Binary Ninja MCP <img src="images/binja.png" height="24" style="margin-left: 5px; vertical-align: middle;">
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/fosdickio/binary_ninja_mcp)](https://archestra.ai/mcp-catalog/fosdickio__binary_ninja_mcp)
 
 This repository contains a Binary Ninja plugin, MCP server, and bridge that enables seamless integration of Binary Ninja's capabilities with your favorite LLM client.
 
