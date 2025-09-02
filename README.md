@@ -42,11 +42,22 @@ The following table details which integrations with Binary Ninja are currently s
 | `list_strings(offset, count)` | List all strings in the database (paginated). |
 | `list_all_strings()` | List all strings (no pagination; aggregates all pages). |
 | `list_strings_filter(offset, count, filter)` | List matching strings (paginated, filtered by substring). |
+| `get_xrefs_to(address)` | Get all cross references (code and data) to an address. |
+| `get_xrefs_to_field(struct_name, field_name)` | Get all cross references to a named struct field. |
+| `get_xrefs_to_struct(struct_name)` | Get xrefs/usages related to a struct (members, globals, code refs). |
+| `get_xrefs_to_union(union_name)` | Get xrefs/usages related to a union (members, globals, code refs). |
+| `get_xrefs_to_type(type_name)` | Get xrefs/usages related to a struct/type (globals, refs, HLIL matches). |
+| `get_xrefs_to_enum(enum_name)` | Get usages related to an enum (matches member constants in code). |
 
 HTTP endpoints
 - `/strings?offset=<n>&limit=<m>`: Paginated strings.
 - `/strings/filter?offset=<n>&limit=<m>&filter=<substr>`: Filtered strings.
 - `/allStrings`: All strings in one response.
+ - `/getXrefsTo?address=<addr>`: Xrefs to address (code+data).
+ - `/getXrefsToField?struct=<name>&field=<name>`: Xrefs to struct field.
+ - `/getXrefsToType?name=<type>`: Xrefs/usages related to a struct/type name.
+ - `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
+ - `/getXrefsToUnion?name=<union>`: Union xrefs/usages (members, globals, refs).
 | `rename_data` | Rename a data label at the specified address. |
 | `rename_function` | Rename a function by its current name to a new user-defined name. |
 | `search_functions_by_name` | Search for functions whose name contains the given substring. |

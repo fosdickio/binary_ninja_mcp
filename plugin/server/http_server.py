@@ -762,6 +762,129 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         {"error": str(e)},
                         500,
                     )
+                    
+            elif path == "/getXrefsTo":
+                address_str = params.get("address")
+                if not address_str:
+                    self._send_json_response(
+                        {
+                            "error": "Missing address parameter",
+                            "help": "Required parameter: address (hex like 0x401000 or decimal)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    result = self.binary_ops.get_xrefs_to_address(address_str)
+                    self._send_json_response(result)
+                except ValueError as ve:
+                    self._send_json_response({"error": str(ve)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Error handling getXrefsTo request: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/getXrefsToField":
+                struct_name = params.get("struct") or params.get("structName")
+                field_name = params.get("field") or params.get("fieldName")
+                if not struct_name or not field_name:
+                    self._send_json_response(
+                        {
+                            "error": "Missing parameters",
+                            "help": "Required: struct (or structName), field (or fieldName)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    refs = self.binary_ops.get_xrefs_to_field(struct_name, field_name)
+                    self._send_json_response({
+                        "struct": struct_name,
+                        "field": field_name,
+                        "references": refs
+                    })
+                except Exception as e:
+                    bn.log_error(f"Error handling getXrefsToField: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/getXrefsToStruct":
+                struct_name = params.get("name") or params.get("struct") or params.get("structName")
+                if not struct_name:
+                    self._send_json_response(
+                        {
+                            "error": "Missing struct name parameter",
+                            "help": "Required: name (or struct/structName)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    refs = self.binary_ops.get_xrefs_to_struct(struct_name)
+                    self._send_json_response(refs)
+                except Exception as e:
+                    bn.log_error(f"Error handling getXrefsToStruct: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/getXrefsToType":
+                type_name = params.get("name") or params.get("type") or params.get("typeName")
+                if not type_name:
+                    self._send_json_response(
+                        {
+                            "error": "Missing type name parameter",
+                            "help": "Required: name (or type/typeName)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    refs = self.binary_ops.get_xrefs_to_type(type_name)
+                    self._send_json_response(refs)
+                except Exception as e:
+                    bn.log_error(f"Error handling getXrefsToType: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            
+
+            elif path == "/getXrefsToEnum":
+                enum_name = params.get("name") or params.get("enum") or params.get("enumName")
+                if not enum_name:
+                    self._send_json_response(
+                        {
+                            "error": "Missing enum name parameter",
+                            "help": "Required: name (or enum/enumName)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    refs = self.binary_ops.get_xrefs_to_enum(enum_name)
+                    self._send_json_response(refs)
+                except Exception as e:
+                    bn.log_error(f"Error handling getXrefsToEnum: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/getXrefsToUnion":
+                union_name = params.get("name") or params.get("union") or params.get("unionName")
+                if not union_name:
+                    self._send_json_response(
+                        {
+                            "error": "Missing union name parameter",
+                            "help": "Required: name (or union/unionName)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    refs = self.binary_ops.get_xrefs_to_union(union_name)
+                    self._send_json_response(refs)
+                except Exception as e:
+                    bn.log_error(f"Error handling getXrefsToUnion: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/defineTypes":
                 c_code = params.get("cCode")

@@ -315,6 +315,51 @@ def get_user_defined_type(type_name: str) -> str:
     """
     return safe_get("getUserDefinedType", {"name": type_name})
     
+@mcp.tool()
+def get_xrefs_to(address: str) -> list:
+    """
+    Get all cross references (code and data) to the given address.
+    Address can be hex (e.g., 0x401000) or decimal.
+    """
+    return safe_get("getXrefsTo", {"address": address})
+
+@mcp.tool()
+def get_xrefs_to_field(struct_name: str, field_name: str) -> list:
+    """
+    Get all cross references to a named struct field (member).
+    """
+    return safe_get("getXrefsToField", {"struct": struct_name, "field": field_name})
+
+@mcp.tool()
+def get_xrefs_to_struct(struct_name: str) -> list:
+    """
+    Get cross references/usages related to a struct name.
+    """
+    return safe_get("getXrefsToStruct", {"name": struct_name})
+
+@mcp.tool()
+def get_xrefs_to_type(type_name: str) -> list:
+    """
+    Get xrefs/usages related to a struct or type name.
+    Includes global instances, code refs to those, HLIL matches, and functions whose signature mentions the type.
+    """
+    return safe_get("getXrefsToType", {"name": type_name})
+
+@mcp.tool()
+def get_xrefs_to_enum(enum_name: str) -> list:
+    """
+    Get usages/xrefs of an enum by scanning for member values and matches.
+    """
+    return safe_get("getXrefsToEnum", {"name": enum_name})
+
+@mcp.tool()
+def get_xrefs_to_union(union_name: str) -> list:
+    """
+    Get cross references/usages related to a union type by name.
+    """
+    return safe_get("getXrefsToUnion", {"name": union_name})
+
+    
 if __name__ == "__main__":
     print("Starting MCP bridge service...")
     mcp.run()
