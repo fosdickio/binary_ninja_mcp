@@ -27,61 +27,61 @@ This repository contains two separate components:
 
 ## Supported Integrations
 
-The following table details which integrations with Binary Ninja are currently supported.
+The following table lists available MCP tools. Sorted alphabetically by function name.
 
 | Function | Description |
 |----------|-------------|
+| `code_references` | Retrieve names and addresses of functions that call the given function. |
+| `convert_number(text, size)` | Convert a number/string to multiple representations (LE/BE, bases). |
+| `decompile_function` | Decompile a specific function by name and return the decompiled C code. |
+| `define_types` | Add type definitions from a C string type definition. |
+| `delete_comment` | Delete the comment at a specific address. |
+| `delete_function_comment` | Delete the comment for a function. |
+| `edit_function_signature` | Edit signature of a given function, given as a type string. |
+| `format_value(address, text, size)` | Convert a value and annotate it at an address in BN (adds a comment). |
+| `function_at` | Retrieve the name of the function the address belongs to. |
+| `get_assembly_function` | Get the assembly representation of a function by name or address. |
 | `get_binary_status` | Get the current status of the loaded binary. |
+| `get_comment` | Get the comment at a specific address. |
+| `get_function_comment` | Get the comment for a function. |
+| `get_user_defined_type` | Retrieve definition of a user-defined type (struct, enumeration, typedef, union). |
+| `get_xrefs_to(address)` | Get all cross references (code and data) to an address. |
+| `get_xrefs_to_enum(enum_name)` | Get usages related to an enum (matches member constants in code). |
+| `get_xrefs_to_field(struct_name, field_name)` | Get all cross references to a named struct field. |
+| `get_xrefs_to_struct(struct_name)` | Get xrefs/usages related to a struct (members, globals, code refs). |
+| `get_xrefs_to_type(type_name)` | Get xrefs/usages related to a struct/type (globals, refs, HLIL matches). |
+| `get_xrefs_to_union(union_name)` | Get xrefs/usages related to a union (members, globals, code refs). |
+| `list_all_strings()` | List all strings (no pagination; aggregates all pages). |
 | `list_classes` | List all namespace/class names in the program. |
 | `list_data_items` | List defined data labels and their values. |
 | `list_exports` | List exported functions/symbols. |
 | `list_imports` | List imported symbols in the program. |
+| `list_local_types(offset, count)` | List local Types in the current database (name/kind/decl). |
 | `list_methods` | List all function names in the program. |
 | `list_namespaces` | List all non-global namespaces in the program. |
 | `list_segments` | List all memory segments in the program. |
 | `list_strings(offset, count)` | List all strings in the database (paginated). |
-| `list_all_strings()` | List all strings (no pagination; aggregates all pages). |
 | `list_strings_filter(offset, count, filter)` | List matching strings (paginated, filtered by substring). |
-| `get_xrefs_to(address)` | Get all cross references (code and data) to an address. |
-| `get_xrefs_to_field(struct_name, field_name)` | Get all cross references to a named struct field. |
-| `get_xrefs_to_struct(struct_name)` | Get xrefs/usages related to a struct (members, globals, code refs). |
-| `get_xrefs_to_union(union_name)` | Get xrefs/usages related to a union (members, globals, code refs). |
-| `convert_number(text, size)` | Convert a number/string to multiple representations (LE/BE, bases). |
-| `format_value(address, text, size)` | Convert a value and annotate it at an address in BN (adds a comment). |
-| `list_local_types(offset, count)` | List local Types in the current database (name/kind/decl). |
-| `get_xrefs_to_type(type_name)` | Get xrefs/usages related to a struct/type (globals, refs, HLIL matches). |
-| `get_xrefs_to_enum(enum_name)` | Get usages related to an enum (matches member constants in code). |
-
-HTTP endpoints
-- `/strings?offset=<n>&limit=<m>`: Paginated strings.
-- `/strings/filter?offset=<n>&limit=<m>&filter=<substr>`: Filtered strings.
-- `/allStrings`: All strings in one response.
- - `/getXrefsTo?address=<addr>`: Xrefs to address (code+data).
- - `/getXrefsToField?struct=<name>&field=<name>`: Xrefs to struct field.
- - `/getXrefsToType?name=<type>`: Xrefs/usages related to a struct/type name.
- - `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
- - `/getXrefsToUnion?name=<union>`: Union xrefs/usages (members, globals, refs).
- - `/convertNumber?text=<value>&size=<n>`: Convert number/string to hex/dec/bin and LE/BE.
- - `/formatValue?address=<addr>&text=<value>&size=<n>`: Convert and set a comment at an address.
- - `/localTypes?offset=<n>&limit=<m>`: List local types.
 | `rename_data` | Rename a data label at the specified address. |
 | `rename_function` | Rename a function by its current name to a new user-defined name. |
-| `search_functions_by_name` | Search for functions whose name contains the given substring. |
-| `decompile_function` | Decompile a specific function by name and return the decompiled C code. |
-| `set_comment` | Set a comment at a specific address. |
-| `set_function_comment` | Set a comment for a function. |
-| `get_comment` | Get the comment at a specific address. |
-| `get_function_comment` | Get the comment for a function. |
-| `delete_comment` | Delete the comment at a specific address. |
-| `delete_function_comment` | Delete the comment for a function. |
-| `get_assembly_function` | Get the assembly representation of a function by name or address. |
-| `function_at` | Retrive the name of the function the address belongs to. |
-| `code_references` | Retrive names and addresses of functions that call the given function. |
-| `get_user_defined_type` | Retrive definition of a user defined type (struct, enumeration, typedef, union). |
 | `rename_variable` | Rename variable inside a given function. |
 | `retype_variable` | Retype variable inside a given function. |
-| `define_types` | Add type definitions from a C string type definition. |
-| `edit_function_signature` | Edit signature of a given function, given as a type string. |
+| `search_functions_by_name` | Search for functions whose name contains the given substring. |
+| `set_comment` | Set a comment at a specific address. |
+| `set_function_comment` | Set a comment for a function. |
+
+HTTP endpoints
+- `/allStrings`: All strings in one response.
+- `/convertNumber?text=<value>&size=<n>`: Convert number/string to hex/dec/bin and LE/BE.
+- `/formatValue?address=<addr>&text=<value>&size=<n>`: Convert and set a comment at an address.
+- `/getXrefsTo?address=<addr>`: Xrefs to address (code+data).
+- `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
+- `/getXrefsToField?struct=<name>&field=<name>`: Xrefs to struct field.
+- `/getXrefsToType?name=<type>`: Xrefs/usages related to a struct/type name.
+- `/getXrefsToUnion?name=<union>`: Union xrefs/usages (members, globals, refs).
+- `/localTypes?offset=<n>&limit=<m>`: List local types.
+- `/strings?offset=<n>&limit=<m>`: Paginated strings.
+- `/strings/filter?offset=<n>&limit=<m>&filter=<substr>`: Filtered strings.
 
 ## Prerequisites
 
