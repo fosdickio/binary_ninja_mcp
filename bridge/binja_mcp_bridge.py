@@ -211,6 +211,13 @@ def list_strings_filter(offset: int = 0, count: int = 100, filter: str = "") -> 
     return safe_get("strings/filter", {"offset": offset, "limit": count, "filter": filter}, timeout=None)
 
 @mcp.tool()
+def list_local_types(offset: int = 0, count: int = 200) -> list:
+    """
+    List all local types in the database (paginated).
+    """
+    return safe_get("localTypes", {"offset": offset, "limit": count}, timeout=None)
+
+@mcp.tool()
 def list_all_strings(batch_size: int = 500) -> list:
     """
     List all strings in the database (aggregated across pages).
@@ -358,6 +365,21 @@ def get_xrefs_to_union(union_name: str) -> list:
     Get cross references/usages related to a union type by name.
     """
     return safe_get("getXrefsToUnion", {"name": union_name})
+
+@mcp.tool()
+def convert_number(text: str, size: int = 0) -> list:
+    """
+    Convert a number (decimal, hexadecimal, char, or ASCII string) to multiple representations.
+    """
+    return safe_get("convertNumber", {"text": text, "size": size}, timeout=None)
+
+@mcp.tool()
+def format_value(address: str, text: str, size: int = 0) -> list:
+    """
+    Convert and annotate a value at an address in Binary Ninja.
+    Adds a comment with hex/dec and C literal/string so you can see the change.
+    """
+    return safe_get("formatValue", {"address": address, "text": text, "size": size}, timeout=None)
 
     
 if __name__ == "__main__":

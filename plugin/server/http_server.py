@@ -8,6 +8,7 @@ from ..core.binary_operations import BinaryOperations
 from ..core.config import Config
 from ..api.endpoints import BinaryNinjaEndpoints
 from ..utils.string_utils import parse_int_or_default
+from ..utils.number_utils import convert_number as util_convert_number
 
 
 class MCPRequestHandler(BaseHTTPRequestHandler):
@@ -159,6 +160,15 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"data": data_items})
                 except Exception as e:
                     bn.log_error(f"Error getting data items: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/localTypes":
+                try:
+                    types = self.binary_ops.list_local_types(offset, limit)
+                    bn.log_info(f"/localTypes returned {len(types)} entries (offset={offset}, limit={limit})")
+                    self._send_json_response({"types": types})
+                except Exception as e:
+                    bn.log_error(f"Error listing local types: {e}")
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/strings":
@@ -865,6 +875,79 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response(refs)
                 except Exception as e:
                     bn.log_error(f"Error handling getXrefsToEnum: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/convertNumber":
+                text = params.get("text")
+                size_param = params.get("size")
+                if text is None:
+                    self._send_json_response(
+                        {"error": "Missing text parameter", "help": "Required: text (number or string)"},
+                        400,
+                    )
+                    return
+                try:
+                    result = util_convert_number(text, size_param)
+                    self._send_json_response(result)
+                except Exception as e:
+                    bn.log_error(f"Error handling convertNumber: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/formatValue":
+                # Compute representations and annotate BN at an address
+                text = params.get("text")
+                size_param = params.get("size")
+                address_str = params.get("address")
+                if not text or not address_str:
+                    self._send_json_response(
+                        {
+                            "error": "Missing parameters",
+                            "help": "Required: address, text. Optional: size",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    # Parse address
+                    if isinstance(address_str, str) and address_str.startswith("0x"):
+                        addr = int(address_str, 16)
+                    else:
+                        addr = int(address_str)
+                except Exception:
+                    self._send_json_response({"error": "Invalid address format"}, 400)
+                    return
+
+                try:
+                    conv = util_convert_number(text, size_param)
+                    # Create a concise annotation
+                    bases = conv.get("bases", {})
+                    c_lit = conv.get("c_literal")
+                    c_str = conv.get("c_string")
+                    parts = []
+                    if "hex" in bases:
+                        parts.append(f"hex={bases['hex']}")
+                    if "dec" in bases:
+                        parts.append(f"dec={bases['dec']}")
+                    if c_lit:
+                        parts.append(f"char={c_lit}")
+                    if c_str:
+                        # Trim long strings for comments
+                        s = c_str
+                        if len(s) > 64:
+                            s = s[:61] + '"…'
+                        parts.append(f"str={s}")
+                    annot = "Converted: " + ", ".join(parts) if parts else f"Converted: {conv}"
+
+                    applied = self.binary_ops.set_comment(addr, annot)
+                    self._send_json_response({
+                        "address": hex(addr),
+                        "converted": conv,
+                        "applied_comment": bool(applied),
+                        "comment": annot,
+                    })
+                except Exception as e:
+                    bn.log_error(f"Error handling formatValue: {e}")
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/getXrefsToUnion":

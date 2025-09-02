@@ -441,6 +441,113 @@ class BinaryOperations:
 
         return data_items[offset : offset + limit]
 
+    def list_local_types(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+        """List local types (Types view) in the current database.
+
+        Returns a list of dictionaries with:
+        - name: type name
+        - kind: struct/union/class/enum/typedef/unknown
+        - decl: string form of the type (when available)
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+
+        results: List[Dict[str, Any]] = []
+        seen_names = set()
+        try:
+            def add_type_entry(name, tobj):
+                # Normalize name to string to avoid BN QualifiedName in JSON
+                try:
+                    name_str = str(name) if name is not None else None
+                except Exception:
+                    name_str = None
+                if not name_str or name_str in seen_names:
+                    return
+                tc = getattr(tobj, "type_class", None)
+                kind = "unknown"
+                if tc == TypeClass.VoidTypeClass:
+                    kind = "void"
+                elif tc == TypeClass.BoolTypeClass:
+                    kind = "bool"
+                elif tc == TypeClass.IntegerTypeClass:
+                    kind = "int"
+                elif tc == TypeClass.FloatTypeClass:
+                    kind = "float"
+                elif tc == TypeClass.StructureTypeClass:
+                    try:
+                        if getattr(tobj, "type", None) == StructureVariant.StructStructureType:
+                            kind = "struct"
+                        elif getattr(tobj, "type", None) == StructureVariant.UnionStructureType:
+                            kind = "union"
+                        elif getattr(tobj, "type", None) == StructureVariant.ClassStructureType:
+                            kind = "class"
+                        else:
+                            kind = "struct"
+                    except Exception:
+                        kind = "struct"
+                elif tc == TypeClass.EnumerationTypeClass:
+                    kind = "enum"
+                elif tc == TypeClass.NamedTypeReferenceClass:
+                    kind = "typedef"
+                elif tc == TypeClass.FunctionTypeClass:
+                    kind = "function"
+                elif tc == TypeClass.WideCharTypeClass:
+                    kind = "wchar"
+                elif tc == TypeClass.PointerTypeClass:
+                    kind = "pointer"
+                elif tc == TypeClass.ArrayTypeClass:
+                    kind = "array"
+
+                decl = None
+                try:
+                    decl = str(tobj)
+                except Exception:
+                    try:
+                        decl = str(getattr(tobj, "type", None))
+                    except Exception:
+                        decl = None
+
+                results.append({
+                    "name": name_str,
+                    "kind": kind,
+                    "type_class": str(tc) if tc is not None else None,
+                    "decl": decl,
+                })
+                seen_names.add(name_str)
+
+            # Source 1: user_type_container (explicit local/user types)
+            try:
+                utc = getattr(self._current_view, "user_type_container", None)
+                if utc and getattr(utc, "types", None):
+                    for type_id in list(utc.types.keys()):
+                        try:
+                            entry = utc.types[type_id]
+                            name = entry[0] if isinstance(entry, (tuple, list)) else getattr(entry, "name", None)
+                            tobj = entry[1] if isinstance(entry, (tuple, list)) else getattr(entry, "type", entry)
+                            add_type_entry(name, tobj)
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
+            # Source 2: view.types (BN view-local types)
+            for k, v in self._current_view.types.items():
+                try:
+                    if isinstance(v, (tuple, list)) and len(v) >= 2:
+                        name = str(v[0])
+                        tobj = v[1]
+                    else:
+                        tobj = v
+                        name = getattr(v, "name", None)
+                        if not name:
+                            name = str(k)
+                    add_type_entry(name, tobj)
+                except Exception:
+                    continue
+        except Exception as e:
+            bn.log_error(f"Error listing local types: {e}")
+        return results[offset : offset + limit]
+
     def get_strings(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """Get list of strings in the current binary view with pagination.
 

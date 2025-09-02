@@ -46,6 +46,9 @@ The following table details which integrations with Binary Ninja are currently s
 | `get_xrefs_to_field(struct_name, field_name)` | Get all cross references to a named struct field. |
 | `get_xrefs_to_struct(struct_name)` | Get xrefs/usages related to a struct (members, globals, code refs). |
 | `get_xrefs_to_union(union_name)` | Get xrefs/usages related to a union (members, globals, code refs). |
+| `convert_number(text, size)` | Convert a number/string to multiple representations (LE/BE, bases). |
+| `format_value(address, text, size)` | Convert a value and annotate it at an address in BN (adds a comment). |
+| `list_local_types(offset, count)` | List local Types in the current database (name/kind/decl). |
 | `get_xrefs_to_type(type_name)` | Get xrefs/usages related to a struct/type (globals, refs, HLIL matches). |
 | `get_xrefs_to_enum(enum_name)` | Get usages related to an enum (matches member constants in code). |
 
@@ -58,6 +61,9 @@ HTTP endpoints
  - `/getXrefsToType?name=<type>`: Xrefs/usages related to a struct/type name.
  - `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
  - `/getXrefsToUnion?name=<union>`: Union xrefs/usages (members, globals, refs).
+ - `/convertNumber?text=<value>&size=<n>`: Convert number/string to hex/dec/bin and LE/BE.
+ - `/formatValue?address=<addr>&text=<value>&size=<n>`: Convert and set a comment at an address.
+ - `/localTypes?offset=<n>&limit=<m>`: List local types.
 | `rename_data` | Rename a data label at the specified address. |
 | `rename_function` | Rename a function by its current name to a new user-defined name. |
 | `search_functions_by_name` | Search for functions whose name contains the given substring. |
