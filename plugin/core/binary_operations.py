@@ -2,6 +2,7 @@ import binaryninja as bn
 from typing import Optional, List, Dict, Any, Union
 from .config import BinaryNinjaConfig
 from binaryninja.enums import TypeClass, StructureVariant
+from ..utils.string_utils import escape_non_ascii
 
 
 
@@ -439,6 +440,95 @@ class BinaryOperations:
             )
 
         return data_items[offset : offset + limit]
+
+    def get_strings(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get list of strings in the current binary view with pagination.
+
+        Returns a list of dictionaries containing:
+        - address: start address of the string (hex)
+        - length: length in bytes (int if available)
+        - type: Binary Ninja string type (str if available)
+        - value: best-effort decoded and escaped string value
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+
+        results: List[Dict[str, Any]] = []
+
+        try:
+            # Prefer modern API if available
+            strings_iter = None
+            if hasattr(self._current_view, "get_strings"):
+                try:
+                    strings_iter = self._current_view.get_strings()
+                except TypeError:
+                    strings_iter = None
+
+            if strings_iter is None and hasattr(self._current_view, "strings"):
+                try:
+                    strings_iter = list(self._current_view.strings)
+                except Exception:
+                    strings_iter = []
+
+            if strings_iter is None:
+                strings_iter = []
+
+            for s in strings_iter:
+                try:
+                    addr = None
+                    length = None
+                    stype = None
+                    value = None
+
+                    # Common attributes on StringReference
+                    addr = getattr(s, "start", getattr(s, "address", None))
+                    length = getattr(s, "length", None)
+                    stype = getattr(s, "type", None)
+                    if stype is not None:
+                        try:
+                            stype = str(stype)
+                        except Exception:
+                            stype = str(stype)
+
+                    value = getattr(s, "value", None)
+
+                    # Best-effort read/decode if value is not present
+                    if value is None and addr is not None and length is not None:
+                        try:
+                            raw = self._current_view.read(addr, length)
+                            # Stop at first null byte if present
+                            nul = raw.find(b"\x00")
+                            if nul != -1:
+                                raw = raw[:nul]
+                            try:
+                                value = raw.decode("utf-8", errors="ignore")
+                            except Exception:
+                                value = raw.decode("latin-1", errors="ignore")
+                        except Exception:
+                            value = None
+
+                    # Ensure value is a string and escape non-ASCII
+                    if value is None:
+                        value = ""
+                    value = escape_non_ascii(str(value))
+
+                    results.append(
+                        {
+                            "address": hex(addr) if isinstance(addr, int) else (str(addr) if addr is not None else None),
+                            "length": int(length) if isinstance(length, (int,)) else (None if length is None else int(length)),
+                            "type": stype,
+                            "value": value,
+                        }
+                    )
+                except Exception as e:
+                    # Keep collecting even if one entry fails
+                    bn.log_debug(f"Error processing string entry: {e}")
+                    continue
+
+            return results[offset : offset + limit]
+        except Exception as e:
+            bn.log_error(f"Error getting strings: {e}")
+            return []
 
     def set_comment(self, address: int, comment: str) -> bool:
         """Set a comment at a specific address.

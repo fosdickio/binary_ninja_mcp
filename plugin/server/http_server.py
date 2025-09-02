@@ -112,7 +112,11 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             params = self._parse_query_params()
             path = urllib.parse.urlparse(self.path).path
             offset = parse_int_or_default(params.get("offset"), 0)
-            limit = parse_int_or_default(params.get("limit"), 100)
+            # Support both `limit` and `count` (alias) for pagination
+            if params.get("count") is not None:
+                limit = parse_int_or_default(params.get("count"), 100)
+            else:
+                limit = parse_int_or_default(params.get("limit"), 100)
 
             if path == "/status":
                 status = {
@@ -155,6 +159,42 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"data": data_items})
                 except Exception as e:
                     bn.log_error(f"Error getting data items: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/strings":
+                try:
+                    bn.log_info(f"/strings request: offset={offset}, limit={limit}, raw_params={params}")
+                    strings = self.binary_ops.get_strings(offset, limit)
+                    self._send_json_response({"strings": strings})
+                except Exception as e:
+                    bn.log_error(f"Error getting strings: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/allStrings":
+                try:
+                    # Return all strings without pagination
+                    bn.log_info("/allStrings request received")
+                    strings = self.binary_ops.get_strings(0, 2147483647)
+                    self._send_json_response({"strings": strings})
+                except Exception as e:
+                    bn.log_error(f"Error getting all strings: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/strings/filter":
+                try:
+                    pattern = params.get("filter", "")
+                    bn.log_info(f"/strings/filter request: offset={offset}, limit={limit}, pattern={pattern}")
+                    # Get all strings first, then filter and paginate
+                    all_strings = self.binary_ops.get_strings(0, 2147483647)
+                    if pattern:
+                        pl = pattern.lower()
+                        filtered = [s for s in all_strings if isinstance(s.get("value"), str) and pl in s.get("value", "").lower()]
+                    else:
+                        filtered = all_strings
+                    page = filtered[offset : offset + limit]
+                    self._send_json_response({"strings": page, "total": len(filtered)})
+                except Exception as e:
+                    bn.log_error(f"Error filtering strings: {e}")
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/searchFunctions":

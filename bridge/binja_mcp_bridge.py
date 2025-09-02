@@ -6,7 +6,7 @@ binja_server_url = "http://localhost:9009"
 mcp = FastMCP("binja-mcp")
 
 
-def safe_get(endpoint: str, params: dict = None) -> list:
+def safe_get(endpoint: str, params: dict = None, timeout: float | None = 5) -> list:
     """
     Perform a GET request. If 'params' is given, we convert it to a query string.
     """
@@ -19,7 +19,10 @@ def safe_get(endpoint: str, params: dict = None) -> list:
         url += "?" + query_string
 
     try:
-        response = requests.get(url, timeout=5)
+        if timeout is None:
+            response = requests.get(url)
+        else:
+            response = requests.get(url, timeout=timeout)
         response.encoding = "utf-8"
         if response.ok:
             return response.text.splitlines()
@@ -27,6 +30,30 @@ def safe_get(endpoint: str, params: dict = None) -> list:
             return [f"Error {response.status_code}: {response.text.strip()}"]
     except Exception as e:
         return [f"Request failed: {str(e)}"]
+
+
+def get_json(endpoint: str, params: dict = None, timeout: float | None = 5):
+    """
+    Perform a GET and return parsed JSON. Returns None on error.
+    """
+    if params is None:
+        params = {}
+    qs = [f"{k}={v}" for k, v in params.items()]
+    query_string = "&".join(qs)
+    url = f"{binja_server_url}/{endpoint}"
+    if query_string:
+        url += "?" + query_string
+    try:
+        if timeout is None:
+            response = requests.get(url)
+        else:
+            response = requests.get(url, timeout=timeout)
+        response.encoding = "utf-8"
+        if response.ok:
+            return response.json()
+        return None
+    except Exception:
+        return None
 
 
 def safe_post(endpoint: str, data: dict | str) -> str:
@@ -168,6 +195,45 @@ def list_imports(offset: int = 0, limit: int = 100) -> list:
     """
     return safe_get("imports", {"offset": offset, "limit": limit})
 
+
+@mcp.tool()
+def list_strings(offset: int = 0, count: int = 100) -> list:
+    """
+    List all strings in the database (paginated).
+    """
+    return safe_get("strings", {"offset": offset, "limit": count}, timeout=None)
+
+@mcp.tool()
+def list_strings_filter(offset: int = 0, count: int = 100, filter: str = "") -> list:
+    """
+    List matching strings in the database (paginated, filtered).
+    """
+    return safe_get("strings/filter", {"offset": offset, "limit": count, "filter": filter}, timeout=None)
+
+@mcp.tool()
+def list_all_strings(batch_size: int = 500) -> list:
+    """
+    List all strings in the database (aggregated across pages).
+    """
+    results: list[str] = []
+    offset = 0
+    while True:
+        data = get_json("strings", {"offset": offset, "limit": batch_size}, timeout=None)
+        if not data or "strings" not in data:
+            break
+        items = data.get("strings", [])
+        if not items:
+            break
+        for s in items:
+            addr = s.get("address")
+            length = s.get("length")
+            stype = s.get("type")
+            value = s.get("value")
+            results.append(f"{addr}\t{length}\t{stype}\t{value}")
+        if len(items) < batch_size:
+            break
+        offset += batch_size
+    return results
 
 @mcp.tool()
 def list_exports(offset: int = 0, limit: int = 100) -> list:

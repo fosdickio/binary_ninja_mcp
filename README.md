@@ -39,6 +39,14 @@ The following table details which integrations with Binary Ninja are currently s
 | `list_methods` | List all function names in the program. |
 | `list_namespaces` | List all non-global namespaces in the program. |
 | `list_segments` | List all memory segments in the program. |
+| `list_strings(offset, count)` | List all strings in the database (paginated). |
+| `list_all_strings()` | List all strings (no pagination; aggregates all pages). |
+| `list_strings_filter(offset, count, filter)` | List matching strings (paginated, filtered by substring). |
+
+HTTP endpoints
+- `/strings?offset=<n>&limit=<m>`: Paginated strings.
+- `/strings/filter?offset=<n>&limit=<m>&filter=<substr>`: Filtered strings.
+- `/allStrings`: All strings in one response.
 | `rename_data` | Rename a data label at the specified address. |
 | `rename_function` | Rename a function by its current name to a new user-defined name. |
 | `search_functions_by_name` | Search for functions whose name contains the given substring. |
@@ -156,4 +164,3 @@ binary_ninja_mcp/
 ## Contributing
 
 Contributions are welcome. Please feel free to submit a pull request.
-

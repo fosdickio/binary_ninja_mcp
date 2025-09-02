@@ -1,0 +1,3010 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the Binary Ninja reverse engineering platform">
+      
+      
+        <meta name="author" content="Vector 35 Inc">
+      
+      
+        <link rel="canonical" href="https://docs.binary.ninja/dev/plugins.html">
+      
+      
+        <link rel="prev" href="cookbook.html">
+      
+      
+        <link rel="next" href="batch.html">
+      
+      
+      <link rel="icon" href="../img/favicon.ico">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.17">
+    
+    
+      
+        <title>Writing Plugins - Binary Ninja User Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.bcfcd587.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+        <script src="../assets/external/unpkg.com/iframe-worker/shim.js"></script>
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../docs.css">
+    
+      <link rel="stylesheet" href="../github.min.css">
+    
+      <link rel="stylesheet" href="../juxtapose.min.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+   <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><style>
+    html.glightbox-open { overflow: initial; height: 100%; }
+    .gslide-title { margin-top: 0px; user-select: text; }
+    .gslide-desc { color: #666; user-select: text; }
+    .gslide-image img { background: none; }
+    .glightbox-clean .gslide-media {
+        -webkit-box-shadow: none;
+        box-shadow: none;
+    }
+    .gscrollbar-fixer { padding-right: 15px; }
+    .gdesc-inner { font-size: 0.75rem; }
+    body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color);}
+    body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color);}
+    body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color);}</style> <script src="../assets/javascripts/glightbox.min.js"></script></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="binja" data-md-color-primary="red" data-md-color-accent="red">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#writing-plugins" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Binary Ninja User Documentation" class="md-header__button md-logo" aria-label="Binary Ninja User Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Binary Ninja User Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Writing Plugins
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="binja" data-md-color-primary="red" data-md-color-accent="red"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="red" data-md-color-accent="red"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://binary.ninja/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    binary.ninja
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../getting-started.html" class="md-tabs__link">
+          
+  
+    
+  
+  User Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="index.html" class="md-tabs__link">
+          
+  
+    
+  
+  Developer Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../about/index.html" class="md-tabs__link">
+          
+  
+    
+  
+  About
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Binary Ninja User Documentation" class="md-nav__button md-logo" aria-label="Binary Ninja User Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    Binary Ninja User Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://binary.ninja/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    binary.ninja
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    User Documentation
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            User Documentation
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1_2" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../guide/index.html" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    User Guide
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1_2" id="__nav_1_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            User Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/plugins.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Using Plugins
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/settings.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Settings
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/projects.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Projects
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/enterprise/index.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Enterprise
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/troubleshooting.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Troubleshooting
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/objectivec.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Objective-C
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/firmwareninja.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Firmware Ninja
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/sharedcache.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Shared Cache
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/kernelcache.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Kernel Cache
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/efiresolver.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    EFI Resolver
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/warp.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    WARP
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/binexport.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    BinExport / BinDiff
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/guided_analysis.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Guided Analysis
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1_3" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../guide/debugger/index.html" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Debugger
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1_3" id="__nav_1_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            Debugger
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/debugger/remote-debugging.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Remote Debugging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/debugger/dbgeng-ttd.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Time Travel Debugging (Windows)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/debugger/gdbrsp-ttd.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Time Travel Debugging (Linux)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/debugger/windows-kd.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Kernel Debugging (Windows)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/debugger/corellium-remote-debugging.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Corellium Remote Debugging
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1_4" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../guide/migration/index.html" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Migration Guide
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1_4" id="__nav_1_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            Migration Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/migration/migrationguideida.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Migrating from IDA
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/migration/migrationguideghidra.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Migrating from Ghidra
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1_5" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../guide/types/index.html" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Types
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1_5" id="__nav_1_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            Types
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/types/basictypes.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Basic Types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/types/type.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Working With Types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/types/attributes.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Type Attributes and Annotations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/types/typeimportexport.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Importing/Exporting Types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/types/typearchives.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Type Archives
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/types/typelibraries.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Type Libraries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/types/debuginfo.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Debug Info
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/types/platformtypes.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Platform Types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/types/cpp.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    C++ Types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="index.html" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Developer Documentation
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Developer Documentation
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="cookbook.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Cookbook
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Writing Plugins
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="plugins.html" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Writing Plugins
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#writing-python-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Writing Python Plugins
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Writing Python Plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creating-the-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating the Plugin
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#submitting-to-the-plugin-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      Submitting to the Plugin Manager
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-your-own-plugin-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using Your Own Plugin Repository
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-plugins-using-other-ides-tab-completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      Writing plugins using other IDEs (tab completion)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugging-using-other-ides" class="md-nav__link">
+    <span class="md-ellipsis">
+      Debugging using other IDEs
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Debugging using other IDEs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#remote-debugging-with-vscode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Remote debugging with VSCode:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remote-debugging-with-intellij-pycharm" class="md-nav__link">
+    <span class="md-ellipsis">
+      Remote debugging with IntelliJ PyCharm
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ui-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      UI Plugins
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-native-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Writing Native Plugins
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Writing Native Plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-toolchains" class="md-nav__link">
+    <span class="md-ellipsis">
+      Supported Toolchains
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cmake-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      CMake Setup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      Project Setup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automated-github-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automated GitHub CI
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ui-plugins_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      UI Plugins
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Python Integration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ide-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      IDE Setup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IDE Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#clion" class="md-nav__link">
+    <span class="md-ellipsis">
+      CLion
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visual-studio-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Visual Studio Code
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#submitting-to-the-plugin-manager_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Submitting to the plugin manager
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#contributing-to-official-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Contributing to Official Plugins
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="batch.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Automation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    BNIL / Architectures
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            BNIL / Architectures
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="bnil-overview.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    BNIL Guide&#58; Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="bnil-llil.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    BNIL Guide&#58; LLIL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="bnil-mlil.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    BNIL Guide&#58; MLIL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="bnil-hlil.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    BNIL Guide&#58; HLIL
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="flags.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Flag Guide
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="bnil-modifying.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Modifying ILs
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Types
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            Types
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="annotation.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Applying Annotations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="typelibraries.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Type Libraries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_7" id="__nav_2_7_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Important Concepts
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_7">
+            <span class="md-nav__icon md-icon"></span>
+            Important Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="concepts.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Important Concepts
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="uidf.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    User Informed Data Flow
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="workflows.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Workflows
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="themes.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Creating Themes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="documentation.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Contributing Documentation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../about/index.html" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    About
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            About
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../about/license.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    License
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../about/open-source.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Open Source
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../about/icons.html" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Icons
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#writing-python-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Writing Python Plugins
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Writing Python Plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creating-the-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating the Plugin
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#submitting-to-the-plugin-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      Submitting to the Plugin Manager
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-your-own-plugin-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using Your Own Plugin Repository
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-plugins-using-other-ides-tab-completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      Writing plugins using other IDEs (tab completion)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugging-using-other-ides" class="md-nav__link">
+    <span class="md-ellipsis">
+      Debugging using other IDEs
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Debugging using other IDEs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#remote-debugging-with-vscode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Remote debugging with VSCode:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remote-debugging-with-intellij-pycharm" class="md-nav__link">
+    <span class="md-ellipsis">
+      Remote debugging with IntelliJ PyCharm
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ui-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      UI Plugins
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-native-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Writing Native Plugins
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Writing Native Plugins">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-toolchains" class="md-nav__link">
+    <span class="md-ellipsis">
+      Supported Toolchains
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cmake-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      CMake Setup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      Project Setup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automated-github-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automated GitHub CI
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ui-plugins_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      UI Plugins
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Python Integration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ide-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      IDE Setup
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IDE Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#clion" class="md-nav__link">
+    <span class="md-ellipsis">
+      CLion
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visual-studio-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Visual Studio Code
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#submitting-to-the-plugin-manager_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Submitting to the plugin manager
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#contributing-to-official-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Contributing to Official Plugins
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+<h1 id="writing-plugins">Writing Plugins<a class="headerlink" href="#writing-plugins" title="Permanent link">&para;</a></h1>
+<h2 id="writing-python-plugins">Writing Python Plugins<a class="headerlink" href="#writing-python-plugins" title="Permanent link">&para;</a></h2>
+<h3 id="creating-the-plugin">Creating the Plugin<a class="headerlink" href="#creating-the-plugin" title="Permanent link">&para;</a></h3>
+<p>First, take a look at some of the <a href="https://github.com/Vector35/binaryninja-api/tree/dev/python/examples">example</a> plugins, or some of the <a href="https://github.com/Vector35/community-plugins">community</a> plugins to get a feel for different APIs you might be interested in. Of course, the full <a href="https://api.binary.ninja/">API</a> docs are online and available offline via the <code>Help</code>/<code>Open Python API Reference...</code>.</p>
+<p>To start, we suggest you download the <a href="https://github.com/Vector35/sample_plugin">sample plugin</a> as a template since it contains all of the elements you're likely to need.</p>
+<ul>
+<li>Begin by editing the <code>plugin.json</code> file</li>
+<li>Next, update the <code>LICENSE</code></li>
+<li>For small scripts, you can include all the code inside of <code>__init__.py</code>, though we recommend for most larger scripts that init just act as an initializer and call into functions organized appropriately in other files.</li>
+<li>If you have python dependencies, create a <a href="https://pip.pypa.io/en/latest/cli/pip_freeze/">requirements.txt</a> listing any python dependencies.</li>
+</ul>
+<h3 id="submitting-to-the-plugin-manager">Submitting to the Plugin Manager<a class="headerlink" href="#submitting-to-the-plugin-manager" title="Permanent link">&para;</a></h3>
+<p>If your plugin was created as described above, there's only two steps to get it submitted to the plugin manager!</p>
+<ol>
+<li>First, create a release either <a href="https://binary.ninja/2019/07/04/plugin-manager-2.0.html#5-create-a-release">manually</a> or using our <a href="https://github.com/Vector35/release_helper">release helper</a>.</li>
+<li>Next, just <a href="https://github.com/Vector35/community-plugins/issues/new/choose">file an issue</a> letting us know about your plugin.</li>
+</ol>
+<p>For future releases all you need to do is increment the version and create a new release.</p>
+<h3 id="using-your-own-plugin-repository">Using Your Own Plugin Repository<a class="headerlink" href="#using-your-own-plugin-repository" title="Permanent link">&para;</a></h3>
+<p>The simplest way to run your own plugin repository is to duplicate the structure of <a href="https://github.com/vector35/community-plugins">https://github.com/vector35/community-plugins</a>. Specifically, the <a href="https://github.com/Vector35/community-plugins/blob/master/plugins.json">plugins.json</a>, as <a href="https://github.com/Vector35/community-plugins/blob/master/listing.json">listing.json</a> is used along with <a href="https://github.com/Vector35/community-plugins/blob/master/generate_index.py">generate_index.py</a> to create that file.</p>
+<p>Once you've created your test repository, use the <code>pluginManager.unofficialName</code> and <code>pluginManager.unofficialUrl</code> settings to add your third-party repository.</p>
+<p>The <a href="https://api.binary.ninja/binaryninja.pluginmanager-module.html#binaryninja.pluginmanager.RepositoryManager.add_repository"><code>add_repository</code></a> API can also be used to add the repository, though it <a href="https://github.com/Vector35/binaryninja-api/issues/2987">may require manual creation of the repository folder</a>.</p>
+<h3 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h3>
+<p>It's useful to be able to reload your plugin during testing. On the Commercial or Ultimate editions of Binary Ninja, this is easily accomplished with a stand-alone headless install using <code>import binaryninja</code> after <a href="https://github.com/Vector35/binaryninja-api/blob/dev/scripts/install_api.py">installing the API</a>.  (install_api.py is included in each platforms respective <a href="../guide/index.html#binary-path">installation folder</a>)</p>
+<p>Additionally, some plugin types like Architectures or BinaryViews are only loaded at launch and cannot be reloaded during a running session.</p>
+<p>For other plugins, we recommend the following workflow from the scripting console which enables easy iteration and testing:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span> <span class="nn">pluginname</span>
+<span class="kn">import</span> <span class="nn">importlib</span>
+<span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">pluginname</span><span class="p">);</span><span class="n">pluginname</span><span class="o">.</span><span class="n">callbackmethod</span><span class="p">(</span><span class="n">bv</span><span class="p">)</span>
+</code></pre></div>
+<p>Then just <code>[UP] [ENTER]</code> to trigger the reload when the plugin has changed.</p>
+<h2 id="writing-plugins-using-other-ides-tab-completion">Writing plugins using other IDEs (tab completion)<a class="headerlink" href="#writing-plugins-using-other-ides-tab-completion" title="Permanent link">&para;</a></h2>
+<p>Even though non-commercial licenses don't have headless automation, the <a href="https://github.com/Vector35/binaryninja-api/blob/dev/scripts/install_api.py">install API</a> script (which is included in the installation directory) allows you to add the binaryninja module to your python environment. Once you do that, you should get automatic completion in any editor that supports it even on non-commercial! Of course, on Commercial and Ultimate installations, the script is even more useful, allowing for headless scripts with your existing python interpreter.</p>
+<h2 id="debugging-using-other-ides">Debugging using other IDEs<a class="headerlink" href="#debugging-using-other-ides" title="Permanent link">&para;</a></h2>
+<p>If you wish to debug your python scripts, there are a few methods specific to different IDEs:</p>
+<h3 id="remote-debugging-with-vscode">Remote debugging with VSCode:<a class="headerlink" href="#remote-debugging-with-vscode" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Run <code>pip install --user debugpy</code> in the Python interpreter you have selected in Binary Ninja Settings.</li>
+<li>In VSCode, open the Run and Debug sidebar.</li>
+<li>Create a <code>launch.json</code> file if one does not already exist, or open <code>launch.json</code> if one does.</li>
+<li>In <code>launch.json</code>, select Add Configuration &gt; Python &gt; Remote Attach</li>
+<li>Enter a host of <code>localhost</code> and any port</li>
+<li>Set the path mapping to be from <code>/</code> to <code>/</code> (Windows: <code>C:\\</code> to <code>C:\\</code>)</li>
+<li>Open Binary Ninja</li>
+<li>Use <code>connect_vscode_debugger(port=12345)</code> in the Python Console, using whichever port you selected in <code>launch.json</code>.</li>
+<li>In VSCode, start debugging. You should see the bottom toolbar change color, and the debugger should be attached.</li>
+</ol>
+<h3 id="remote-debugging-with-intellij-pycharm">Remote debugging with IntelliJ PyCharm<a class="headerlink" href="#remote-debugging-with-intellij-pycharm" title="Permanent link">&para;</a></h3>
+<p><strong>WARNING</strong>: Does not work on PyCharm Community, requires PyCharm Professional</p>
+<ol>
+<li>In PyCharm, add a Run Configuration for Python Debug Server. Give it a name and choose a port and host.</li>
+<li>Run the <code>pip install</code> script displayed in the Run Configuration using whichever python interpreter you have selected for Binary Ninja.</li>
+<li>In PyCharm, start debugging. You should see "Waiting for process connection..." in the Debugger panel.</li>
+<li>Open Binary Ninja</li>
+<li>Use <code>connect_pycharm_debugger(port=12345)</code> in the Python Console, using whichever port you selected in the Run Configuration. You should now see "Connected" in the PyCharm Debugger panel.</li>
+</ol>
+<h2 id="ui-plugins">UI Plugins<a class="headerlink" href="#ui-plugins" title="Permanent link">&para;</a></h2>
+<p>Binary Ninja UI plugins should always <code>import binaryninjaui</code> before an <code>import PySide6</code>. Not only does this make sure the correct PySide6 is loaded (running the wrong version of PySide6 can result in crashing), but this <a href="https://github.com/Vector35/binaryninja-api/commit/55cb3e76f536bc8d4a6533bd7ea5202d464c5f81">prevents plugins</a> from running headlessly.</p>
+<p>UI plugins can take many forms. Some, like <a href="https://github.com/vector35/snippets">Snippets</a> create their own UI elements and interact via UIActions. Others extend the UI via existing UI elements such as <a href="https://github.com/Vector35/binaryninja-api/tree/dev/python/examples/triage">Triage</a>, <a href="https://github.com/Vector35/kaitai">Kaitai</a>, <a href="https://github.com/Vector35/binaryninja-api/blob/dev/python/examples/hellosidebar.py">hellosidebar</a>, or <a href="https://github.com/Vector35/binaryninja-api/blob/dev/python/examples/helloglobalarea.py">helloglobalarea</a>.</p>
+<p>Many other <a href="https://github.com/vector35/community-plugins/">third-party</a> plugins also implement UI based examples, such as <a href="https://github.com/withzombies/bnil-graph">BNIL Graph</a> using the FlowGraph APIs. </p>
+<p>Unfortunately, due to a PySide documentation generation issue, the best and most reliable documentation on the UI system is not in the regular <a href="https://api.binary.ninja/">python</a> API docs, but in the <a href="https://api.binary.ninja/cpp/">C++ documentation</a> which translates fairly cleanly to their python equivalent.</p>
+<h2 id="writing-native-plugins">Writing Native Plugins<a class="headerlink" href="#writing-native-plugins" title="Permanent link">&para;</a></h2>
+<p>Writing native plugins allows for higher performance code and lower level access to the Binary Ninja API, but comes with a couple more hurdles than Python. 
+Notably, native plugins are built against a specific version of the API, cannot be hot-reloaded, and require more sophisticated build setups.</p>
+<h3 id="supported-toolchains">Supported Toolchains<a class="headerlink" href="#supported-toolchains" title="Permanent link">&para;</a></h3>
+<p>When building native plugins for Binary Ninja, the following toolchains and dependencies are required, based on host OS.
+Older versions may work but are not supported.</p>
+<ul>
+<li>macOS: Xcode 15 or Command Line Tools for macOS 14 (Apple Clang 15.0.0)</li>
+<li>Windows: VS 2022 Professional with C/C++ Native Tools package, v143 (14.34)</li>
+<li>Linux: GCC 11.4+</li>
+</ul>
+<p>Additionally, Binary Ninja uses C++20 features, and requires a C++20 compatible compiler.</p>
+<h3 id="cmake-setup">CMake Setup<a class="headerlink" href="#cmake-setup" title="Permanent link">&para;</a></h3>
+<p>Binary Ninja uses the <a href="https://cmake.org/">CMake</a> build system generator to compile native code, and provides
+convenient helper scripts for those making plugins. As of writing, CMake 3.13 or greater is required,
+although it is recommended to use the latest version.</p>
+<h3 id="project-setup">Project Setup<a class="headerlink" href="#project-setup" title="Permanent link">&para;</a></h3>
+<p>The first things to specify in your CMake file are a couple boilerplate options for building C++:  </p>
+<div class="codehilite"><pre><span></span><code><span class="c"># Pick whatever version you have</span>
+<span class="nb">cmake_minimum_required</span><span class="p">(</span><span class="s">VERSION</span><span class="w"> </span><span class="s">3.24</span><span class="p">)</span>
+
+<span class="c"># Name your plugin</span>
+<span class="nb">project</span><span class="p">(</span><span class="s">TestPlugin</span><span class="w"> </span><span class="s">CXX</span><span class="p">)</span>
+
+<span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_CXX_STANDARD</span><span class="w"> </span><span class="s">20</span><span class="p">)</span>
+
+<span class="c"># Unless you are writing a plugin that needs Qt&#39;s UI, specify this</span>
+<span class="nb">set</span><span class="p">(</span><span class="s">HEADLESS</span><span class="w"> </span><span class="s">1</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Then you want to get the matching API repository for the version of Binary Ninja you have.
+This information is contained in a file named <code>api_REVISION.txt</code> that exists in the root install folder for Linux,
+the <code>Contents/Resources</code> sub-folder on macOS, and the root installation folder on Windows.</p>
+<p>Once you know which revision to use, you can clone a copy of the binaryninja-api repository
+and reference it directly in your plugin. If you're using git, this can be accomplished easily using a submodule:</p>
+<div class="codehilite"><pre><span></span><code>git submodule add https://github.com/Vector35/binaryninja-api.git binaryninjaapi
+cd binaryninjaapi
+<span class="gh">#</span> Pick the revision from api_REVISION.txt
+git checkout 6466fba3341b2ea7dbfceeeebbc6c0322a5d8514
+</code></pre></div>
+
+<p>If you're not using git, you can clone the repository elsewhere:</p>
+<div class="codehilite"><pre><span></span><code>git clone https://github.com/Vector35/binaryninja-api.git binaryninjaapi
+cd binaryninjaapi 
+<span class="gh">#</span> Pick the revision from api_REVISION.txt
+git checkout 6466fba3341b2ea7dbfceeeebbc6c0322a5d8514
+</code></pre></div>
+
+<p>Now that you have the correct copy of the api, you need to point CMake at it and include it for use.
+Include something like the following in your CMake script and either add the path of your clone
+to the HINTS list or set the BN_API_PATH environment variable to the location of your clone</p>
+<div class="codehilite"><pre><span></span><code>find_path(
+<span class="w">    </span>BN_API_PATH
+<span class="w">    </span>NAMES<span class="w"> </span>binaryninjaapi.h
+<span class="w">    </span>#<span class="w"> </span>List<span class="w"> </span>of<span class="w"> </span>paths<span class="w"> </span>to<span class="w"> </span>search<span class="w"> </span>for<span class="w"> </span>the<span class="w"> </span>clone<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>api
+<span class="w">    </span>HINTS<span class="w"> </span>../..<span class="w"> </span>binaryninjaapi<span class="w"> </span><span class="nv">$ENV</span>{BN_API_PATH}
+<span class="w">    </span>REQUIRED
+)
+add_subdirectory(<span class="cp">${</span><span class="n">BN_API_PATH</span><span class="cp">}</span><span class="w"> </span>api)
+</code></pre></div>
+
+<p>Be sure to create a shared library and link against the Binary Ninja api. Also, you can use the
+<code>bn_install_plugin</code> helper to automatically set up your plugin to install to the Binary Ninja plugins directory
+when you use <code>cmake install</code>.</p>
+<div class="codehilite"><pre><span></span><code><span class="err">#</span><span class="w"> </span><span class="nx">Use</span><span class="w"> </span><span class="nx">whichever</span><span class="w"> </span><span class="nx">sources</span><span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="nx">plugin</span><span class="w"> </span><span class="nx">name</span><span class="w"> </span><span class="nx">you</span><span class="w"> </span><span class="nx">want</span>
+<span class="nx">add_library</span><span class="p">(</span><span class="nx">TestPlugin</span><span class="w"> </span><span class="nx">SHARED</span><span class="w"> </span><span class="nx">TestPlugin</span><span class="p">.</span><span class="nx">cpp</span><span class="p">)</span>
+
+<span class="err">#</span><span class="w"> </span><span class="nx">Link</span><span class="w"> </span><span class="nx">with</span><span class="w"> </span><span class="nx">Binary</span><span class="w"> </span><span class="nx">Ninja</span>
+<span class="nx">target_link_libraries</span><span class="p">(</span><span class="nx">TestPlugin</span><span class="w"> </span><span class="nx">PUBLIC</span><span class="w"> </span><span class="nx">binaryninjaapi</span><span class="p">)</span>
+
+<span class="err">#</span><span class="w"> </span><span class="nx">Tell</span><span class="w"> </span><span class="err">`</span><span class="nx">cmake</span><span class="w"> </span><span class="o">--</span><span class="nx">install</span><span class="err">`</span><span class="w"> </span><span class="nx">to</span><span class="w"> </span><span class="nx">copy</span><span class="w"> </span><span class="nx">your</span><span class="w"> </span><span class="nx">plugin</span><span class="w"> </span><span class="nx">to</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">plugins</span><span class="w"> </span><span class="nx">directory</span>
+<span class="nx">bn_install_plugin</span><span class="p">(</span><span class="nx">TestPlugin</span><span class="p">)</span>
+</code></pre></div>
+
+<p>From there you can write the rest of your plugin's CMake configuration, including any other dependencies or
+options that you want. When you want to run your plugin, you can use <code>cmake --build</code> and <code>cmake --install</code>
+to compile and copy your plugin to your Binary Ninja plugins directory, or set up an IDE to do that for you.
+You could also copy the plugin manually if you are using a different plugins directory location. </p>
+<p>In the source code of your plugin, you will need to export some functions that Binary Ninja uses to load your plugin
+at runtime:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">#include &quot;binaryninjaapi.h&quot;</span>
+<span class="n">extern</span><span class="w"> </span><span class="s2">&quot;C&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">Tells</span><span class="w"> </span><span class="n">Binary</span><span class="w"> </span><span class="n">Ninja</span><span class="w"> </span><span class="n">which</span><span class="w"> </span><span class="n">version</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">API</span><span class="w"> </span><span class="n">you</span><span class="w"> </span><span class="n">compiled</span><span class="w"> </span><span class="n">against</span>
+<span class="w">    </span><span class="n">BN_DECLARE_CORE_ABI_VERSION</span>
+
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">Function</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">on</span><span class="w"> </span><span class="n">plugin</span><span class="w"> </span><span class="n">startup</span><span class="p">,</span><span class="w"> </span><span class="n">do</span><span class="w"> </span><span class="n">simple</span><span class="w"> </span><span class="n">initialization</span><span class="w"> </span><span class="n">here</span><span class="w"> </span><span class="p">(</span><span class="n">Settings</span><span class="p">,</span><span class="w"> </span><span class="n">BinaryViewTypes</span><span class="p">,</span><span class="w"> </span><span class="n">etc</span><span class="p">)</span>
+<span class="w">    </span><span class="n">BINARYNINJAPLUGIN</span><span class="w"> </span><span class="nb nb-Type">bool</span><span class="w"> </span><span class="n">CorePluginInit</span><span class="p">()</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="bp">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="p">(</span><span class="n">Optional</span><span class="p">)</span><span class="w"> </span><span class="n">Function</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="n">other</span><span class="w"> </span><span class="n">plugin</span><span class="w"> </span><span class="n">dependencies</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">case</span><span class="w"> </span><span class="n">your</span><span class="w"> </span><span class="n">plugin</span><span class="w"> </span><span class="n">requires</span><span class="w"> </span><span class="n">them</span>
+<span class="w">    </span><span class="n">BINARYNINJAPLUGIN</span><span class="w"> </span><span class="nb nb-Type">void</span><span class="w"> </span><span class="n">CorePluginDependencies</span><span class="p">()</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">        </span><span class="o">//</span><span class="w"> </span><span class="n">For</span><span class="w"> </span><span class="n">example</span><span class="p">,</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">you</span><span class="w"> </span><span class="n">require</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">x86</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">be</span><span class="w"> </span><span class="n">loaded</span><span class="w"> </span><span class="n">before</span><span class="w"> </span><span class="n">your</span><span class="w"> </span><span class="n">plugin</span>
+<span class="w">        </span><span class="n">AddRequiredPluginDependency</span><span class="p">(</span><span class="s2">&quot;arch_x86&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>From there, you can implement your plugin functionality as you desire. I highly recommend looking at other plugins for
+API usage since the C++ API is less well-documented than the Python API. Usually the functions and classes are named
+identically, but you may find some outliers. Also, C++ has a way more difficult task of managing memory, since there is
+no garbage collector to handle it for you. Generally speaking, most API objects are reference-counted via the <code>Ref&lt;T&gt;</code>
+class, and you should only ever handle Refs or bare pointers. When in doubt, feel free to ask on
+<a href="https://binaryninja.slack.com/">our Slack</a> and both our team and helpful community can assist.</p>
+<h3 id="automated-github-ci">Automated GitHub CI<a class="headerlink" href="#automated-github-ci" title="Permanent link">&para;</a></h3>
+<p>Managing build infrastructure to build cross-platform native plugins can be a headache even for stables, let alone 
+trying to track all dev releases. To help with that, we've published an <a href="https://github.com/Vector35/sample_plugin_cpp">example plugin</a> that includes GitHub
+actions to build on MacOS, Linux, and Windows. Combining this with something like a <a href="https://github.com/rikodot/binja_native_sigscan_loader">plugin loader</a> can simplify
+both publishing and using native plugins.</p>
+<h3 id="ui-plugins_1">UI Plugins<a class="headerlink" href="#ui-plugins_1" title="Permanent link">&para;</a></h3>
+<p>If you want to include a UI in your plugin, you can integrate with Binary Ninja's Qt-based UI by linking with Qt and <code>binaryninjaui</code>.
+You will need to use the same version of Qt as Binary Ninja. We provide steps for building it <a href="../about/open-source.html#building-qt">here</a>,
+or you can attempt to use a system-provided copy if you use Linux and like to live dangerously.
+Building it is a bit of a process, but should provide you with a working installation. Once you have a Qt build,
+you can amend your CMake file to make a UI plugin. You will need the following CMake:</p>
+<div class="codehilite"><pre><span></span><code><span class="err">#</span><span class="w"> </span><span class="nx">Remove</span><span class="w"> </span><span class="nx">this</span><span class="w"> </span><span class="k">or</span><span class="w"> </span><span class="nx">set</span><span class="w"> </span><span class="nx">to</span><span class="w"> </span><span class="mi">0</span>
+<span class="err">#</span><span class="w"> </span><span class="nx">set</span><span class="p">(</span><span class="nx">HEADLESS</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
+
+<span class="err">#</span><span class="w"> </span><span class="nx">If</span><span class="w"> </span><span class="nx">you</span><span class="w"> </span><span class="nx">are</span><span class="w"> </span><span class="nx">using</span><span class="w"> </span><span class="nx">Qt</span><span class="w"> </span><span class="nx">MOC</span><span class="w"> </span><span class="p">(</span><span class="nx">i</span><span class="p">.</span><span class="nx">e</span><span class="p">.</span><span class="w"> </span><span class="nx">use</span><span class="w"> </span><span class="nx">Q_OBJECT</span><span class="o">/</span><span class="nx">Q_SIGNALS</span><span class="o">/</span><span class="nx">Q_SLOTS</span><span class="p">)</span>
+<span class="nx">set</span><span class="p">(</span><span class="nx">CMAKE_AUTOMOC</span><span class="w"> </span><span class="nx">ON</span><span class="p">)</span>
+<span class="nx">set</span><span class="p">(</span><span class="nx">CMAKE_AUTORCC</span><span class="w"> </span><span class="nx">ON</span><span class="p">)</span>
+
+<span class="err">#</span><span class="w"> </span><span class="nx">Locate</span><span class="w"> </span><span class="nx">Qt</span><span class="w"> </span><span class="nx">installation</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="nx">linking</span>
+<span class="nx">find_package</span><span class="p">(</span><span class="nx">Qt6</span><span class="w"> </span><span class="nx">COMPONENTS</span><span class="w"> </span><span class="nx">Core</span><span class="w"> </span><span class="nx">Gui</span><span class="w"> </span><span class="nx">Widgets</span><span class="w"> </span><span class="nx">REQUIRED</span><span class="p">)</span>
+
+<span class="err">#</span><span class="w"> </span><span class="nx">Add</span><span class="w"> </span><span class="nx">MOCS</span><span class="w"> </span><span class="nx">to</span><span class="w"> </span><span class="nx">your</span><span class="w"> </span><span class="nx">build</span>
+<span class="nx">add_library</span><span class="p">(</span><span class="nx">TestPlugin</span><span class="w"> </span><span class="nx">SHARED</span><span class="w"> </span><span class="kn">library</span><span class="p">.</span><span class="nx">cpp</span><span class="w"> </span><span class="err">$</span><span class="p">{</span><span class="nx">MOCS</span><span class="p">})</span>
+
+<span class="err">#</span><span class="w"> </span><span class="nx">Link</span><span class="w"> </span><span class="nx">against</span><span class="w"> </span><span class="nx">both</span><span class="w"> </span><span class="nx">binaryninjaapi</span><span class="o">/</span><span class="nx">binaryninjaui</span><span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="nx">Qt6</span>
+<span class="nx">target_link_libraries</span><span class="p">(</span><span class="nx">TestPlugin</span><span class="w"> </span><span class="nx">PUBLIC</span><span class="w"> </span><span class="nx">binaryninjaapi</span><span class="w"> </span><span class="nx">binaryninjaui</span><span class="w"> </span><span class="nx">Qt6</span><span class="o">::</span><span class="nx">Core</span><span class="w"> </span><span class="nx">Qt6</span><span class="o">::</span><span class="nx">Gui</span><span class="w"> </span><span class="nx">Qt6</span><span class="o">::</span><span class="nx">Widgets</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Then, in your plugin code, instead of using the exported functions for a core plugin, use the ones for a UI plugin:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">#include &quot;binaryninjaapi.h&quot;</span>
+<span class="c1">#include &quot;uitypes.h&quot;</span>
+<span class="c1">#include &quot;uicontext.h&quot;</span>
+
+<span class="n">extern</span><span class="w"> </span><span class="s2">&quot;C&quot;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">Tells</span><span class="w"> </span><span class="n">Binary</span><span class="w"> </span><span class="n">Ninja</span><span class="w"> </span><span class="n">which</span><span class="w"> </span><span class="n">version</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">API</span><span class="w"> </span><span class="n">you</span><span class="w"> </span><span class="n">compiled</span><span class="w"> </span><span class="n">against</span>
+<span class="w">    </span><span class="n">BN_DECLARE_UI_ABI_VERSION</span>
+
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">Function</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">on</span><span class="w"> </span><span class="n">plugin</span><span class="w"> </span><span class="n">startup</span><span class="p">,</span><span class="w"> </span><span class="n">do</span><span class="w"> </span><span class="n">simple</span><span class="w"> </span><span class="n">initialization</span><span class="w"> </span><span class="n">here</span><span class="w"> </span><span class="p">(</span><span class="n">ViewTypes</span><span class="p">,</span><span class="w"> </span><span class="n">SidebarWidgetTypes</span><span class="p">,</span><span class="w"> </span><span class="n">etc</span><span class="p">)</span>
+<span class="w">    </span><span class="n">BINARYNINJAPLUGIN</span><span class="w"> </span><span class="nb nb-Type">bool</span><span class="w"> </span><span class="n">UIPluginInit</span><span class="p">()</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="bp">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="p">(</span><span class="n">Optional</span><span class="p">)</span><span class="w"> </span><span class="n">Function</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">add</span><span class="w"> </span><span class="n">other</span><span class="w"> </span><span class="n">plugin</span><span class="w"> </span><span class="n">dependencies</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">case</span><span class="w"> </span><span class="n">your</span><span class="w"> </span><span class="n">plugin</span><span class="w"> </span><span class="n">requires</span><span class="w"> </span><span class="n">them</span>
+<span class="w">    </span><span class="o">//</span><span class="w"> </span><span class="n">Historically</span><span class="p">,</span><span class="w"> </span><span class="n">these</span><span class="w"> </span><span class="n">have</span><span class="w"> </span><span class="n">never</span><span class="w"> </span><span class="n">actually</span><span class="w"> </span><span class="n">been</span><span class="w"> </span><span class="n">used</span><span class="w"> </span>
+<span class="w">    </span><span class="n">BINARYNINJAPLUGIN</span><span class="w"> </span><span class="nb nb-Type">void</span><span class="w"> </span><span class="n">UIPluginDependencies</span><span class="p">()</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">        </span><span class="o">//</span><span class="w"> </span><span class="n">For</span><span class="w"> </span><span class="n">example</span><span class="p">,</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">you</span><span class="w"> </span><span class="n">require</span><span class="w"> </span><span class="n">triage</span><span class="w"> </span><span class="n">view</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="n">be</span><span class="w"> </span><span class="n">loaded</span><span class="w"> </span><span class="n">before</span><span class="w"> </span><span class="n">your</span><span class="w"> </span><span class="n">plugin</span>
+<span class="w">        </span><span class="n">AddRequiredUIPluginDependency</span><span class="p">(</span><span class="s2">&quot;triage&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>From there, you can implement whatever wacky Qt user interfaces you dream up. Be warned that the Binary Ninja UI API is
+rather poorly documented and often missing helper functions for use by plugins. Feel free to ask for assistance and
+suggestions, but know that it's very easy to run into memory bugs when working with Qt. I would recommend looking at
+the source to <a href="https://github.com/vector35/debugger">the debugger</a>, as an example of the largest, best-maintained UI
+plugin for Binary Ninja.</p>
+<h3 id="python-integration">Python Integration<a class="headerlink" href="#python-integration" title="Permanent link">&para;</a></h3>
+<p>If you want your C++ plugin to also support a Python API, you will have a lot of work to do. Generally speaking, there
+are no cookie-cutter solutions to this problem, but there is a general strategy:</p>
+<ol>
+<li>Expose a C API from your plugin</li>
+<li>Provide a set of Python bindings to that C API</li>
+<li>Load those Python bindings as a Python plugin in Binary Ninja</li>
+</ol>
+<p>Again, I'm going to point out <a href="https://github.com/vector35/debugger">the debugger</a> as a fantastic example of how to
+implement this. Generally speaking, you will either need to write both sides of the FFI in a similar way, or you may
+be able to find a library that does that for you. Possibly <a href="https://sourceware.org/libffi/">libffi</a>, although there 
+aren't any examples of using it for Binary Ninja specifically. If you manage to get something working, let us know!
+We would love to see more complex plugins with extensible behavior! </p>
+<h2 id="ide-setup">IDE Setup<a class="headerlink" href="#ide-setup" title="Permanent link">&para;</a></h2>
+<h3 id="clion">CLion<a class="headerlink" href="#clion" title="Permanent link">&para;</a></h3>
+<p>CLion is generally pretty good at handling CMake projects. Given the above CMake configuration, it can
+automatically detect the plugin target and will compile and install correctly. Here are a a few steps to finish
+setup for building and live debugging your plugin:</p>
+<ol>
+<li>If you installed Binary Ninja somewhere other than the default, add an environment variable in your CMake Profile pointing at the installation, e.g.: <code>BN_INSTALL_DIR=/Applications/Binary Ninja.app</code></li>
+<li>If you are writing a UI plugin, you will need to include the directory containing <code>qmake</code> to the <code>PATH</code> Environment Variable in your CMake Profile, e.g.: <code>PATH=/usr/bin:/bin:/usr/sbin:/sbin:/Users/user/Qt/6.8.2/clang_64/bin</code></li>
+<li>In your Run Configuration's Before Launch steps, add an Install step. This will copy the updated version of your plugin before starting, so you don't have to run Install manually.</li>
+<li>Set the Executable of your Run Configuration to point to the Binary Ninja executable. This allows you to compile your plugin and start Binary Ninja automatically.
+   i. On macOS, you will need the full path to /Applications/Binary Ninja.app/Contents/MacOS/binaryninja</li>
+<li>(Optionally) Add the <code>-e</code> flag to the Program Arguments to get error logs printed to your console </li>
+<li>(Optionally) Add the <code>-e -d</code> flags to the Program Arguments to get debug logs printed to your console. This may slow down Binary Ninja (and CLion) due to the large volume of logs produced.</li>
+<li>(Optionally) Add the <code>-l /tmp/bn_out.txt</code> flags to the Program Arguments so your logs also get printed to a text file when you inevitably fill up the Console buffer in CLion and want to see what happened.</li>
+<li>(Optionally on macOS) Add the Environment Variables <code>MallocScribble=1</code> and <code>MallocPreScribble=1</code> to make memory errors easier to spot.</li>
+</ol>
+<h3 id="visual-studio-code">Visual Studio Code<a class="headerlink" href="#visual-studio-code" title="Permanent link">&para;</a></h3>
+<p>VSCode takes a bit of configuration to set up, but can build and debug plugins efficiently once ready.
+You can install the C/C++ extension, the CMake extension, and the CMake Tools extension.
+You need to set up a task in <code>.vscode/tasks.json</code> to build and install your plugin. Something like this:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// tasks.json</span>
+<span class="p">{</span>
+<span class="w">    </span><span class="s">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2.0.0&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s">&quot;tasks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">            </span><span class="s">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;cmake&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;CMake: install&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;install&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;problemMatcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">            </span><span class="s">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;CMake template install task&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;options&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="s">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// You will need this if your Binary Ninja installation is not in the default location   </span>
+<span class="w">                    </span><span class="s">&quot;BN_INSTALL_DIR&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;C:\\Users\\User\\AppData\\Local\\Vector35\\BinaryNinja&quot;</span><span class="p">,</span>
+<span class="w">                    </span><span class="c1">// You will need this if you are writing a UI plugin</span>
+<span class="w">                    </span><span class="s">&quot;PATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;C:\\Users\\User\\Qt\\6.8.2\\msvc2019_64\\bin&quot;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>You will also want to set up a launch task in <code>.vscode/launch.json</code> to launch Binary Ninja in a debugger,
+so you can debug your plugin.
+Be sure to set <code>"preLaunchTask"</code> to use the <code>CMake: install</code> task created above, so your code updates will be
+built and installed automatically before you start debugging.</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// launch.json</span>
+<span class="p">{</span>
+<span class="w">    </span><span class="s">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.2.0&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s">&quot;configurations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">            </span><span class="s">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;(Windows) Launch&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;cppvsdbg&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;request&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;launch&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;program&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;C:\\Users\\User\\AppData\\Local\\Vector35\\BinaryNinja\\binaryninja.exe&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">            </span><span class="s">&quot;stopAtEntry&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;cwd&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;C:\\Users\\User\\AppData\\Local\\Vector35\\BinaryNinja&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">            </span><span class="s">&quot;console&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;externalTerminal&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s">&quot;preLaunchTask&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;CMake: install&quot;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>There are a few other options you can use to assist in debugging:</p>
+<ol>
+<li>(Optionally) Add the <code>"-e"</code> flag to the launch configuration's <code>args</code> to get error logs printed to your console</li>
+<li>(Optionally) Add the <code>"-e", "-d"</code> flags to the launch configuration's <code>args</code> to get debug logs printed to your console. This may slow down Binary Ninja (and VSCode) due to the large volume of logs produced.</li>
+<li>(Optionally) Add the <code>"-l", "/tmp/bn_out.txt"</code> flags to the launch configuration's <code>args</code> so your logs also get printed to a text file when you inevitably fill up the Console buffer and want to see what happened.</li>
+<li>(Optionally on macOS) Add the environment variables <code>{ "name": "MallocScribble", "value": "1" }</code> and <code>{ "name": "MallocPreScribble", "value": "1" }</code> to make memory errors easier to spot.</li>
+</ol>
+<p>As a footnote, it should be noted that most of the team at Vector 35 use VSCode as a bare text editor
+and use command-line lldb or gdb to debug their code. Shout-outs to people trying to get this working in Vim.</p>
+<h2 id="submitting-to-the-plugin-manager_1">Submitting to the plugin manager<a class="headerlink" href="#submitting-to-the-plugin-manager_1" title="Permanent link">&para;</a></h2>
+<p>While native plugins are not fully supported in the plugin manager at this time, it's possible to work around this limitation by pre-building a native plugin for all three platforms and using a python plugin that acts as a loader for the native plugin. Additionally, you can submit a plugin as "view_only" which helps with discoverability.</p>
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
+<p>Several native plugin examples exist:</p>
+<ul>
+<li><a href="https://github.com/Vector35/binaryninja-api/tree/dev/examples/triage">Triage</a></li>
+<li><a href="https://github.com/Vector35/debugger">Debugger</a></li>
+<li><a href="https://github.com/jonpalmisc/ObjectiveNinja">ObjectiveNinja</a></li>
+<li><a href="https://github.com/vector35/binexport#binary-ninja">BinExport</a> (Used with BinDiff)</li>
+<li><a href="https://github.com/holmesmr/binliner">Binliner</a></li>
+</ul>
+<h2 id="contributing-to-official-plugins">Contributing to Official Plugins<a class="headerlink" href="#contributing-to-official-plugins" title="Permanent link">&para;</a></h2>
+<p>There are many many official plugins released as open source. Python ones are included in the <a href="https://github.com/vector35/official-plugins">official plugin repository</a>, <a href="https://github.com/vector35/?q=arch-&amp;type=all&amp;language=&amp;sort=">native architectures</a> are available on GitHub along with several others that are included with the default product such as the <a href="https://github.com/Vector35/debugger">debugger</a>, the <a href="https://github.com/vector35/?q=view-&amp;type=public&amp;language=&amp;sort=">views</a>, <a href="https://github.com/vector35/?q=platform&amp;type=public&amp;language=&amp;sort=">platforms</a>, and some <a href="https://github.com/Vector35/binaryninja-api/tree/dev/rust/examples">rust plugins</a>.</p>
+<p>The first time you contribute, you'll be asked to sign a <a href="https://gist.github.com/psifertex/a207c2e070f4e342554dc011e920b341">CLA</a> automatically by <a href="https://cla-assistant.io/">cla-assistant</a>. Further commits after the first should not require any changes.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12Z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.expand", "navigation.indexes", "navigation.top", "content.code.copy", "search.highlight", "toc.follow"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.1e8ae164.min.js"></script>
+      
+        <script src="../highlight.min.js"></script>
+      
+        <script src="../cpp.min.js"></script>
+      
+        <script src="../python.min.js"></script>
+      
+        <script src="../juxtapose.min.js"></script>
+      
+    
+  <script>document$.subscribe(() => {document.querySelectorAll('.glightbox').forEach(function(element) {
+    var imgSrc = element.querySelector('img').src;
+    element.setAttribute('href', imgSrc);
+});
+const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});})</script></body>
+</html>
