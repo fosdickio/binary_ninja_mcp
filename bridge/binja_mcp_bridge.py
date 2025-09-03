@@ -123,14 +123,28 @@ def decompile_function(name: str) -> str:
     """
     Decompile a specific function by name and return the decompiled C code.
     """
-    return safe_get("decompile", {"name": name})
+    data = get_json("decompile", {"name": name}, timeout=None)
+    if not data:
+        return "Error: no response"
+    if "decompiled" in data:
+        return data["decompiled"]
+    if "error" in data:
+        return f"Error: {data.get('error')}"
+    return str(data)
 
 @mcp.tool()
 def fetch_disassembly(name: str) -> str:
     """
     Retrive the disassembled code of a function with a given name as assemby mnemonic instructions.
     """
-    return safe_get("assembly", {"name": name})
+    data = get_json("assembly", {"name": name}, timeout=None)
+    if not data:
+        return "Error: no response"
+    if "assembly" in data:
+        return data["assembly"]
+    if "error" in data:
+        return f"Error: {data.get('error')}"
+    return str(data)
 
 @mcp.tool()
 def rename_function(old_name: str, new_name: str) -> str:
