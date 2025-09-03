@@ -45,6 +45,9 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `get_function_comment` | Get the comment for a function. |
 | `get_user_defined_type` | Retrieve definition of a user-defined type (struct, enumeration, typedef, union). |
 | `get_xrefs_to(address)` | Get all cross references (code and data) to an address. |
+| `get_data_decl(name_or_address, length)` | Return a C-like declaration and a hexdump for a data symbol or address. |
+| `hexdump_address(address, length)` | Text hexdump at address. `length < 0` reads exact defined size if available. |
+| `hexdump_data(name_or_address, length)` | Hexdump by data symbol name or address. `length < 0` reads exact defined size if available. |
 | `get_xrefs_to_enum(enum_name)` | Get usages related to an enum (matches member constants in code). |
 | `get_xrefs_to_field(struct_name, field_name)` | Get all cross references to a named struct field. |
 | `get_xrefs_to_struct(struct_name)` | Get xrefs/usages related to a struct (members, globals, code refs). |
@@ -76,6 +79,10 @@ HTTP endpoints
 - `/convertNumber?text=<value>&size=<n>`: Convert number/string to hex/dec/bin and LE/BE.
 - `/formatValue?address=<addr>&text=<value>&size=<n>`: Convert and set a comment at an address.
 - `/getXrefsTo?address=<addr>`: Xrefs to address (code+data).
+- `/getDataDecl?name=<symbol>|address=<addr>&length=<n>`: JSON with declaration-style string and a hexdump for a data symbol or address. Keys: `address`, `name`, `size`, `type`, `decl`, `hexdump`. `length < 0` reads exact defined size if available.
+- `/hexdump?address=<addr>&length=<n>`: Text hexdump aligned at address; `length < 0` reads exact defined size if available.
+- `/hexdumpByName?name=<symbol>&length=<n>`: Text hexdump by symbol name. Recognizes BN auto-labels like `data_<hex>`, `byte_<hex>`, `word_<hex>`, `dword_<hex>`, `qword_<hex>`, `off_<hex>`, `unk_<hex>`, and plain hex addresses.
+- `/data?offset=<n>&limit=<m>&length=<n>`: Defined data items with previews. `length` controls bytes read per item (capped at defined size). Default behavior reads exact defined size when available; `length=-1` forces exact-size.
 - `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
 - `/getXrefsToField?struct=<name>&field=<name>`: Xrefs to struct field.
 - `/getXrefsToType?name=<type>`: Xrefs/usages related to a struct/type name.

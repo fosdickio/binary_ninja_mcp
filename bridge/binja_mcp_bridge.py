@@ -56,6 +56,29 @@ def get_json(endpoint: str, params: dict = None, timeout: float | None = 5):
         return None
 
 
+def get_text(endpoint: str, params: dict = None, timeout: float | None = 5) -> str:
+    """Perform a GET and return raw text (or an error string)."""
+    if params is None:
+        params = {}
+    qs = [f"{k}={v}" for k, v in params.items()]
+    query_string = "&".join(qs)
+    url = f"{binja_server_url}/{endpoint}"
+    if query_string:
+        url += "?" + query_string
+    try:
+        if timeout is None:
+            response = requests.get(url)
+        else:
+            response = requests.get(url, timeout=timeout)
+        response.encoding = "utf-8"
+        if response.ok:
+            return response.text
+        else:
+            return f"Error {response.status_code}: {response.text.strip()}"
+    except Exception as e:
+        return f"Request failed: {str(e)}"
+
+
 def safe_post(endpoint: str, data: dict | str) -> str:
     try:
         if isinstance(data, dict):
@@ -145,6 +168,50 @@ def list_classes(offset: int = 0, limit: int = 100) -> list:
     List all namespace/class names in the program with pagination.
     """
     return safe_get("classes", {"offset": offset, "limit": limit})
+
+
+@mcp.tool()
+def hexdump_address(address: str, length: int = -1) -> str:
+    """
+    Hexdump data starting at an address. When length < 0, reads the exact defined size if available.
+    """
+    params = {"address": address}
+    if length is not None:
+        params["length"] = length
+    return get_text("hexdump", params, timeout=None)
+
+
+@mcp.tool()
+def hexdump_data(name_or_address: str, length: int = -1) -> str:
+    """
+    Hexdump a data symbol by name or address. When length < 0, reads the exact defined size if available.
+    """
+    ident = (name_or_address or "").strip()
+    if ident.startswith("0x"):
+        return hexdump_address(ident, length)
+    return get_text("hexdumpByName", {"name": ident, "length": length}, timeout=None)
+
+
+@mcp.tool()
+def get_data_decl(name_or_address: str, length: int = -1) -> str:
+    """
+    Return a declaration-like string and a hexdump for a data symbol by name or address.
+    LLM-friendly: includes both a C-like declaration (when possible) and text hexdump.
+    """
+    ident = (name_or_address or "").strip()
+    params = {"name": ident} if not ident.startswith("0x") else {"address": ident}
+    if length is not None:
+        params["length"] = length
+    data = get_json("getDataDecl", params, timeout=None)
+    if not data:
+        return "Error: no response"
+    if "error" in data:
+        return f"Error: {data.get('error')}"
+    decl = data.get("decl") or "(no declaration)"
+    hexdump = data.get("hexdump") or ""
+    addr = data.get("address", "")
+    name = data.get("name", ident)
+    return f"Declaration ({addr} {name}):\n{decl}\n\nHexdump:\n{hexdump}"
 
 
 @mcp.tool()

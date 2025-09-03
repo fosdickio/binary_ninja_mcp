@@ -84,6 +84,93 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         if "text/plain" in content_type.lower() or not content_type:
             return {"name": post_data.strip()}
 
+    # ---------- Helpers ----------
+    def _resolve_name_to_address(self, ident: str):
+        """Resolve a symbol name or hex address string to (address:int, label:str).
+
+        Tries, in order:
+        - Parse hex address (with or without 0x)
+        - get_symbol_by_raw_name
+        - get_symbol_by_name
+        - scan data_vars for matching symbol name/raw_name
+        """
+        bv = getattr(self.binary_ops, "current_view", None)
+        if not bv:
+            return None, None
+        s = (ident or "").strip()
+        # Hex address
+        try:
+            if s.lower().startswith("0x"):
+                return int(s, 16), s
+            # bare hex
+            if all(c in "0123456789abcdefABCDEF" for c in s):
+                return int(s, 16), s
+        except Exception:
+            pass
+        # Raw name
+        try:
+            get_raw = getattr(bv, "get_symbol_by_raw_name", None)
+            sym = get_raw(s) if callable(get_raw) else None
+            if sym and hasattr(sym, "address"):
+                return int(sym.address), getattr(sym, "name", s)
+        except Exception:
+            pass
+        # Pretty name
+        try:
+            get_by_name = getattr(bv, "get_symbol_by_name", None)
+            sym = get_by_name(s) if callable(get_by_name) else None
+            if sym and hasattr(sym, "address"):
+                return int(sym.address), getattr(sym, "name", s)
+        except Exception:
+            pass
+        # Heuristic: BN auto-generated data labels like data_100003f66, byte_..., word_..., dword_..., qword_..., off_..., unk_...
+        try:
+            import re as _re
+            m = _re.match(r"^(?i)(?:data|byte|word|dword|qword|off|unk)_(?:0x)?([0-9a-fA-F]+)$", s)
+            if m:
+                a = int(m.group(1), 16)
+                return a, s
+        except Exception:
+            pass
+        # Scan data vars
+        try:
+            for var in list(bv.data_vars):
+                try:
+                    sy = bv.get_symbol_at(var)
+                    if not sy:
+                        continue
+                    if getattr(sy, "name", None) == s or getattr(sy, "raw_name", None) == s:
+                        return int(var), getattr(sy, "name", s)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return None, None
+
+    def _c_escape(self, raw: bytes, limit: int | None = None) -> str:
+        """Escape bytes as a C string literal."""
+        try:
+            b = raw if limit is None else raw[:limit]
+            out = []
+            for ch in b:
+                if ch == 0x22:  # '"'
+                    out.append('\\"')
+                elif ch == 0x5c:  # '\\'
+                    out.append('\\\\')
+                elif 32 <= ch <= 126:
+                    out.append(chr(ch))
+                elif ch == 0x0a:
+                    out.append('\\n')
+                elif ch == 0x0d:
+                    out.append('\\r')
+                elif ch == 0x09:
+                    out.append('\\t')
+                else:
+                    out.append(f"\\x{ch:02x}")
+            return '"' + ''.join(out) + '"'
+        except Exception:
+            return '""'
+
         # Try all formats as fallback
         try:
             return json.loads(post_data)
@@ -156,7 +243,17 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
             elif path == "/data":
                 try:
-                    data_items = self.binary_ops.get_defined_data(offset, limit)
+                    # length: desired byte count to read for preview; negative means "read exact defined size"
+                    length_param = params.get("length")
+                    preview_param = params.get("previewLen")
+                    if length_param is not None:
+                        read_len = parse_int_or_default(length_param, 32)
+                    elif preview_param is not None:
+                        read_len = parse_int_or_default(preview_param, 32)
+                    else:
+                        # Default: read exact defined size when available
+                        read_len = -1
+                    data_items = self.binary_ops.get_defined_data(offset, limit, read_len)
                     self._send_json_response({"data": data_items})
                 except Exception as e:
                     bn.log_error(f"Error getting data items: {e}")
@@ -209,6 +306,282 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"strings": strings})
                 except Exception as e:
                     bn.log_error(f"Error getting all strings: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/hexdump":
+                try:
+                    address_str = params.get("address")
+                    if not address_str:
+                        self._set_headers(content_type="text/plain", status_code=400)
+                        self.wfile.write(b"Missing address parameter\n")
+                        return
+                    # Parse address
+                    try:
+                        addr = int(address_str, 16) if address_str.startswith("0x") else int(address_str, 16 if all(c in "0123456789abcdefABCDEF" for c in address_str) else 10)
+                    except Exception:
+                        self._set_headers(content_type="text/plain", status_code=400)
+                        self.wfile.write(b"Invalid address format; use hex like 0x401000\n")
+                        return
+
+                    # Determine length
+                    length_param = params.get("length")
+                    read_len = None
+                    if length_param is not None:
+                        try:
+                            read_len = int(length_param)
+                        except Exception:
+                            read_len = None
+                    # Default to exact defined size when available
+                    if read_len is None:
+                        read_len = -1
+
+                    # If negative, try to use exact defined size at this address
+                    if read_len < 0:
+                        try:
+                            inferred = self.binary_ops.infer_data_size(addr)
+                            if inferred is not None and inferred > 0:
+                                read_len = int(inferred)
+                        except Exception:
+                            pass
+                    # Fallback default length
+                    if read_len is None or read_len < 0:
+                        read_len = 64
+
+                    # Read bytes
+                    try:
+                        data = self.binary_ops.current_view.read(addr, read_len)
+                        if data is None:
+                            data = b""
+                    except Exception:
+                        data = b""
+
+                    # Resolve symbol name for header label
+                    label = None
+                    try:
+                        sym = self.binary_ops.current_view.get_symbol_at(addr)
+                        if sym and hasattr(sym, "name"):
+                            label = sym.name
+                    except Exception:
+                        label = None
+
+                    # Build hexdump
+                    def _printable(b: int) -> str:
+                        try:
+                            return chr(b) if 32 <= b <= 126 else "."
+                        except Exception:
+                            return "."
+
+                    lines = []
+                    addr_hex = format(addr, 'x')
+                    if label:
+                        lines.append(f"{addr_hex}  {label}:")
+                    else:
+                        lines.append(f"{addr_hex}:")
+
+                    total = len(data)
+                    offset = 0
+                    # First line may be unaligned
+                    first_pad = addr % 16
+                    if first_pad != 0 and total > 0:
+                        take = min(16 - first_pad, total)
+                        chunk = data[0:take]
+                        hex_area = ("   " * first_pad) + "".join(f"{b:02x} " for b in chunk)
+                        hex_area += "   " * (16 - first_pad - take)
+                        ascii_area = (" " * first_pad) + "".join(_printable(b) for b in chunk)
+                        ascii_area += " " * (16 - first_pad - take)
+                        lines.append(f"{addr_hex}  {hex_area} {ascii_area}")
+                        offset += take
+                    # Full lines
+                    while offset < total:
+                        line_addr = addr + offset
+                        take = min(16, total - offset)
+                        chunk = data[offset:offset+take]
+                        hex_area = "".join(f"{b:02x} " for b in chunk) + ("   " * (16 - take))
+                        ascii_area = "".join(_printable(b) for b in chunk) + (" " * (16 - take))
+                        lines.append(f"{format(line_addr, 'x')}  {hex_area} {ascii_area}")
+                        offset += take
+
+                    text = "\n".join(lines) + "\n"
+                    self._set_headers(content_type="text/plain", status_code=200)
+                    self.wfile.write(text.encode("utf-8", errors="replace"))
+                except Exception as e:
+                    bn.log_error(f"Error handling hexdump: {e}")
+                    self._set_headers(content_type="text/plain", status_code=500)
+                    self.wfile.write(f"Error: {e}\n".encode("utf-8"))
+
+            elif path == "/hexdumpByName":
+                try:
+                    name = params.get("name") or params.get("symbol") or params.get("raw_name")
+                    if not name:
+                        self._set_headers(content_type="text/plain", status_code=400)
+                        self.wfile.write(b"Missing name parameter\n")
+                        return
+
+                    addr, label = self._resolve_name_to_address(name)
+                    if addr is None:
+                        self._set_headers(content_type="text/plain", status_code=404)
+                        self.wfile.write(b"Symbol not found\n")
+                        return
+
+                    # Determine length
+                    length_param = params.get("length")
+                    try:
+                        read_len = int(length_param) if length_param is not None else -1
+                    except Exception:
+                        read_len = -1
+                    if read_len < 0:
+                        try:
+                            inferred = self.binary_ops.infer_data_size(addr)
+                            if inferred is not None and inferred > 0:
+                                read_len = int(inferred)
+                        except Exception:
+                            pass
+                    if read_len is None or read_len < 0:
+                        read_len = 64
+
+                    # Read and format
+                    try:
+                        data = self.binary_ops.current_view.read(addr, read_len) or b""
+                    except Exception:
+                        data = b""
+
+                    def _printable(b: int) -> str:
+                        try:
+                            return chr(b) if 32 <= b <= 126 else "."
+                        except Exception:
+                            return "."
+
+                    lines = []
+                    addr_hex = format(addr, 'x')
+                    lines.append(f"{addr_hex}  {label}:")
+
+                    total = len(data)
+                    offset = 0
+                    first_pad = addr % 16
+                    if first_pad != 0 and total > 0:
+                        take = min(16 - first_pad, total)
+                        chunk = data[0:take]
+                        hex_area = ("   " * first_pad) + "".join(f"{b:02x} " for b in chunk)
+                        hex_area += "   " * (16 - first_pad - take)
+                        ascii_area = (" " * first_pad) + "".join(_printable(b) for b in chunk)
+                        ascii_area += " " * (16 - first_pad - take)
+                        lines.append(f"{addr_hex}  {hex_area} {ascii_area}")
+                        offset += take
+                    while offset < total:
+                        line_addr = addr + offset
+                        take = min(16, total - offset)
+                        chunk = data[offset:offset+take]
+                        hex_area = "".join(f"{b:02x} " for b in chunk) + ("   " * (16 - take))
+                        ascii_area = "".join(_printable(b) for b in chunk) + (" " * (16 - take))
+                        lines.append(f"{format(line_addr, 'x')}  {hex_area} {ascii_area}")
+                        offset += take
+
+                    text = "\n".join(lines) + "\n"
+                    self._set_headers(content_type="text/plain", status_code=200)
+                    self.wfile.write(text.encode("utf-8", errors="replace"))
+                except Exception as e:
+                    bn.log_error(f"Error handling hexdumpByName: {e}")
+                    self._set_headers(content_type="text/plain", status_code=500)
+                    self.wfile.write(f"Error: {e}\n".encode("utf-8"))
+
+            elif path == "/getDataDecl":
+                try:
+                    ident = params.get("name") or params.get("symbol") or params.get("raw_name") or params.get("address")
+                    if not ident:
+                        self._send_json_response({"error": "Missing name/address parameter", "help": "Provide name, symbol, raw_name, or address"}, 400)
+                        return
+                    addr, label = self._resolve_name_to_address(ident)
+                    if addr is None:
+                        self._send_json_response({"error": "Symbol not found", "ident": ident}, 404)
+                        return
+
+                    # Determine exact size and type
+                    size = None
+                    type_text = None
+                    try:
+                        bv = self.binary_ops.current_view
+                        dv = bv.get_data_var_at(addr) if hasattr(bv, "get_data_var_at") else None
+                        typ_obj = dv.type if (dv is not None and hasattr(dv, "type")) else (bv.get_type_at(addr) if hasattr(bv, "get_type_at") else None)
+                        if typ_obj is not None:
+                            type_text = str(typ_obj)
+                            if hasattr(typ_obj, "width") and typ_obj.width:
+                                size = int(typ_obj.width)
+                    except Exception:
+                        pass
+                    if size is None:
+                        try:
+                            inferred = self.binary_ops.infer_data_size(addr)
+                            if inferred and inferred > 0:
+                                size = int(inferred)
+                        except Exception:
+                            pass
+                    if size is None:
+                        size = 64
+
+                    # Read bytes
+                    try:
+                        raw = self.binary_ops.current_view.read(addr, size) or b""
+                    except Exception:
+                        raw = b""
+
+                    # Build a declaration string (best-effort)
+                    decl = None
+                    try:
+                        # Prefer explicit char[] initialization when printable
+                        is_char_array = (type_text or "").lower().startswith("char") or "char [" in (type_text or "").lower()
+                        if is_char_array and raw:
+                            esc = self._c_escape(raw.rstrip(b"\x00"))
+                            decl = f"{type_text} {label} = {esc};"
+                        else:
+                            if type_text:
+                                decl = f"{type_text} {label};"
+                            else:
+                                decl = f"/* size={size} */ {label};"
+                    except Exception:
+                        decl = f"/* size={size} */ {label};"
+
+                    # Also include a hexdump for convenience
+                    # Reuse the hexdump generation above
+                    def _printable(b: int) -> str:
+                        try:
+                            return chr(b) if 32 <= b <= 126 else "."
+                        except Exception:
+                            return "."
+                    lines = []
+                    addr_hex = format(addr, 'x')
+                    lines.append(f"{addr_hex}  {label}:")
+                    total = len(raw)
+                    offset = 0
+                    first_pad = addr % 16
+                    if first_pad != 0 and total > 0:
+                        take = min(16 - first_pad, total)
+                        chunk = raw[0:take]
+                        hex_area = ("   " * first_pad) + "".join(f"{b:02x} " for b in chunk)
+                        hex_area += "   " * (16 - first_pad - take)
+                        ascii_area = (" " * first_pad) + "".join(_printable(b) for b in chunk)
+                        ascii_area += " " * (16 - first_pad - take)
+                        lines.append(f"{addr_hex}  {hex_area} {ascii_area}")
+                        offset += take
+                    while offset < total:
+                        line_addr = addr + offset
+                        take = min(16, total - offset)
+                        chunk = raw[offset:offset+take]
+                        hex_area = "".join(f"{b:02x} " for b in chunk) + ("   " * (16 - take))
+                        ascii_area = "".join(_printable(b) for b in chunk) + (" " * (16 - take))
+                        lines.append(f"{format(line_addr, 'x')}  {hex_area} {ascii_area}")
+                        offset += take
+                    hexdump_text = "\n".join(lines) + "\n"
+
+                    self._send_json_response({
+                        "address": hex(addr),
+                        "name": label,
+                        "size": size,
+                        "type": type_text,
+                        "decl": decl,
+                        "hexdump": hexdump_text,
+                    })
+                except Exception as e:
+                    bn.log_error(f"Error handling getDataDecl: {e}")
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/strings/filter":

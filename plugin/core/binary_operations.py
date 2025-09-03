@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any, Union
 from .config import BinaryNinjaConfig
 from binaryninja.enums import TypeClass, StructureVariant
 from ..utils.string_utils import escape_non_ascii
+import re
 
 
 
@@ -395,51 +396,207 @@ class BinaryOperations:
         return False
 
     def get_defined_data(
-        self, offset: int = 0, limit: int = 100
+        self, offset: int = 0, limit: int = 100, read_len: int = 32
     ) -> List[Dict[str, Any]]:
-        """Get list of defined data variables"""
+        """Get list of defined data variables with lightweight previews and sizes.
+
+        Returns per-item fields:
+        - address: hex string
+        - name/raw_name: label info if available
+        - type: string if available
+        - size: exact defined size in bytes if known (from BN type)
+        - width: alias of size for backward compatibility
+        - value: small integer value when width<=8 and readable; otherwise None
+        - bytes_hex: hex string of up to preview_len bytes
+        - ascii_preview: printable ASCII representation for the same bytes
+        - repr: concise, human-friendly summary for LLMs (value/ASCII/hex)
+        """
         if not self._current_view:
             raise RuntimeError("No binary loaded")
 
         data_items = []
         for var in self._current_view.data_vars:
-            data_type = None
+            data_type = None  # may be a BN Type or a DataVariable
             value = None
+            width = None
+            bytes_hex = None
+            ascii_preview = None
+            typ_obj = None
 
             try:
-                # Try to get data type safely
-                if hasattr(self._current_view, "get_type_at"):
-                    data_type = self._current_view.get_type_at(var)
-                elif hasattr(self._current_view, "get_data_var_at"):
-                    data_type = self._current_view.get_data_var_at(var)
-
-                # Try to read value if type is available and small enough
-                if data_type and hasattr(data_type, "width") and data_type.width <= 8:
+                # Prefer DataVariable (carries underlying Type)
+                dv = None
+                if hasattr(self._current_view, "get_data_var_at"):
                     try:
-                        value = str(self._current_view.read_int(var, data_type.width))
-                    except (ValueError, RuntimeError):
-                        value = "(unreadable)"
+                        dv = self._current_view.get_data_var_at(var)
+                    except Exception:
+                        dv = None
+                if dv is not None and hasattr(dv, "type") and dv.type is not None:
+                    typ_obj = dv.type
+                    data_type = dv  # keep for fallback string formatting
                 else:
-                    value = "(complex data)"
+                    # Fall back to direct type lookup
+                    if hasattr(self._current_view, "get_type_at"):
+                        try:
+                            typ_obj = self._current_view.get_type_at(var)
+                            data_type = typ_obj
+                        except Exception:
+                            typ_obj = None
+
+                # Exact defined size if available
+                if typ_obj is not None and hasattr(typ_obj, "width"):
+                    try:
+                        width = int(typ_obj.width)
+                    except Exception:
+                        width = None
+
+                # Best-effort numeric read for small integers (<= 8 bytes)
+                if width is not None and width <= 8:
+                    try:
+                        value = str(self._current_view.read_int(var, width))
+                    except (ValueError, RuntimeError):
+                        value = None
+
+                # Provide bytes + ASCII preview for all cases
+                # Determine effective read length
+                try:
+                    requested = int(read_len)
+                except Exception:
+                    requested = 32
+                # If requested < 0 and width known, treat as "read exact size"
+                if requested < 0 and width is not None:
+                    eff_len = max(0, int(width))
+                else:
+                    eff_len = max(0, requested if requested >= 0 else 32)
+                if width is not None:
+                    eff_len = min(eff_len, int(width))
+
+                try:
+                    raw = self._current_view.read(var, eff_len)
+                    if raw is not None:
+                        try:
+                            bytes_hex = raw.hex()
+                        except Exception:
+                            bytes_hex = None
+                        try:
+                            ascii_preview = "".join(chr(b) if 32 <= b <= 126 else "." for b in raw)
+                        except Exception:
+                            ascii_preview = None
+                except (ValueError, RuntimeError, TypeError):
+                    pass
             except (AttributeError, TypeError, ValueError, RuntimeError):
-                value = "(unknown)"
+                value = None
                 data_type = None
+                typ_obj = None
+
+            # If BN doesn't expose a width, try to infer size from call sites
+            if width is None:
+                try:
+                    inferred = self.infer_data_size(int(var))
+                    if isinstance(inferred, int) and inferred > 0:
+                        width = inferred
+                except Exception:
+                    pass
 
             # Get symbol information
             sym = self._current_view.get_symbol_at(var)
+            # Choose a concise repr for LLMs
+            if value is not None:
+                short_repr = f"int:{value}"
+            elif ascii_preview:
+                short_repr = f"ascii:\"{ascii_preview}\""
+            elif bytes_hex:
+                short_repr = f"hex:{bytes_hex}"
+            else:
+                short_repr = None
+
             data_items.append(
                 {
                     "address": hex(var),
                     "name": sym.name if sym else "(unnamed)",
-                    "raw_name": sym.raw_name
-                    if sym and hasattr(sym, "raw_name")
-                    else None,
+                    "raw_name": sym.raw_name if sym and hasattr(sym, "raw_name") else None,
+                    # Prefer clean type string (avoid "<var ...>" envelope when possible)
+                    "type": (str(typ_obj) if typ_obj is not None else (str(data_type) if data_type else None)),
+                    "size": width,
+                    "width": width,
                     "value": value,
-                    "type": str(data_type) if data_type else None,
+                    "bytes_hex": bytes_hex,
+                    "ascii_preview": ascii_preview,
+                    "bytes_read": len(bytes_hex)//2 if bytes_hex else 0,
+                    "repr": short_repr,
                 }
             )
 
         return data_items[offset : offset + limit]
+
+    def infer_data_size(self, address: int) -> Optional[int]:
+        """Infer size for data at address when BN hasn't defined a type width.
+
+        Strategy:
+        - Prefer BN's DataVariable.type.width or get_type_at().width if available.
+        - Otherwise scan HLIL for calls like memcmp/strncmp/memcpy/strncpy where
+          an argument equals this address and extract the last numeric argument
+          as a best-effort length. Returns the maximum constant seen.
+        """
+        if not self._current_view:
+            return None
+
+        # 1) BN-provided width if available
+        try:
+            dv = None
+            if hasattr(self._current_view, "get_data_var_at"):
+                dv = self._current_view.get_data_var_at(address)
+            t = None
+            if dv is not None and hasattr(dv, "type"):
+                t = dv.type
+            elif hasattr(self._current_view, "get_type_at"):
+                t = self._current_view.get_type_at(address)
+            if t is not None and hasattr(t, "width") and t.width:
+                return int(t.width)
+        except Exception:
+            pass
+
+        # 2) HLIL heuristic
+        try:
+            addr_hex = hex(address)
+            candidates: List[int] = []
+            names = ("memcmp", "strncmp", "memcpy", "strncpy")
+            for func in list(self._current_view.functions):
+                try:
+                    il = getattr(func, "hlil", None)
+                    if not il:
+                        continue
+                    for ins in il.instructions:
+                        try:
+                            text = str(ins)
+                            if addr_hex not in text:
+                                continue
+                            if not any(n in text for n in names):
+                                continue
+                            # Extract all numeric constants
+                            nums = re.findall(r"0x[0-9a-fA-F]+|\b\d+\b", text)
+                            vals: List[int] = []
+                            for n in nums:
+                                try:
+                                    v = int(n, 16) if n.startswith("0x") else int(n)
+                                    vals.append(v)
+                                except Exception:
+                                    continue
+                            if vals:
+                                # Heuristic: last constant in call string is likely the size
+                                candidates.append(vals[-1])
+                        except Exception:
+                            continue
+                except Exception:
+                    continue
+            if candidates:
+                # Use the maximum plausible size
+                best = max(c for c in candidates if c > 0)
+                if best > 0:
+                    return best
+        except Exception:
+            pass
+        return None
 
     def list_local_types(self, offset: int = 0, limit: int = 100, include_libraries: bool = False) -> List[Dict[str, Any]]:
         """List local types (Types view) in the current database.
