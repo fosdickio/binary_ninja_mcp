@@ -22,7 +22,7 @@ class BinaryNinjaMCP:
         try:
             self.server.binary_ops.current_view = None
             self.server.stop()
-            bn.log_info("Binary Ninja MCP plugin stopped successfully")
+            bn.log_info("Binary Ninja MCP Max plugin stopped successfully")
         except Exception as e:
             bn.log_error(f"Failed to stop server: {str(e)}")
 

@@ -1154,9 +1154,83 @@ class BinaryOperations:
                 for ref in list(self._current_view.get_code_refs(addr)):
                     try:
                         fn_name = ref.function.name if getattr(ref, "function", None) else None
-                        result["code_references"].append(
-                            {"function": fn_name, "address": hex(ref.address)}
-                        )
+                        entry = {"function": fn_name, "address": hex(ref.address)}
+
+                        # Heuristic: only attach a following call if the referenced data
+                        # is carried in a parameter register up to that call (likely passed as an arg)
+                        try:
+                            func = ref.function if getattr(ref, "function", None) else self._current_view.get_function_at(ref.address)
+                            if func is not None:
+                                import re as _re
+                                # identify destination register at xref instruction
+                                def _canon_reg(r: str) -> str:
+                                    r = (r or "").strip().lower()
+                                    mp = {
+                                        'rcx':'rcx','ecx':'rcx','cx':'rcx','cl':'rcx','ch':'rcx',
+                                        'rdx':'rdx','edx':'rdx','dx':'rdx','dl':'rdx','dh':'rdx',
+                                        'r8':'r8','r8d':'r8','r8w':'r8','r8b':'r8',
+                                        'r9':'r9','r9d':'r9','r9w':'r9','r9b':'r9',
+                                        'rdi':'rdi','edi':'rdi','di':'rdi','dil':'rdi',
+                                        'rsi':'rsi','esi':'rsi','si':'rsi','sil':'rsi',
+                                    }
+                                    return mp.get(r, r)
+                                def _first_op_reg(d: str) -> str:
+                                    try:
+                                        parts = d.strip().split(None, 1)
+                                        if len(parts) < 2:
+                                            return ""
+                                        ops = parts[1].split(';',1)[0]
+                                        first = ops.split(',',1)[0].strip()
+                                        if '[' in first:
+                                            return ""
+                                        for kw in ("byte","word","dword","qword","ptr"):
+                                            if first.startswith(kw):
+                                                first = first[len(kw):].strip()
+                                        return first.split()[0]
+                                    except Exception:
+                                        return ""
+                                try:
+                                    xdis = self._current_view.get_disassembly(ref.address) or ""
+                                except Exception:
+                                    xdis = ""
+                                dest = _canon_reg(_first_op_reg(xdis))
+                                arg_regs = {"rcx","rdx","r8","r9","rdi","rsi"}
+                                if dest in arg_regs:
+                                    steps = 16
+                                    curr = ref.address
+                                    overwritten = False
+                                    while steps > 0 and curr < getattr(func, 'highest_address', curr + 1024):
+                                        ilen = self._current_view.get_instruction_length(curr) or 1
+                                        try:
+                                            dis = self._current_view.get_disassembly(curr) or ""
+                                        except Exception:
+                                            dis = ""
+                                        # detect clobber of the arg register
+                                        if curr != ref.address and _canon_reg(_first_op_reg(dis)) == dest:
+                                            overwritten = True
+                                        if ("call" in dis.lower()) and not overwritten:
+                                            entry["following_call_address"] = hex(curr)
+                                            m = _re.search(r"0x[0-9a-fA-F]+", dis)
+                                            tgt = None
+                                            if m:
+                                                try:
+                                                    tgt = int(m.group(0), 16)
+                                                except Exception:
+                                                    tgt = None
+                                            if tgt is not None:
+                                                sym = self._current_view.get_symbol_at(tgt)
+                                                if sym and hasattr(sym,'name'):
+                                                    entry["following_call_target"] = sym.name
+                                                else:
+                                                    tfn = self._current_view.get_function_at(tgt)
+                                                    entry["following_call_target"] = tfn.name if (tfn and hasattr(tfn,'name')) else hex(tgt)
+                                            break
+                                        curr += max(1, ilen)
+                                        steps -= 1
+                        except Exception:
+                            pass
+
+                        result["code_references"].append(entry)
                     except Exception:
                         continue
         except Exception as e:
