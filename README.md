@@ -51,6 +51,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `get_xrefs_to_struct(struct_name)` | Get xrefs/usages related to a struct (members, globals, code refs). |
 | `get_xrefs_to_type(type_name)` | Get xrefs/usages related to a struct/type (globals, refs, HLIL matches). |
 | `get_xrefs_to_union(union_name)` | Get xrefs/usages related to a union (members, globals, code refs). |
+| `get_type_info(type_name)` | Resolve a type and return declaration, kind, and members. |
 | `list_all_strings()` | List all strings (no pagination; aggregates all pages). |
 | `list_classes` | List all namespace/class names in the program. |
 | `list_data_items` | List defined data labels and their values. |
@@ -67,6 +68,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `rename_variable` | Rename variable inside a given function. |
 | `retype_variable` | Retype variable inside a given function. |
 | `search_functions_by_name` | Search for functions whose name contains the given substring. |
+| `search_types(query, offset, count)` | Search local Types by substring (name/decl). |
 | `set_comment` | Set a comment at a specific address. |
 | `set_function_comment` | Set a comment for a function. |
 
@@ -78,10 +80,12 @@ HTTP endpoints
 - `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
 - `/getXrefsToField?struct=<name>&field=<name>`: Xrefs to struct field.
 - `/getXrefsToType?name=<type>`: Xrefs/usages related to a struct/type name.
+- `/getTypeInfo?name=<type>`: Resolve a type and return declaration and details.
 - `/getXrefsToUnion?name=<union>`: Union xrefs/usages (members, globals, refs).
 - `/localTypes?offset=<n>&limit=<m>`: List local types.
 - `/strings?offset=<n>&limit=<m>`: Paginated strings.
 - `/strings/filter?offset=<n>&limit=<m>&filter=<substr>`: Filtered strings.
+- `/searchTypes?query=<substr>&offset=<n>&limit=<m>`: Search local types by substring.
 
 ## Prerequisites
 

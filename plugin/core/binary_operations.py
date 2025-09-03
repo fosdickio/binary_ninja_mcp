@@ -441,7 +441,7 @@ class BinaryOperations:
 
         return data_items[offset : offset + limit]
 
-    def list_local_types(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+    def list_local_types(self, offset: int = 0, limit: int = 100, include_libraries: bool = False) -> List[Dict[str, Any]]:
         """List local types (Types view) in the current database.
 
         Returns a list of dictionaries with:
@@ -453,7 +453,7 @@ class BinaryOperations:
             raise RuntimeError("No binary loaded")
 
         results: List[Dict[str, Any]] = []
-        seen_names = set()
+        seen_keys = set()
         try:
             def add_type_entry(name, tobj):
                 # Normalize name to string to avoid BN QualifiedName in JSON
@@ -461,8 +461,40 @@ class BinaryOperations:
                     name_str = str(name) if name is not None else None
                 except Exception:
                     name_str = None
-                if not name_str or name_str in seen_names:
+                if not name_str:
                     return
+                # Fallback: try to resolve missing type object by querying BV / libraries
+                if tobj is None:
+                    try:
+                        if hasattr(self._current_view, "get_type_by_name"):
+                            t2 = self._current_view.get_type_by_name(name_str)
+                            if t2 is not None:
+                                tobj = t2
+                    except Exception:
+                        pass
+                    if tobj is None:
+                        try:
+                            plat = getattr(self._current_view, "platform", None)
+                            libs = list(getattr(plat, "type_libraries", []) or []) if plat else []
+                            for lib in libs:
+                                get_t = getattr(lib, "get_type_by_name", None)
+                                if not callable(get_t):
+                                    continue
+                                t3 = None
+                                try:
+                                    # Try QualifiedName if available
+                                    try:
+                                        t3 = get_t(bn.QualifiedName(name_str))
+                                    except Exception:
+                                        t3 = get_t(name_str)
+                                except Exception:
+                                    t3 = None
+                                if t3 is not None:
+                                    tobj = t3
+                                    break
+                        except Exception:
+                            pass
+
                 tc = getattr(tobj, "type_class", None)
                 kind = "unknown"
                 if tc == TypeClass.VoidTypeClass:
@@ -507,13 +539,29 @@ class BinaryOperations:
                     except Exception:
                         decl = None
 
+                # If kind is unknown or a named typedef, try to infer underlying from declaration text
+                try:
+                    dlow = (decl or "").strip().lower()
+                    if dlow:
+                        if dlow.startswith("struct ") or " struct " in dlow:
+                            kind = "struct"
+                        elif dlow.startswith("union ") or " union " in dlow:
+                            kind = "union"
+                        elif dlow.startswith("enum ") or " enum " in dlow:
+                            kind = "enum"
+                except Exception:
+                    pass
+
+                key = (name_str, decl or "")
+                if key in seen_keys:
+                    return
                 results.append({
                     "name": name_str,
                     "kind": kind,
                     "type_class": str(tc) if tc is not None else None,
                     "decl": decl,
                 })
-                seen_names.add(name_str)
+                seen_keys.add(key)
 
             # Source 1: user_type_container (explicit local/user types)
             try:
@@ -544,9 +592,247 @@ class BinaryOperations:
                     add_type_entry(name, tobj)
                 except Exception:
                     continue
+
+            # Source 3: platform type libraries (optional; can be heavy)
+            if include_libraries:
+                try:
+                    plat = getattr(self._current_view, "platform", None)
+                    libs = []
+                    try:
+                        libs = list(getattr(plat, "type_libraries", []) or [])
+                    except Exception:
+                        libs = []
+                    for lib in libs:
+                        # Try multiple ways to enumerate names in this library
+                        names = []
+                        try:
+                            nt = getattr(lib, "named_types", None)
+                            if isinstance(nt, dict):
+                                names = list(nt.keys())
+                        except Exception:
+                            pass
+                        if not names:
+                            try:
+                                tmap = getattr(lib, "types", None)
+                                if isinstance(tmap, dict):
+                                    names = list(tmap.keys())
+                            except Exception:
+                                pass
+                        if not names:
+                            try:
+                                get_names = getattr(lib, "get_type_names", None)
+                                if callable(get_names):
+                                    names = list(get_names())
+                            except Exception:
+                                pass
+                        # Fetch each type object if possible
+                        for nm in names:
+                            try:
+                                tobj = None
+                                try:
+                                    g = getattr(lib, "get_type_by_name", None)
+                                    if callable(g):
+                                        tobj = g(nm)
+                                except Exception:
+                                    tobj = None
+                                add_type_entry(nm, tobj)
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
         except Exception as e:
             bn.log_error(f"Error listing local types: {e}")
         return results[offset : offset + limit]
+
+    def search_local_types(self, query: str, offset: int = 0, limit: int = 100, include_libraries: bool = False) -> List[Dict[str, Any]]:
+        """Search local/view types whose name or declaration contains the substring.
+
+        Returns entries with {name, kind, type_class, decl}.
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+        if not query:
+            return []
+        ql = str(query).lower()
+        # Only local types by default (fast). Optionally include libraries.
+        all_types = self.list_local_types(0, 1_000_000, include_libraries=include_libraries)
+        matches: List[Dict[str, Any]] = []
+        for t in all_types:
+            try:
+                name = t.get("name") or ""
+                decl = t.get("decl") or ""
+                if (ql in str(name).lower()) or (ql in str(decl).lower()):
+                    matches.append(t)
+            except Exception:
+                continue
+        if isinstance(limit, int) and limit < 0:
+            return matches[offset:]
+        return matches[offset : offset + limit]
+
+    def get_type_info(self, name: str) -> Dict[str, Any]:
+        """Resolve a type by name and return detailed information.
+
+        Returns a dictionary with:
+        - name: type name
+        - kind: struct/union/class/enum/typedef/... (best-effort)
+        - decl: declaration string
+        - members: for struct/union [{name, type, offset}]
+        - enum_members: for enums [{name, value}]
+        - underlying: for typedefs, best-effort underlying declaration
+        - source: local | library | unknown
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+
+        type_name = str(name)
+        tobj = None
+        source = "unknown"
+
+        # 1) Try view local resolution first
+        try:
+            if hasattr(self._current_view, "get_type_by_name"):
+                t = self._current_view.get_type_by_name(type_name)
+                if t is not None:
+                    tobj = t
+                    source = "local"
+        except Exception:
+            pass
+
+        # 2) Fall back to platform type libraries
+        if tobj is None:
+            try:
+                plat = getattr(self._current_view, "platform", None)
+                libs = list(getattr(plat, "type_libraries", []) or []) if plat else []
+                for lib in libs:
+                    get_t = getattr(lib, "get_type_by_name", None)
+                    if not callable(get_t):
+                        continue
+                    try:
+                        # Try with QualifiedName if available
+                        try:
+                            t = get_t(bn.QualifiedName(type_name))
+                        except Exception:
+                            t = get_t(type_name)
+                    except Exception:
+                        t = None
+                    if t is not None:
+                        tobj = t
+                        source = "library"
+                        break
+            except Exception:
+                pass
+
+        # Prepare defaults
+        kind = "unknown"
+        decl = None
+        members: List[Dict[str, Any]] = []
+        enum_members: List[Dict[str, Any]] = []
+        underlying = None
+
+        # Extract details from type object
+        if tobj is not None:
+            try:
+                decl = str(tobj)
+            except Exception:
+                try:
+                    decl = str(getattr(tobj, "type", None))
+                except Exception:
+                    decl = None
+
+            tc = getattr(tobj, "type_class", None)
+            if tc == TypeClass.StructureTypeClass:
+                # structure variant
+                try:
+                    v = getattr(tobj, "type", None)
+                    if v == StructureVariant.UnionStructureType:
+                        kind = "union"
+                    elif v == StructureVariant.ClassStructureType:
+                        kind = "class"
+                    else:
+                        kind = "struct"
+                except Exception:
+                    kind = "struct"
+
+                # collect members
+                try:
+                    for m in getattr(tobj, "members", getattr(getattr(tobj, "structure", None), "members", [])):
+                        try:
+                            members.append({
+                                "name": getattr(m, "name", None),
+                                "type": str(getattr(m, "type", "")) if hasattr(m, "type") else None,
+                                "offset": int(getattr(m, "offset", 0)) if hasattr(m, "offset") else None,
+                            })
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+
+            elif tc == TypeClass.EnumerationTypeClass:
+                kind = "enum"
+                try:
+                    for em in getattr(tobj, "members", []):
+                        try:
+                            enum_members.append({
+                                "name": getattr(em, "name", None),
+                                "value": getattr(em, "value", None),
+                            })
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+
+            elif tc == TypeClass.NamedTypeReferenceClass:
+                kind = "typedef"
+                # best-effort underlying from decl text
+                try:
+                    dlow = (decl or "").lower()
+                    if dlow:
+                        if dlow.startswith("struct ") or " struct " in dlow:
+                            underlying = "struct"
+                        elif dlow.startswith("union ") or " union " in dlow:
+                            underlying = "union"
+                        elif dlow.startswith("enum ") or " enum " in dlow:
+                            underlying = "enum"
+                except Exception:
+                    pass
+
+            elif tc == TypeClass.IntegerTypeClass:
+                kind = "int"
+            elif tc == TypeClass.FloatTypeClass:
+                kind = "float"
+            elif tc == TypeClass.BoolTypeClass:
+                kind = "bool"
+            elif tc == TypeClass.VoidTypeClass:
+                kind = "void"
+            elif tc == TypeClass.PointerTypeClass:
+                kind = "pointer"
+            elif tc == TypeClass.ArrayTypeClass:
+                kind = "array"
+            elif tc == TypeClass.FunctionTypeClass:
+                kind = "function"
+
+            # Infer kind from decl if still unknown
+            if kind == "unknown" and decl:
+                try:
+                    dl = decl.lower()
+                    if dl.startswith("struct ") or " struct " in dl:
+                        kind = "struct"
+                    elif dl.startswith("union ") or " union " in dl:
+                        kind = "union"
+                    elif dl.startswith("enum ") or " enum " in dl:
+                        kind = "enum"
+                except Exception:
+                    pass
+
+        return {
+            "name": type_name,
+            "kind": kind,
+            "decl": decl,
+            "members": members if members else None,
+            "enum_members": enum_members if enum_members else None,
+            "underlying": underlying,
+            "source": source,
+        }
 
     def get_strings(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """Get list of strings in the current binary view with pagination.

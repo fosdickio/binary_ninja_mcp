@@ -164,11 +164,32 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
             elif path == "/localTypes":
                 try:
-                    types = self.binary_ops.list_local_types(offset, limit)
+                    include_libs = params.get("includeLibraries") in ("1","true","True")
+                    types = self.binary_ops.list_local_types(offset, limit, include_libraries=include_libs)
                     bn.log_info(f"/localTypes returned {len(types)} entries (offset={offset}, limit={limit})")
                     self._send_json_response({"types": types})
                 except Exception as e:
                     bn.log_error(f"Error listing local types: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/searchTypes":
+                try:
+                    term = params.get("query") or params.get("q")
+                    if not term:
+                        self._send_json_response(
+                            {"error": "Missing query parameter", "help": "Required: query or q"},
+                            400,
+                        )
+                        return
+                    # support count=-1 to return all
+                    eff_limit = -1 if (params.get("count") == "-1" or params.get("limit") == "-1") else limit
+                    include_libs = params.get("includeLibraries") in ("1","true","True")
+                    # First compute total
+                    all_matches = self.binary_ops.search_local_types(term, 0, -1, include_libraries=include_libs)
+                    page = all_matches[offset:] if eff_limit < 0 else all_matches[offset:offset+eff_limit]
+                    self._send_json_response({"types": page, "query": term, "total": len(all_matches), "offset": offset, "limit": eff_limit, "includeLibraries": include_libs})
+                except Exception as e:
+                    bn.log_error(f"Error searching local types: {e}")
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/strings":
@@ -854,6 +875,21 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response(refs)
                 except Exception as e:
                     bn.log_error(f"Error handling getXrefsToType: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/getTypeInfo":
+                type_name = params.get("name") or params.get("type") or params.get("typeName")
+                if not type_name:
+                    self._send_json_response(
+                        {"error": "Missing type name parameter", "help": "Required: name (or type/typeName)"},
+                        400,
+                    )
+                    return
+                try:
+                    info = self.binary_ops.get_type_info(type_name)
+                    self._send_json_response(info)
+                except Exception as e:
+                    bn.log_error(f"Error handling getTypeInfo: {e}")
                     self._send_json_response({"error": str(e)}, 500)
 
             

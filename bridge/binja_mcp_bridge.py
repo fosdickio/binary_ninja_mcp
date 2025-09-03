@@ -225,11 +225,18 @@ def list_strings_filter(offset: int = 0, count: int = 100, filter: str = "") -> 
     return safe_get("strings/filter", {"offset": offset, "limit": count, "filter": filter}, timeout=None)
 
 @mcp.tool()
-def list_local_types(offset: int = 0, count: int = 200) -> list:
+def list_local_types(offset: int = 0, count: int = 200, include_libraries: bool = False) -> list:
     """
     List all local types in the database (paginated).
     """
-    return safe_get("localTypes", {"offset": offset, "limit": count}, timeout=None)
+    return safe_get("localTypes", {"offset": offset, "limit": count, "includeLibraries": int(bool(include_libraries))}, timeout=None)
+
+@mcp.tool()
+def search_types(query: str, offset: int = 0, count: int = 200, include_libraries: bool = False) -> list:
+    """
+    Search local types whose name or declaration contains the substring.
+    """
+    return safe_get("searchTypes", {"query": query, "offset": offset, "limit": count, "includeLibraries": int(bool(include_libraries))}, timeout=None)
 
 @mcp.tool()
 def list_all_strings(batch_size: int = 500) -> list:
@@ -394,6 +401,19 @@ def format_value(address: str, text: str, size: int = 0) -> list:
     Adds a comment with hex/dec and C literal/string so you can see the change.
     """
     return safe_get("formatValue", {"address": address, "text": text, "size": size}, timeout=None)
+
+@mcp.tool()
+def get_type_info(type_name: str) -> str:
+    """
+    Resolve a type name and return its declaration and details (kind, members, enum values).
+    """
+    data = get_json("getTypeInfo", {"name": type_name}, timeout=None)
+    if not data:
+        return "Error: no response"
+    if "error" in data:
+        return f"Error: {data.get('error')}"
+    import json as _json
+    return _json.dumps(data, indent=2, ensure_ascii=False)
 
     
 if __name__ == "__main__":
