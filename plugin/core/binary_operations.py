@@ -1284,42 +1284,7 @@ class BinaryOperations:
             bn.log_error(f"Error getting functions containing address {hex(address)}: {e}")
             return []
             
-    def get_function_code_references(self, function_name: str) -> list:
-        """Get all code references to a function.
-        
-        Args:
-            function_name: Name of the function to find references to
-            
-        Returns:
-            List of dictionaries containing function names and addresses that reference the target function
-        """
-        if not self._current_view:
-            raise RuntimeError("No binary loaded")
-            
-        try:
-            # First, get the function by name
-            func = self.get_function_by_name_or_address(function_name)
-            if not func:
-                bn.log_error(f"Function not found: {function_name}")
-                return []
-                
-            # Get all code references to the function's start address
-            code_refs = []
-            for ref in list(self._current_view.get_code_refs(func.start)):
-                try:
-                    # For each reference, get the containing function and address
-                    if ref.function:
-                        code_refs.append({
-                            "function": ref.function.name,
-                            "address": hex(ref.address)
-                        })
-                except Exception as e:
-                    bn.log_error(f"Error processing reference at {hex(ref.address)}: {e}")
-                    
-            return code_refs
-        except Exception as e:
-            bn.log_error(f"Error getting code references for function {function_name}: {e}")
-            return []
+    # Removed: get_function_code_references() in favor of address-based get_xrefs_to_* helpers
             
     def get_user_defined_type(self, type_name: str) -> Optional[Dict[str, Any]]:
         """Get the definition of a user-defined type (struct, enum, etc.)

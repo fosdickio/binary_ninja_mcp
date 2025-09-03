@@ -349,51 +349,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         },
                         500,
                     )
-                    
-            elif path == "/codeReferences":
-                function_name = params.get("function")
-                if not function_name:
-                    self._send_json_response(
-                        {
-                            "error": "Missing function parameter",
-                            "help": "Required parameter: function (name of the function to find references to)",
-                            "received": params,
-                        },
-                        400,
-                    )
-                    return
-                    
-                try:
-                    # Get function information first to confirm it exists
-                    func_info = self.binary_ops.get_function_info(function_name)
-                    if not func_info:
-                        self._send_json_response(
-                            {
-                                "error": "Function not found",
-                                "requested_function": function_name
-                            },
-                            404,
-                        )
-                        return
-                        
-                    # Get all code references to this function
-                    code_refs = self.binary_ops.get_function_code_references(function_name)
-                    
-                    self._send_json_response(
-                        {
-                            "function": function_name,
-                            "code_references": code_refs
-                        }
-                    )
-                except Exception as e:
-                    bn.log_error(f"Error handling code_references request: {e}")
-                    self._send_json_response(
-                        {
-                            "error": str(e),
-                            "function": function_name,
-                        },
-                        500,
-                    )
+            
                     
             elif path == "/getUserDefinedType":
                 type_name = params.get("name")
@@ -1503,4 +1459,7 @@ class MCPServer:
             self.server.server_close()
             if self.thread:
                 self.thread.join()
+            # Clear references so callers can reliably detect stopped state
+            self.thread = None
+            self.server = None
             bn.log_info("Server stopped")

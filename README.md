@@ -31,7 +31,6 @@ The following table lists available MCP tools. Sorted alphabetically by function
 
 | Function | Description |
 |----------|-------------|
-| `code_references` | Retrieve names and addresses of functions that call the given function. |
 | `convert_number(text, size)` | Convert a number/string to multiple representations (LE/BE, bases). |
 | `decompile_function` | Decompile a specific function by name and return the decompiled C code. |
 | `define_types` | Add type definitions from a C string type definition. |

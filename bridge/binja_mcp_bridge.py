@@ -87,28 +87,57 @@ def retype_variable(function_name: str, variable_name: str, type_str: str) -> st
     """
     Retype a variable in a function.
     """
-    return safe_get("retypeVariable", {"functionName": function_name, "variableName": variable_name, "type": type_str})
+    data = get_json("retypeVariable", {"functionName": function_name, "variableName": variable_name, "type": type_str})
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and "status" in data:
+        return data["status"]
+    if isinstance(data, dict) and "error" in data:
+        return f"Error: {data['error']}"
+    return str(data)
 
 @mcp.tool()
 def rename_variable(function_name: str, variable_name: str, new_name: str) -> str:
     """
     Rename a variable in a function.
     """
-    return safe_get("renameVariable", {"functionName": function_name, "variableName": variable_name, "newName": new_name})
+    data = get_json("renameVariable", {"functionName": function_name, "variableName": variable_name, "newName": new_name})
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and "status" in data:
+        return data["status"]
+    if isinstance(data, dict) and "error" in data:
+        return f"Error: {data['error']}"
+    return str(data)
 
 @mcp.tool()
 def define_types(c_code: str) -> str:
     """
     Define types from a C code string.
     """
-    return safe_get("defineTypes", {"cCode": c_code})
+    data = get_json("defineTypes", {"cCode": c_code})
+    if not data:
+        return "Error: no response"
+    # Expect a list of defined type names or a dict; normalize to string
+    if isinstance(data, dict) and "error" in data:
+        return f"Error: {data['error']}"
+    if isinstance(data, (list, tuple)):
+        return "Defined types: " + ", ".join(map(str, data))
+    return str(data)
 
 @mcp.tool()
 def edit_function_signature(function_name: str, signature: str) -> str:
     """
     Edit the signature of a function.
     """
-    return safe_get("editFunctionSignature", {"functionName": function_name, "signature": signature})
+    data = get_json("editFunctionSignature", {"functionName": function_name, "signature": signature})
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and "status" in data:
+        return data["status"]
+    if isinstance(data, dict) and "error" in data:
+        return f"Error: {data['error']}"
+    return str(data)
 
 @mcp.tool()
 def list_classes(offset: int = 0, limit: int = 100) -> list:
@@ -329,13 +358,6 @@ def function_at(address: str) -> str:
     """
     return safe_get("functionAt", {"address": address})
 
-@mcp.tool()
-def code_references(function_name: str) -> str:
-    """
-    Retrive names and addresses of functions that call the given function_name
-    """
-    return safe_get("codeReferences", {"function": function_name})
-    
 @mcp.tool()
 def get_user_defined_type(type_name: str) -> str:
     """
