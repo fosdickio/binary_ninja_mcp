@@ -504,6 +504,20 @@ def get_type_info(type_name: str) -> str:
     import json as _json
     return _json.dumps(data, indent=2, ensure_ascii=False)
 
+@mcp.tool()
+def set_function_prototype(function_address: str, prototype: str) -> str:
+    """
+    Set a function's prototype by address.
+    """
+    # Use GET like other endpoints (server accepts complex prototypes)
+    data = get_json("setFunctionPrototype", {"address": function_address, "prototype": prototype})
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and "status" in data:
+        return f"Applied prototype at {data.get('address')}: {data.get('applied_type')}"
+    if isinstance(data, dict) and "error" in data:
+        return f"Error: {data['error']}"
+    return str(data)
     
 if __name__ == "__main__":
     print("Starting MCP bridge service...")

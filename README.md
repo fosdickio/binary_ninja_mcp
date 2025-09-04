@@ -71,6 +71,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `search_types(query, offset, count)`          | Search local Types by substring (name/decl).                                                |
 | `set_comment`                                 | Set a comment at a specific address.                                                        |
 | `set_function_comment`                        | Set a comment for a function.                                                               |
+| `set_function_prototype(function_address, prototype)` | Set a function's prototype by address.                                              |
 
 HTTP endpoints
 

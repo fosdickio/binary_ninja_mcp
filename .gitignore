@@ -25,3 +25,4 @@ Desktop.ini
 *.bak
 
 .env
+.mcp_auto_setup_done

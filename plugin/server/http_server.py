@@ -1062,6 +1062,34 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         {"error": str(e)},
                         500,
                     )
+            elif path == "/setFunctionPrototype":
+                # Accept both GET and POST to support long prototypes via POST body
+                address_str = (
+                    params.get("address")
+                    or params.get("functionAddress")
+                    or params.get("addr")
+                    or params.get("name")
+                )
+                proto = params.get("prototype") or params.get("signature") or params.get("type")
+                if not address_str or proto is None:
+                    self._send_json_response(
+                        {
+                            "error": "Missing parameters",
+                            "help": "Required: address (or functionAddress/addr) and prototype (or signature/type)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    # Do minimal validation here; the endpoint will resolve name or address
+                    result = self.endpoints.set_function_prototype(address_str, proto)
+                    self._send_json_response(result)
+                except ValueError as ve:
+                    self._send_json_response({"error": str(ve)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Error handling setFunctionPrototype request: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
             elif path == "/retypeVariable":
                 function_name =  params.get("functionName")
                 if not function_name:

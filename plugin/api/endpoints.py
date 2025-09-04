@@ -305,3 +305,79 @@ class BinaryNinjaEndpoints:
         except Exception as e:
             raise ValueError(f"Failed to rename variable: {str(e)}")
 
+    def set_function_prototype(self, function_address: str | int, prototype: str) -> Dict[str, str]:
+        """Set a function's prototype by address.
+
+        Args:
+            function_address: Function address (hex string like 0x401000 or integer)
+            prototype: C-style function prototype/type string (e.g., "int __cdecl f(int a)", or "int(int)" )
+
+        Returns:
+            Dictionary with status message.
+
+        Raises:
+            RuntimeError: If no binary is loaded.
+            ValueError: If the function or prototype is invalid.
+        """
+        if not self.binary_ops.current_view:
+            raise RuntimeError("No binary loaded")
+
+        # Resolve function
+        func = self.binary_ops.get_function_by_name_or_address(function_address)
+        if not func:
+            # If an address was provided and no function exists, try to create one
+            addr_int = None
+            try:
+                if isinstance(function_address, str) and function_address.lower().startswith("0x"):
+                    addr_int = int(function_address, 16)
+                elif isinstance(function_address, (int, str)):
+                    addr_int = int(function_address)
+            except Exception:
+                addr_int = None
+
+            if addr_int is not None:
+                try:
+                    bv = self.binary_ops.current_view
+                    # Prefer create_user_function; fallback to add_function
+                    if hasattr(bv, "create_user_function"):
+                        bv.create_user_function(addr_int)
+                    elif hasattr(bv, "add_function"):
+                        bv.add_function(addr_int)
+                    # Fetch again
+                    func = self.binary_ops.get_function_by_name_or_address(addr_int)
+                    # As a fallback, find the function containing the address
+                    if not func and hasattr(bv, "get_functions_containing"):
+                        try:
+                            containing = bv.get_functions_containing(addr_int)
+                            if containing:
+                                func = containing[0]
+                        except Exception:
+                            pass
+                except Exception:
+                    func = None
+
+        if not func:
+            raise ValueError(f"Function not found at/address '{function_address}'")
+
+        try:
+            # Normalize prototype (strip stray trailing semicolon)
+            proto = (prototype or "").strip()
+            if proto.endswith(";"):
+                proto = proto[:-1].strip()
+
+            # Parse the prototype into a Binary Ninja Type
+            t, _ = self.binary_ops.current_view.parse_type_string(proto)
+            if not t:
+                raise ValueError("Failed to parse prototype")
+
+            # Apply and reanalyze
+            func.type = t
+            func.reanalyze(bn.FunctionUpdateType.UserFunctionUpdate)
+            return {
+                "status": "ok",
+                "function": func.name,
+                "address": hex(func.start),
+                "applied_type": str(t),
+            }
+        except Exception as e:
+            raise ValueError(f"Failed to set function prototype: {str(e)}")
