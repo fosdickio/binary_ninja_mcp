@@ -29,7 +29,6 @@ The following table lists available MCP tools. Sorted alphabetically by function
 
 | Function                                      | Description                                                                                 |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `convert_number(text, size)`                  | Convert a number/string to multiple representations (LE/BE, bases).                         |
 | `decompile_function`                          | Decompile a specific function by name and return the decompiled C code.                     |
 | `define_types`                                | Add type definitions from a C string type definition.                                       |
 | `delete_comment`                              | Delete the comment at a specific address.                                                   |
@@ -78,7 +77,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 HTTP endpoints
 
 - `/allStrings`: All strings in one response.
-- `/convertNumber?text=<value>&size=<n>`: Convert number/string to hex/dec/bin and LE/BE.
+ 
 - `/formatValue?address=<addr>&text=<value>&size=<n>`: Convert and set a comment at an address.
 - `/getXrefsTo?address=<addr>`: Xrefs to address (code+data).
 - `/getDataDecl?name=<symbol>|address=<addr>&length=<n>`: JSON with declaration-style string and a hexdump for a data symbol or address. Keys: `address`, `name`, `size`, `type`, `decl`, `hexdump`. `length < 0` reads exact defined size if available.

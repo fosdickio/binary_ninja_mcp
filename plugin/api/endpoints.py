@@ -502,3 +502,5 @@ class BinaryNinjaEndpoints:
             "variable": variable_name,
             "applied_type": applied,
         }
+
+    # display_as removed per request

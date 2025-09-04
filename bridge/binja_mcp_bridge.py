@@ -476,12 +476,6 @@ def get_xrefs_to_union(union_name: str) -> list:
     """
     return safe_get("getXrefsToUnion", {"name": union_name})
 
-@mcp.tool()
-def convert_number(text: str, size: int = 0) -> list:
-    """
-    Convert a number (decimal, hexadecimal, char, or ASCII string) to multiple representations.
-    """
-    return safe_get("convertNumber", {"text": text, "size": size}, timeout=None)
 
 @mcp.tool()
 def format_value(address: str, text: str, size: int = 0) -> list:

@@ -1298,21 +1298,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     bn.log_error(f"Error handling getXrefsToEnum: {e}")
                     self._send_json_response({"error": str(e)}, 500)
 
-            elif path == "/convertNumber":
-                text = params.get("text")
-                size_param = params.get("size")
-                if text is None:
-                    self._send_json_response(
-                        {"error": "Missing text parameter", "help": "Required: text (number or string)"},
-                        400,
-                    )
-                    return
-                try:
-                    result = util_convert_number(text, size_param)
-                    self._send_json_response(result)
-                except Exception as e:
-                    bn.log_error(f"Error handling convertNumber: {e}")
-                    self._send_json_response({"error": str(e)}, 500)
+            # '/displayAs' endpoint removed per request
 
             elif path == "/formatValue":
                 # Compute representations and annotate BN at an address

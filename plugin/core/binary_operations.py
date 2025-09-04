@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any, Union
 from .config import BinaryNinjaConfig
 from binaryninja.enums import TypeClass, StructureVariant
 from ..utils.string_utils import escape_non_ascii
+from ..utils.number_utils import convert_number as util_convert_number
 import re
 
 
@@ -347,13 +348,13 @@ class BinaryOperations:
         return info
 
     def decompile_function(self, identifier: Union[str, int]) -> Optional[str]:
-        """Decompile a function to its high-level representation.
+        """Decompile a function and include addresses per statement.
 
         Args:
             identifier: Function name or address
 
         Returns:
-            Decompiled function code as string, or None if decompilation fails
+            Decompiled HLIL-like code with address prefixes per line
         """
         if not self._current_view:
             raise RuntimeError("No binary loaded")
@@ -367,15 +368,41 @@ class BinaryOperations:
         self._current_view.update_analysis_and_wait()
 
         try:
-            # Try high-level IL first for best readability
-            if hasattr(func, "hlil"):
-                return str(func.hlil)
-            # Fall back to medium-level IL if available
-            elif hasattr(func, "mlil"):
-                return str(func.mlil)
-            # Use basic function representation as last resort
-            else:
-                return str(func)
+            il = getattr(func, "hlil", None)
+            if il and hasattr(il, "instructions"):
+                lines: list[str] = []
+                last_addr: Optional[int] = None
+                for ins in il.instructions:
+                    try:
+                        addr = getattr(ins, "address", None)
+                    except Exception:
+                        addr = None
+                    if addr is None:
+                        addr = last_addr if last_addr is not None else func.start
+                    last_addr = addr
+                    addr_str = f"{int(addr):08x}"
+                    text = str(ins)
+                    lines.append(f"{addr_str}        {text}")
+                return "\n".join(lines)
+            # Fall back to MLIL with addresses
+            mil = getattr(func, "mlil", None)
+            if mil and hasattr(mil, "instructions"):
+                lines: list[str] = []
+                last_addr: Optional[int] = None
+                for ins in mil.instructions:
+                    try:
+                        addr = getattr(ins, "address", None)
+                    except Exception:
+                        addr = None
+                    if addr is None:
+                        addr = last_addr if last_addr is not None else func.start
+                    last_addr = addr
+                    addr_str = f"{int(addr):08x}"
+                    text = str(ins)
+                    lines.append(f"{addr_str}        {text}")
+                return "\n".join(lines)
+            # Last resort
+            return str(func)
         except Exception as e:
             bn.log_error(f"Error decompiling function: {str(e)}")
             return None
@@ -1208,6 +1235,9 @@ class BinaryOperations:
         return False
         
 
+    # set_integer_display removed per request
+
+
     def get_assembly_function(self, identifier: Union[str, int]) -> Optional[str]:
         """Get the assembly representation of a function with practical annotations.
 
@@ -1411,7 +1441,9 @@ class BinaryOperations:
                 
             # Format the final line
             addr_str = f"{addr:08x}"
-            line = f"0x{addr_str}  {disasm_text}"
+            # Include hex bytes column padded for readability
+            bytes_col = f"{hex_bytes}".ljust(16)
+            line = f"{addr_str}  {bytes_col} {disasm_text}"
             
             # Add comment at the end if any
             if comment:
@@ -1420,7 +1452,7 @@ class BinaryOperations:
             return line
         except Exception as e:
             bn.log_error(f"Error annotating instruction at {hex(addr)}: {str(e)}")
-            return f"0x{addr:08x}  {hex_bytes} ; [Error: {str(e)}]"
+            return f"{addr:08x}  {hex_bytes} ; [Error: {str(e)}]"
             
     def get_functions_containing_address(self, address: int) -> list:
         """Get functions containing a specific address.
