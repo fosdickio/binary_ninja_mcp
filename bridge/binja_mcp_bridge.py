@@ -106,6 +106,21 @@ def list_methods(offset: int = 0, limit: int = 100) -> list:
     return safe_get("methods", {"offset": offset, "limit": limit})
 
 @mcp.tool()
+def get_entry_points() -> list:
+    """
+    List entry point(s) of the loaded binary.
+    """
+    data = get_json("entryPoints")
+    if not data or "entry_points" not in data:
+        return ["Error: no response"]
+    out: list[str] = []
+    for ep in data.get("entry_points", []) or []:
+        addr = ep.get("address")
+        name = ep.get("name") or "(unknown)"
+        out.append(f"{addr}\t{name}")
+    return out
+
+@mcp.tool()
 def retype_variable(function_name: str, variable_name: str, type_str: str) -> str:
     """
     Retype a variable in a function.

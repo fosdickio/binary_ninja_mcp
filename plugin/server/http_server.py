@@ -236,6 +236,13 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             elif path == "/exports":
                 exports = self.endpoints.get_exports(offset, limit)
                 self._send_json_response({"exports": exports})
+            elif path == "/entryPoints":
+                try:
+                    eps = self.endpoints.get_entry_points()
+                    self._send_json_response({"entry_points": eps})
+                except Exception as e:
+                    bn.log_error(f"Error handling entryPoints: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/namespaces":
                 namespaces = self.endpoints.get_namespaces(offset, limit)

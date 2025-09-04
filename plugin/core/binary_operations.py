@@ -1472,6 +1472,64 @@ class BinaryOperations:
         except Exception as e:
             bn.log_error(f"Error getting functions containing address {hex(address)}: {e}")
             return []
+
+    def get_entry_points(self) -> List[Dict[str, Any]]:
+        """Return entry point(s) for the current binary view.
+
+        Primarily uses `bv.entry_point`. Also includes common startup symbols like
+        `_start` when resolvable.
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+
+        bv = self._current_view
+        results: List[Dict[str, Any]] = []
+
+        def _append(addr: int):
+            try:
+                if addr is None:
+                    return
+                name = None
+                try:
+                    sym = bv.get_symbol_at(addr)
+                    if sym and getattr(sym, "name", None):
+                        name = sym.name
+                except Exception:
+                    pass
+                if name is None:
+                    try:
+                        func = bv.get_function_at(addr)
+                        if func and getattr(func, "name", None):
+                            name = func.name
+                    except Exception:
+                        pass
+                results.append({
+                    "address": hex(int(addr)),
+                    "name": name,
+                })
+            except Exception:
+                pass
+
+        # Primary entry point
+        try:
+            ep = getattr(bv, "entry_point", None)
+            if isinstance(ep, int) and ep >= 0:
+                _append(ep)
+        except Exception:
+            pass
+
+        # Common startup symbol fallback
+        for sname in ("_start", "entry", "start", "WinMain", "mainCRTStartup"):
+            try:
+                sym = bv.get_symbol_by_name(sname) if hasattr(bv, "get_symbol_by_name") else None
+                if sym and hasattr(sym, "address"):
+                    addr = int(sym.address)
+                    if not any(r.get("address") == hex(addr) for r in results):
+                        _append(addr)
+            except Exception:
+                continue
+
+        return results
             
     # Removed: get_function_code_references() in favor of address-based get_xrefs_to_* helpers
             

@@ -38,6 +38,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `format_value(address, text, size)`           | Convert a value and annotate it at an address in BN (adds a comment).                       |
 | `function_at`                                 | Retrieve the name of the function the address belongs to.                                   |
 | `get_assembly_function`                       | Get the assembly representation of a function by name or address.                           |
+| `get_entry_points()`                          | List entry point(s) of the loaded binary.                                                   |
 | `get_binary_status`                           | Get the current status of the loaded binary.                                                |
 | `get_comment`                                 | Get the comment at a specific address.                                                      |
 | `get_function_comment`                        | Get the comment for a function.                                                             |

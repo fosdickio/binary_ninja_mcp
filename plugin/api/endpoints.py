@@ -16,6 +16,10 @@ class BinaryNinjaEndpoints:
             else None,
         }
 
+    def get_entry_points(self) -> List[Dict[str, Any]]:
+        """Get entry point(s) for the current binary"""
+        return self.binary_ops.get_entry_points()
+
     def get_function_info(self, identifier: str) -> Optional[Dict[str, Any]]:
         """Get detailed information about a function"""
         try:
