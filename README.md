@@ -1,4 +1,4 @@
-# Binary Ninja MCP Max (v0.1.6)
+# Binary Ninja MCP Max (v0.1.7)
 Author: **CX330Blake**
 
 _A Binary Ninja plugin that provides a MCP (Model Context Protocol) server with HTTP endpoints for LLM integration._
