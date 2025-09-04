@@ -3,7 +3,10 @@
 import json
 import sys
 import platform
+import os
 from pathlib import Path
+import venv
+import subprocess
 
 
 def check_os():
@@ -26,6 +29,31 @@ def get_config_path():
     )
 
 
+def _ensure_plugin_venv(plugin_root: Path) -> str:
+    vdir = plugin_root / ".venv"
+    py = vdir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python3")
+    try:
+        if not py.exists():
+            venv.EnvBuilder(with_pip=True).create(str(vdir))
+            req = plugin_root / "bridge" / "requirements.txt"
+            if req.exists():
+                try:
+                    subprocess.run([str(py), "-m", "pip", "install", "-r", str(req)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                except Exception:
+                    pass
+    except Exception:
+        return sys.executable
+    return str(py) if py.exists() else sys.executable
+    if sys.platform == "win32":
+        cand = plugin_root / ".venv" / "Scripts" / "python.exe"
+    else:
+        cand = plugin_root / ".venv" / "bin" / "python3"
+    if cand.exists():
+        return str(cand)
+    # Fallback for safety
+    return sys.executable
+
+
 def setup_claude_desktop():
     """Set up Claude Desktop configuration for the current project."""
     check_os()
@@ -41,14 +69,16 @@ def setup_claude_desktop():
         with open(config_path, "r") as f:
             config = json.load(f)
 
-        current_dir = Path(__file__).parent.parent.absolute()
-        src_dir = current_dir / "bridge"
+        # Use the installed plugin path (works for Plugin Manager installs):
+        # <BinaryNinja>/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max
+        plugin_root = Path(__file__).resolve().parent.parent
+        src_dir = plugin_root / "bridge"
 
         if "mcpServers" not in config:
             config["mcpServers"] = {}
 
-        config["mcpServers"]["binary_ninja_mcp"] = {
-            "command": str(Path.cwd() / ".venv" / "bin" / "python"),
+        config["mcpServers"]["binary_ninja_mcp_max"] = {
+            "command": _ensure_plugin_venv(plugin_root),
             "args": [str(src_dir / "binja_mcp_bridge.py")],
         }
 

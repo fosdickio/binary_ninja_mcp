@@ -440,3 +440,11 @@ bn.PluginCommand.register(
 bn.log_info("Binary Ninja MCP plugin loaded successfully")
 
 # Auto-start and settings UI removed
+
+# One-time MCP client auto-setup: install bridge entry into popular MCP clients
+try:
+    from .utils.auto_setup import install_mcp_clients
+    _ = install_mcp_clients(quiet=True)
+except Exception:
+    # Best-effort; ignore failures to avoid disrupting plugin load
+    pass

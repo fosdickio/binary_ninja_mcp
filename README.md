@@ -100,50 +100,50 @@ HTTP endpoints
 
 ## Installation
 
-### Binary Ninja Plugin
+### Binary Ninja Plugin Manager
 
-You may install the plugin through Binary Ninja's Plugin Manager (`Plugins > Manage Plugins`).
+You may install the plugin through Binary Ninja's Plugin Manager (`Plugins > Manage Plugins`). When installed via the Plugin Manager, the plugin resides under:
 
-![Plugin Manager Listing](images/plugin-manager-listing.png)
+- macOS: `~/Library/Application Support/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max`
+- Linux: `~/.binaryninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max`
+- Windows: `%APPDATA%\Binary Ninja\plugins\repositories\community\plugins\CX330Blake_binary_ninja_mcp_max`
 
 To manually configure the plugin, this repository can be copied into the Binary Ninja plugins folder.
 
-### Claude Desktop Bridge (Optional)
+#### Automatic MCP Client Setup
 
-This is only needed if you want to use Claude Desktop as your MCP client. Make sure that you have your virtual environment configured first:
+The plugin includes an automatic installer that wires up supported MCP clients to this server using the key `binary_ninja_mcp_max`.
 
-```bash
-git clone git@github.com:fosdickio/binary_ninja_mcp.git
-cd binary_ninja_mcp
+- First run: When Binary Ninja loads the plugin, it will:
+  - Create a local venv under this plugin at `.venv/` (if missing) and install `bridge/requirements.txt`.
+  - Add an entry for `binary_ninja_mcp_max` to known MCP client configs (Cline, Roo Code, Claude Desktop, Cursor, Windsurf, Claude Code, LM Studio) when their config files are present.
+  - Write `.mcp_auto_setup_done` at the plugin root to avoid repeating on every launch.
 
-python3 -m venv .venv
-source .venv/bin/activate   # On macOS/Linux
+- Re-run auto-setup: Delete the `.mcp_auto_setup_done` file or run the uninstall command below; then restart Binary Ninja or run the installer again.
 
-pip install -r bridge/requirements.txt
-```
+#### CLI Installer (all platforms)
 
-#### Automated Configuration (Mac)
-
-On a Mac, you can automate the setup by running:
+You can also manage MCP client entries from the command line:
 
 ```bash
-./scripts/setup_claude_desktop.py
+python scripts/mcp_client_installer.py --install    # add/update entries
+python scripts/mcp_client_installer.py --uninstall  # remove entries and delete .mcp_auto_setup_done
+python scripts/mcp_client_installer.py --config     # print a generic JSON config snippet
 ```
 
-### Manual Configuration (auto setup is around the corner)
+- Use `--quiet` to reduce output. The installer preserves any existing `env` overrides for this server key.
 
-On other operating systems or to manually configure the Claude Desktop integration:
+### Manual Configuration
 
-1. Navigate to `Settings > Developer > Edit Config`
-2. Add the following configuration:
+For other MCP clients:
 
 ```json
 {
     "mcpServers": {
-        "binary_ninja_mcp": {
-            "command": "/ABSOLUTE/PATH/TO/binary_ninja_mcp/.venv/bin/python",
+        "binary_ninja_mcp_max": {
+            "command": "/ABSOLUTE/PATH/TO/Binary\ Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max/.venv/bin/python",
             "args": [
-                "/ABSOLUTE/PATH/TO/binary_ninja_mcp/bridge/binja_mcp_bridge.py"
+                "/ABSOLUTE/PATH/TO/Binary\ Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max/bridge/binja_mcp_bridge.py"
             ]
         }
     }
@@ -153,8 +153,6 @@ On other operating systems or to manually configure the Claude Desktop integrati
 Note: Replace `/ABSOLUTE/PATH/TO` with the actual absolute path to your project directory. The virtual environment's Python interpreter must be used to access the installed dependencies.
 
 ## Usage
-
-### Claude Desktop
 
 1. Open Binary Ninja and install the `Binary Ninja MCP` plugin
 2. Restart Binary Ninja and then open a binary
@@ -174,14 +172,71 @@ The bridge can be used with other MCP clients by implementing the appropriate in
 
 ## Development
 
-The project structure is organized as follows:
+### Quick Start
+
+```bash
+git clone <this-repo>
+cd binary_ninja_mcp_max
+
+# Create a local venv and install bridge deps
+python3 -m venv .venv
+source .venv/bin/activate   # macOS/Linux
+pip install -r bridge/requirements.txt
+
+# Optional: register the MCP server with supported clients
+python scripts/mcp_client_installer.py --install
+```
+
+Then open Binary Ninja, load a binary, and start the server if it’s not already running:
+
+- Binary Ninja menu: Plugins > MCP Server > Start MCP Server
+
+The server listens on `http://localhost:9009` and exposes HTTP endpoints consumed by the bridge.
+
+### Test Locally (HTTP)
+
+After the server is running in Binary Ninja, you can sanity-check endpoints from a terminal:
+
+```bash
+curl http://localhost:9009/status
+curl "http://localhost:9009/functions?offset=0&limit=10"
+```
+
+### Working on the Bridge
+
+- Entry point: `bridge/binja_mcp_bridge.py` (run by your MCP client).
+- The CLI installer configures MCP clients to use:
+  - `command`: the plugin’s `.venv` Python
+  - `args`: `[bridge/binja_mcp_bridge.py]`
+- Edit tools in `bridge/binja_mcp_bridge.py` and re-run from your MCP client (e.g., Claude Desktop, Cline) to pick up changes.
+
+### Working on the Binary Ninja Plugin
+
+- Core server: `plugin/server/http_server.py` (served inside Binary Ninja).
+- Capabilities and endpoints live under `plugin/core/` and `plugin/api/`.
+- Logs appear in Binary Ninja’s Log window; use them to debug requests and responses.
+
+### Reset or Reconfigure MCP Clients
+
+```bash
+# Remove entries and delete the auto-setup marker (.mcp_auto_setup_done)
+python scripts/mcp_client_installer.py --uninstall
+
+# Re-install entries
+python scripts/mcp_client_installer.py --install
+```
+
+Deleting the `.mcp_auto_setup_done` file at the repo root also forces the plugin’s one-time auto-setup to run again on next load.
+
+### Project Layout
 
 ```
-binary_ninja_mcp/
-├── bridge/                      # MCP client integration
-├── plugin/                      # Binary Ninja plugin
-├── scripts/
-│   └── setup_claude_desktop.py  # Setup script for Claude Desktop
+binary_ninja_mcp_max/
+├── bridge/                      # MCP tools (client side)
+├── plugin/                      # Binary Ninja plugin + HTTP server (server side)
+├── scripts/                     # Installers and helpers
+│   └── mcp_client_installer.py
+└── README.md
 ```
 
 ## Contributing
