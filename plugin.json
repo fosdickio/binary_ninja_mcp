@@ -2,15 +2,26 @@
     "pluginmetadataversion": 1,
     "name": "Binary Ninja MCP Max",
     "author": "CX330Blake",
-    "type": ["core", "binaryview", "architecture", "helper"],
-    "api": ["python3"],
+    "type": [
+        "core",
+        "binaryview",
+        "architecture",
+        "helper"
+    ],
+    "api": [
+        "python3"
+    ],
     "description": "A Binary Ninja plugin that provides a MCP (Model Context Protocol) server with HTTP endpoints for LLM integration.",
     "longdescription": "See https://github.com/CX330Blake/binary-ninja-mcp-max",
     "license": {
         "name": "GPL-3.0",
         "text": "Copyright 2025 CX330Blake\n\nThis program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.\n\nThis program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.\n\nYou should have received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>."
     },
-    "platforms": ["Darwin", "Windows", "Linux"],
+    "platforms": [
+        "Darwin",
+        "Windows",
+        "Linux"
+    ],
     "installinstructions": {
         "Darwin": "See https://github.com/CX330Blake/binary-ninja-mcp-max",
         "Windows": "See https://github.com/CX330Blake/binary-ninja-mcp-max",
