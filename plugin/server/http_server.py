@@ -1378,6 +1378,26 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         {"error": str(e)},
                         500,
                     )
+            elif path == "/declareCType":
+                c_decl = (
+                    params.get("declaration")
+                    or params.get("cDecl")
+                    or params.get("cDeclaration")
+                    or params.get("decl")
+                )
+                if not c_decl:
+                    self._send_json_response(
+                        {"error": "Missing declaration parameter", "help": "Use 'declaration' with a single C type declaration"},
+                        400,
+                    )
+                    return
+                try:
+                    self._send_json_response(self.endpoints.declare_c_type(c_decl))
+                except ValueError as ve:
+                    self._send_json_response({"error": str(ve)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Error handling declareCType request: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
             else:
                 self._send_json_response({"error": "Not found"}, 404)
 

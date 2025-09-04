@@ -35,6 +35,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `delete_comment`                              | Delete the comment at a specific address.                                                   |
 | `delete_function_comment`                     | Delete the comment for a function.                                                          |
 | `edit_function_signature`                     | Edit signature of a given function, given as a type string.                                 |
+| `declare_c_type(c_declaration)`               | Create/update a local type from a single C declaration.                                     |
 | `format_value(address, text, size)`           | Convert a value and annotate it at an address in BN (adds a comment).                       |
 | `function_at`                                 | Retrieve the name of the function the address belongs to.                                   |
 | `get_assembly_function`                       | Get the assembly representation of a function by name or address.                           |

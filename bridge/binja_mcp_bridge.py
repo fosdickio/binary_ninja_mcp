@@ -518,6 +518,21 @@ def set_function_prototype(function_address: str, prototype: str) -> str:
     if isinstance(data, dict) and "error" in data:
         return f"Error: {data['error']}"
     return str(data)
+
+@mcp.tool()
+def declare_c_type(c_declaration: str) -> str:
+    """
+    Create or update a local type from a C declaration.
+    """
+    data = get_json("declareCType", {"declaration": c_declaration})
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and data.get("defined_types"):
+        names = ", ".join(data["defined_types"].keys())
+        return f"Declared types ({data.get('count', 0)}): {names}"
+    if isinstance(data, dict) and "error" in data:
+        return f"Error: {data['error']}"
+    return str(data)
     
 if __name__ == "__main__":
     print("Starting MCP bridge service...")

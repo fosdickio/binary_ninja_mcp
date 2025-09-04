@@ -381,3 +381,47 @@ class BinaryNinjaEndpoints:
             }
         except Exception as e:
             raise ValueError(f"Failed to set function prototype: {str(e)}")
+
+    def declare_c_type(self, c_declaration: str) -> Dict[str, Any]:
+        """Create or update a local type from a single C declaration.
+
+        Accepts any C type declaration (struct/union/enum/typedef/function type) and defines
+        the resulting named types in the current BinaryView's user types. If multiple types
+        are declared, all are applied.
+
+        Args:
+            c_declaration: C declaration string (e.g., "typedef struct { int a; } Foo;")
+
+        Returns:
+            Dictionary with keys:
+              - defined_types: map of type name -> declaration string
+              - count: number of types defined/updated
+
+        Raises:
+            RuntimeError: If no binary is loaded
+            ValueError: If parsing fails or no types are found
+        """
+        if not self.binary_ops.current_view:
+            raise RuntimeError("No binary loaded")
+
+        decl = (c_declaration or "").strip()
+        if not decl:
+            raise ValueError("Empty C declaration")
+
+        try:
+            result = self.binary_ops.current_view.parse_types_from_string(decl)
+        except Exception as e:
+            raise ValueError(f"Failed to parse declaration: {str(e)}")
+
+        if not result or not getattr(result, "types", {}):
+            raise ValueError("No named types found in declaration")
+
+        defined: Dict[str, str] = {}
+        for name, type_obj in result.types.items():
+            try:
+                self.binary_ops.current_view.define_user_type(name, type_obj)
+                defined[str(name)] = str(type_obj)
+            except Exception as e:
+                raise ValueError(f"Failed to define type '{name}': {str(e)}")
+
+        return {"defined_types": defined, "count": len(defined)}
