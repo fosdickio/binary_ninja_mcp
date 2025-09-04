@@ -1,3 +1,10 @@
+# Binary Ninja MCP Max (v0.1.6)
+Author: **CX330Blake**
+
+_A Binary Ninja plugin that provides a MCP (Model Context Protocol) server with HTTP endpoints for LLM integration._
+
+## Description:
+
 # Binary Ninja MCP <img src="images/binja.png" height="24" style="margin-left: 5px; vertical-align: middle;">
 
 This repository contains a Binary Ninja plugin, MCP server, and bridge that enables seamless integration of Binary Ninja's capabilities with your favorite LLM client.
@@ -242,3 +249,33 @@ binary_ninja_mcp_max/
 ## Contributing
 
 Contributions are welcome. Please feel free to submit a pull request.
+
+
+
+## Installation Instructions
+
+### Darwin
+
+See https://github.com/CX330Blake/binary-ninja-mcp-max
+
+### Windows
+
+See https://github.com/CX330Blake/binary-ninja-mcp-max
+
+### Linux
+
+See https://github.com/CX330Blake/binary-ninja-mcp-max
+
+## Minimum Version
+
+This plugin requires the following minimum version of Binary Ninja:
+
+* 4000
+
+
+## License
+
+This plugin is released under a GPL-3.0 license.
+## Metadata Version
+
+2
