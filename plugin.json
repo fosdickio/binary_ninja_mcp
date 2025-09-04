@@ -27,6 +27,6 @@
         "Windows": "See https://github.com/CX330Blake/binary-ninja-mcp-max",
         "Linux": "See https://github.com/CX330Blake/binary-ninja-mcp-max"
     },
-    "version": "0.1.2",
+    "version": "0.1.3",
     "minimumbinaryninjaversion": 4000
 }
