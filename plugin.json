@@ -1,20 +1,20 @@
 {
     "pluginmetadataversion": 1,
-    "name": "Binary Ninja MCP",
+    "name": "Binary Ninja MCP Max",
     "author": "CX330Blake",
     "type": ["core", "binaryview", "architecture", "helper"],
     "api": ["python3"],
     "description": "A Binary Ninja plugin that provides a MCP (Model Context Protocol) server with HTTP endpoints for LLM integration.",
-    "longdescription": "# Binary Ninja MCP\n\nThis repository contains a Binary Ninja plugin, MCP server, and bridge that enables seamless integration of Binary Ninja's capabilities with your favorite LLM client.\n\n![Binary Analysis Report Generation](images/mcp-demo-report.png)\n\n## Features\n\n- Seamless, real-time integration between Binary Ninja and MCP clients\n- Enhanced reverse engineering workflow with AI assistance\n- Primary support for Claude Desktop as the MCP client, but extensible for other integrations\n\n## Components\n\nThis repository contains two separate components:\n\n1. A Binary Ninja plugin that provides an MCP server that exposes Binary Ninja's capabilities through HTTP endpoints.  This can be used with any client that implements the MCP protocol.\n2. A separate MCP bridge component that connects your favorite MCP client to the Binary Ninja MCP server.  While Claude Desktop is the primary integration path, the MCP server can be used with other clients.\n\n## Installation / Usage\n\nFor information on installation and usage, please see https://github.com/fosdickio/binary_ninja_mcp.",
+    "longdescription": "See https://github.com/CX330Blake/binary-ninja-mcp-max",
     "license": {
         "name": "GPL-3.0",
         "text": "Copyright 2025 CX330Blake\n\nThis program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.\n\nThis program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.\n\nYou should have received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>."
     },
     "platforms": ["Darwin", "Windows", "Linux"],
     "installinstructions": {
-        "Darwin": "See https://github.com/CX330Blake/binary_ninja_mcp_max",
-        "Windows": "See https://github.com/CX330Blake/binary_ninja_mcp_max",
-        "Linux": "See https://github.com/CX330Blake/binary_ninja_mcp_max"
+        "Darwin": "See https://github.com/CX330Blake/binary-ninja-mcp-max",
+        "Windows": "See https://github.com/CX330Blake/binary-ninja-mcp-max",
+        "Linux": "See https://github.com/CX330Blake/binary-ninja-mcp-max"
     },
     "version": "0.1.0",
     "minimumbinaryninjaversion": 4000
