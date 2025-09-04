@@ -1090,6 +1090,34 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     bn.log_error(f"Error handling setFunctionPrototype request: {e}")
                     self._send_json_response({"error": str(e)}, 500)
+            elif path == "/setLocalVariableType":
+                fn_ident = (
+                    params.get("functionAddress")
+                    or params.get("address")
+                    or params.get("function")
+                    or params.get("functionName")
+                    or params.get("name")
+                )
+                var_name = params.get("variableName") or params.get("variable") or params.get("nameOrVar")
+                new_type = params.get("newType") or params.get("type") or params.get("signature")
+                if not fn_ident or not var_name or new_type is None:
+                    self._send_json_response(
+                        {
+                            "error": "Missing parameters",
+                            "help": "Required: functionAddress (or address/name), variableName, newType (or type/signature)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    res = self.endpoints.set_local_variable_type(fn_ident, var_name, new_type)
+                    self._send_json_response(res)
+                except ValueError as ve:
+                    self._send_json_response({"error": str(ve)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Error handling setLocalVariableType request: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
             elif path == "/retypeVariable":
                 function_name =  params.get("functionName")
                 if not function_name:

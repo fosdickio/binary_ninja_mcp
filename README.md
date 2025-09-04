@@ -67,6 +67,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `rename_data`                                 | Rename a data label at the specified address.                                               |
 | `rename_function`                             | Rename a function by its current name to a new user-defined name.                           |
 | `rename_variable`                             | Rename variable inside a given function.                                                    |
+| `set_local_variable_type(function_address, variable_name, new_type)` | Set a local variable's type.                                                   |
 | `retype_variable`                             | Retype variable inside a given function.                                                    |
 | `search_functions_by_name`                    | Search for functions whose name contains the given substring.                               |
 | `search_types(query, offset, count)`          | Search local Types by substring (name/decl).                                                |

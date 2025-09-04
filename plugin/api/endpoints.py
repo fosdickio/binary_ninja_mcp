@@ -425,3 +425,80 @@ class BinaryNinjaEndpoints:
                 raise ValueError(f"Failed to define type '{name}': {str(e)}")
 
         return {"defined_types": defined, "count": len(defined)}
+
+    def set_local_variable_type(self, function_address: str | int, variable_name: str, new_type: str) -> Dict[str, str]:
+        """Set a local variable's type in a function.
+
+        Args:
+            function_address: Function identifier (address in hex or int, or name)
+            variable_name: Local variable name to retype
+            new_type: C type string (e.g., "int *", "const char*", "struct Foo*")
+
+        Returns:
+            Dictionary with status message.
+
+        Raises:
+            RuntimeError: If no binary is loaded
+            ValueError: If function/variable/type are invalid
+        """
+        if not self.binary_ops.current_view:
+            raise RuntimeError("No binary loaded")
+
+        func = self.binary_ops.get_function_by_name_or_address(function_address)
+        if not func:
+            raise ValueError(f"Function '{function_address}' not found")
+
+        if not variable_name:
+            raise ValueError("Missing variable name")
+
+        # Resolve the variable by name
+        var = None
+        try:
+            if hasattr(func, "get_variable_by_name"):
+                var = func.get_variable_by_name(variable_name)
+        except Exception:
+            var = None
+
+        if not var:
+            raise ValueError(f"Variable '{variable_name}' not found in function '{func.name}'")
+
+        # Parse type string
+        try:
+            t, _ = self.binary_ops.current_view.parse_type_string((new_type or "").strip())
+        except Exception:
+            t = None
+        if t is None:
+            # Fall back to assigning the string if BN API supports it; otherwise fail
+            try:
+                var.type = new_type
+                applied = str(new_type)
+            except Exception:
+                raise ValueError(f"Failed to parse type: '{new_type}'")
+        else:
+            # Apply via variable object or function API
+            applied = str(t)
+            try:
+                var.type = t
+            except Exception:
+                # Try create_user_var if direct assignment fails
+                try:
+                    if hasattr(func, "create_user_var") and hasattr(var, "storage"):
+                        func.create_user_var(var, t, variable_name)
+                    else:
+                        raise ValueError("Retyping not supported by this Binary Ninja API version")
+                except Exception as e:
+                    raise ValueError(f"Failed to set variable type: {str(e)}")
+
+        # Trigger reanalysis for consistency
+        try:
+            func.reanalyze(bn.FunctionUpdateType.UserFunctionUpdate)
+        except Exception:
+            pass
+
+        return {
+            "status": "ok",
+            "function": func.name,
+            "address": hex(func.start),
+            "variable": variable_name,
+            "applied_type": applied,
+        }

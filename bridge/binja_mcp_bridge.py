@@ -533,6 +533,23 @@ def declare_c_type(c_declaration: str) -> str:
     if isinstance(data, dict) and "error" in data:
         return f"Error: {data['error']}"
     return str(data)
+
+@mcp.tool()
+def set_local_variable_type(function_address: str, variable_name: str, new_type: str) -> str:
+    """
+    Set a local variable's type.
+    """
+    data = get_json(
+        "setLocalVariableType",
+        {"functionAddress": function_address, "variableName": variable_name, "newType": new_type},
+    )
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and data.get("status") == "ok":
+        return f"Retyped {data.get('variable')} in {data.get('function')} to {data.get('applied_type')}"
+    if isinstance(data, dict) and "error" in data:
+        return f"Error: {data['error']}"
+    return str(data)
     
 if __name__ == "__main__":
     print("Starting MCP bridge service...")
