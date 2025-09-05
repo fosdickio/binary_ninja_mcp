@@ -1,5 +1,10 @@
 # Binary Ninja MCP Max <img src="images/binja.png" height="24" style="margin-left: 5px; vertical-align: middle;">
 
+<p align="center">
+  <img src="images/logo.png" alt="Binary Ninja MCP Max Logo" width="480">
+  <br>
+</p>
+
 This repository contains a Binary Ninja plugin, MCP server, and bridge that enables seamless integration of Binary Ninja's capabilities with your favorite LLM client.
 
 ## Features
@@ -79,7 +84,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 HTTP endpoints
 
 - `/allStrings`: All strings in one response.
- 
+
 - `/formatValue?address=<addr>&text=<value>&size=<n>`: Convert and set a comment at an address.
 - `/getXrefsTo?address=<addr>`: Xrefs to address (code+data).
 - `/getDataDecl?name=<symbol>|address=<addr>&length=<n>`: JSON with declaration-style string and a hexdump for a data symbol or address. Keys: `address`, `name`, `size`, `type`, `decl`, `hexdump`. `length < 0` reads exact defined size if available.
@@ -122,8 +127,17 @@ The plugin includes an automatic installer that wires up supported MCP clients t
 
 - First run: When Binary Ninja loads the plugin, it will:
   - Create a local venv under this plugin at `.venv/` (if missing) and install `bridge/requirements.txt`.
-  - Add an entry for `binary_ninja_mcp_max` to known MCP client configs (Cline, Roo Code, Claude Desktop, Cursor, Windsurf, Claude Code, LM Studio) when their config files are present.
+  - Add an entry for `binary_ninja_mcp_max` to known MCP client configs when their config files are present.
   - Write `.mcp_auto_setup_done` at the plugin root to avoid repeating on every launch.
+
+- Supported MCP clients (auto-setup):
+  1. Cline (VS Code)
+  2. Roo Code (VS Code)
+  3. Claude Desktop
+  4. Cursor
+  5. Windsurf
+  6. Claude Code
+  7. LM Studio
 
 - Re-run auto-setup: Delete the `.mcp_auto_setup_done` file or run the uninstall command below; then restart Binary Ninja or run the installer again.
 
