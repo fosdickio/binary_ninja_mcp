@@ -278,36 +278,7 @@ class BinaryNinjaEndpoints:
             raise ValueError(f"Failed to rename variable: {str(e)}")
 
 
-    def edit_function_signature(self, function_name: str, signature: str) -> Dict[str, str]:
-        """Rename a variable inside a function
-        
-        Args:
-            function_name: Name of the function to edit the signature of
-            signature: new signature to apply
-            
-        Returns:
-            Dictionary with status message
-            
-        Raises:
-            RuntimeError: If no binary is loaded
-            ValueError: If the function is not found or variable cannot be renamed
-        """
-        if not self.binary_ops.current_view:
-            raise RuntimeError("No binary loaded")
-            
-        # Find the function by name
-        function = self.binary_ops.get_function_by_name_or_address(function_name)
-        if not function:
-            raise ValueError(f"Function '{function_name}' not found")
-            
-        function.type = self.binary_ops.current_view.parse_type_string(signature)[0]
-
-        function.reanalyze(bn.FunctionUpdateType.UserFunctionUpdate)
-            
-        try:
-            return {"status": f"Successfully"}
-        except Exception as e:
-            raise ValueError(f"Failed to rename variable: {str(e)}")
+    
 
     def set_function_prototype(self, function_address: str | int, prototype: str) -> Dict[str, str]:
         """Set a function's prototype by address.
@@ -326,65 +297,80 @@ class BinaryNinjaEndpoints:
         if not self.binary_ops.current_view:
             raise RuntimeError("No binary loaded")
 
-        # Resolve function
+        # Resolve function by name or address; do not auto-create if missing
         func = self.binary_ops.get_function_by_name_or_address(function_address)
         if not func:
-            # If an address was provided and no function exists, try to create one
-            addr_int = None
-            try:
-                if isinstance(function_address, str) and function_address.lower().startswith("0x"):
-                    addr_int = int(function_address, 16)
-                elif isinstance(function_address, (int, str)):
-                    addr_int = int(function_address)
-            except Exception:
-                addr_int = None
+            raise ValueError(f"Function not found for identifier '{function_address}'")
 
-            if addr_int is not None:
-                try:
-                    bv = self.binary_ops.current_view
-                    # Prefer create_user_function; fallback to add_function
-                    if hasattr(bv, "create_user_function"):
-                        bv.create_user_function(addr_int)
-                    elif hasattr(bv, "add_function"):
-                        bv.add_function(addr_int)
-                    # Fetch again
-                    func = self.binary_ops.get_function_by_name_or_address(addr_int)
-                    # As a fallback, find the function containing the address
-                    if not func and hasattr(bv, "get_functions_containing"):
-                        try:
-                            containing = bv.get_functions_containing(addr_int)
-                            if containing:
-                                func = containing[0]
-                        except Exception:
-                            pass
-                except Exception:
-                    func = None
+        # Normalize prototype (strip stray trailing semicolon)
+        proto = (prototype or "").strip()
+        if proto.endswith(";"):
+            proto = proto[:-1].strip()
 
-        if not func:
-            raise ValueError(f"Function not found at/address '{function_address}'")
-
+        # Best-effort parsing with fallbacks
+        t = None
+        last_error = None
         try:
-            # Normalize prototype (strip stray trailing semicolon)
-            proto = (prototype or "").strip()
-            if proto.endswith(";"):
-                proto = proto[:-1].strip()
-
-            # Parse the prototype into a Binary Ninja Type
             t, _ = self.binary_ops.current_view.parse_type_string(proto)
-            if not t:
-                raise ValueError("Failed to parse prototype")
+        except Exception as e:
+            last_error = e
+            t = None
 
-            # Apply and reanalyze
+        # Fallback 1: parse a declaration block and grab any function type
+        if t is None:
+            try:
+                pr = self.binary_ops.current_view.parse_types_from_string(proto)
+                if pr and getattr(pr, "types", None):
+                    # Prefer an entry matching the current function name
+                    chosen = None
+                    if func.name in pr.types:
+                        chosen = pr.types[func.name]
+                    else:
+                        # Otherwise pick the first type that looks like a function
+                        for name, tobj in pr.types.items():
+                            try:
+                                if hasattr(tobj, "type_class") and int(getattr(bn.enums, "TypeClass", object).FunctionTypeClass) == int(getattr(tobj, "type_class")):
+                                    chosen = tobj
+                                    break
+                            except Exception:
+                                # Fallback: accept the first one
+                                chosen = tobj
+                                break
+                    if chosen is not None:
+                        t = chosen
+            except Exception as e:
+                last_error = e
+
+        # Fallback 2: if the prototype looks like a bare "ret(args)" without a name,
+        # synthesize a declaration by inserting the function's name.
+        if t is None:
+            import re as _re
+            m = _re.match(r"^\s*([^()]+?)\s*\((.*)\)\s*$", proto)
+            if m and func and func.name and func.name not in proto:
+                ret = m.group(1).strip()
+                args = m.group(2).strip()
+                candidate = f"{ret} {func.name}({args})"
+                try:
+                    t, _ = self.binary_ops.current_view.parse_type_string(candidate)
+                except Exception as e:
+                    last_error = e
+
+        if t is None:
+            raise ValueError(f"Failed to parse prototype: {proto} ({last_error})")
+
+        # Apply and reanalyze
+        try:
             func.type = t
             func.reanalyze(bn.FunctionUpdateType.UserFunctionUpdate)
-            return {
-                "status": "ok",
-                "function": func.name,
-                "address": hex(func.start),
-                "applied_type": str(t),
-            }
         except Exception as e:
-            raise ValueError(f"Failed to set function prototype: {str(e)}")
+            raise ValueError(f"Failed applying type: {str(e)}")
+
+        return {
+            "status": "ok",
+            "function": func.name,
+            "address": hex(func.start),
+            "applied_type": str(t),
+        }
 
     def declare_c_type(self, c_declaration: str) -> Dict[str, Any]:
         """Create or update a local type from a single C declaration.

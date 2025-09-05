@@ -164,20 +164,6 @@ def define_types(c_code: str) -> str:
     return str(data)
 
 @mcp.tool()
-def edit_function_signature(function_name: str, signature: str) -> str:
-    """
-    Edit the signature of a function.
-    """
-    data = get_json("editFunctionSignature", {"functionName": function_name, "signature": signature})
-    if not data:
-        return "Error: no response"
-    if isinstance(data, dict) and "status" in data:
-        return data["status"]
-    if isinstance(data, dict) and "error" in data:
-        return f"Error: {data['error']}"
-    return str(data)
-
-@mcp.tool()
 def list_classes(offset: int = 0, limit: int = 100) -> list:
     """
     List all namespace/class names in the program with pagination.
@@ -529,12 +515,19 @@ def get_type_info(type_name: str) -> str:
     return _json.dumps(data, indent=2, ensure_ascii=False)
 
 @mcp.tool()
-def set_function_prototype(function_address: str, prototype: str) -> str:
+def set_function_prototype(name_or_address: str, prototype: str) -> str:
     """
-    Set a function's prototype by address.
+    Set a function's prototype by name or address.
     """
     # Use GET like other endpoints (server accepts complex prototypes)
-    data = get_json("setFunctionPrototype", {"address": function_address, "prototype": prototype})
+    ident = (name_or_address or "").strip()
+    params = {"prototype": prototype}
+    # Choose param name based on identifier format
+    if ident.lower().startswith("0x") or ident.isdigit():
+        params["address"] = ident
+    else:
+        params["name"] = ident
+    data = get_json("setFunctionPrototype", params)
     if not data:
         return "Error: no response"
     if isinstance(data, dict) and "status" in data:

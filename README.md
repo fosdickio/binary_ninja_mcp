@@ -33,7 +33,6 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `define_types`                                | Add type definitions from a C string type definition.                                       |
 | `delete_comment`                              | Delete the comment at a specific address.                                                   |
 | `delete_function_comment`                     | Delete the comment for a function.                                                          |
-| `edit_function_signature`                     | Edit signature of a given function, given as a type string.                                 |
 | `declare_c_type(c_declaration)`               | Create/update a local type from a single C declaration.                                     |
 | `format_value(address, text, size)`           | Convert a value and annotate it at an address in BN (adds a comment).                       |
 | `function_at`                                 | Retrieve the name of the function the address belongs to.                                   |
@@ -73,7 +72,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `search_types(query, offset, count)`          | Search local Types by substring (name/decl).                                                |
 | `set_comment`                                 | Set a comment at a specific address.                                                        |
 | `set_function_comment`                        | Set a comment for a function.                                                               |
-| `set_function_prototype(function_address, prototype)` | Set a function's prototype by address.                                              |
+| `set_function_prototype(name_or_address, prototype)` | Set a function's prototype by name or address.                                      |
 
 HTTP endpoints
 

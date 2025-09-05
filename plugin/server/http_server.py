@@ -1046,29 +1046,6 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                             "message": "No comment found for this function",
                         }
                     )
-            elif path == "/editFunctionSignature":
-                function_name = params.get("functionName")
-                if not function_name:
-                    self._send_json_response(
-                        {"error": "Missing function name parameter"}, 400
-                    )
-                    return
-                
-                signature = params.get("signature")
-                if not signature:
-                    self._send_json_response(
-                        {"error": "Missing signature parameter"}, 400
-                    )
-                    return
-                
-                try:
-                    self._send_json_response(self.endpoints.edit_function_signature(function_name, signature))
-                except Exception as e:
-                    bn.log_error(f"Error handling editFunctionSignature request: {e}")
-                    self._send_json_response(
-                        {"error": str(e)},
-                        500,
-                    )
             elif path == "/setFunctionPrototype":
                 # Accept both GET and POST to support long prototypes via POST body
                 address_str = (
