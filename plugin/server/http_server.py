@@ -193,8 +193,8 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            # For all endpoints except /status and /convertNumber, check if binary is loaded
-            if not (self.path.startswith("/status") or self.path.startswith("/convertNumber")) and not self._check_binary_loaded():
+            # For all endpoints except /status, /convertNumber, and /platforms, check if binary is loaded
+            if not (self.path.startswith("/status") or self.path.startswith("/convertNumber") or self.path.startswith("/platforms")) and not self._check_binary_loaded():
                 return
 
             params = self._parse_query_params()
@@ -1073,6 +1073,34 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"error": str(ve)}, 400)
                 except Exception as e:
                     bn.log_error(f"Error handling setFunctionPrototype request: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+            elif path == "/makeFunctionAt":
+                # Create a function at an address (idempotent if already exists)
+                address_str = params.get("address") or params.get("addr")
+                arch = params.get("platform") or params.get("arch") or params.get("architecture")
+                if not address_str:
+                    self._send_json_response(
+                        {"error": "Missing address parameter", "help": "Required: address (hex like 0x401000 or decimal). Optional: platform (e.g., linux-x86_64; use 'default' for view default)"},
+                        400,
+                    )
+                    return
+                try:
+                    res = self.endpoints.make_function_at(address_str, arch)
+                    # If the endpoint signals an error, forward with 400 so clients can react properly
+                    if isinstance(res, dict) and res.get("error"):
+                        self._send_json_response(res, 400)
+                    else:
+                        self._send_json_response(res)
+                except ValueError as ve:
+                    self._send_json_response({"error": str(ve)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Error handling makeFunctionAt: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+            elif path == "/platforms":
+                try:
+                    self._send_json_response(self.endpoints.list_platforms())
+                except Exception as e:
+                    bn.log_error(f"Error listing platforms: {e}")
                     self._send_json_response({"error": str(e)}, 500)
             elif path == "/setLocalVariableType":
                 fn_ident = (

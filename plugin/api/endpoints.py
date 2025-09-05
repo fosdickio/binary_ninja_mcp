@@ -176,6 +176,40 @@ class BinaryNinjaEndpoints:
             bn.log_error(f"Error getting assembly for function: {e}")
             return None
 
+    def make_function_at(self, address: str | int, architecture: str | None = None) -> Dict[str, Any]:
+        """Create a function at an address (no-op if already exists).
+
+        On invalid/unknown platform (non-default arch parameter), returns an error object with
+        an exhaustive list of available platforms so clients/LLMs can choose properly.
+        """
+        try:
+            return self.binary_ops.make_function_at(address, architecture)
+        except ValueError as e:
+            # Enumerate all available platforms dynamically
+            platforms: list[str] = []
+            try:
+                plats_obj = getattr(bn, 'Platform', None)
+                if plats_obj is not None:
+                    try:
+                        platforms = [str(getattr(p, 'name', str(p))) for p in list(plats_obj)]
+                    except Exception:
+                        platforms = []
+            except Exception:
+                platforms = []
+            # Fallback list if BN enumeration fails
+            if not platforms:
+                platforms = [
+                    'decree-x86','efi-x86','efi-windows-x86','efi-x86_64','efi-windows-x86_64','efi-aarch64','efi-windows-aarch64','efi-armv7','efi-thumb2',
+                    'freebsd-x86','freebsd-x86_64','freebsd-aarch64','freebsd-armv7','freebsd-thumb2',
+                    'ios-aarch64','ios-armv7','ios-thumb2','ios-kernel-aarch64','ios-kernel-armv7','ios-kernel-thumb2',
+                    'linux-ppc32','linux-ppcvle32','linux-ppc64','linux-ppc32_le','linux-ppc64_le','linux-rv32gc','linux-rv64gc',
+                    'linux-x86','linux-x86_64','linux-x32','linux-aarch64','linux-armv7','linux-thumb2','linux-armv7eb','linux-thumb2eb',
+                    'linux-mipsel','linux-mips','linux-mips3','linux-mipsel3','linux-mips64','linux-cnmips64','linux-mipsel64',
+                    'mac-x86','mac-x86_64','mac-aarch64','mac-armv7','mac-thumb2','mac-kernel-x86','mac-kernel-x86_64','mac-kernel-aarch64','mac-kernel-armv7','mac-kernel-thumb2',
+                    'windows-x86','windows-x86_64','windows-aarch64','windows-armv7','windows-thumb2','windows-kernel-x86','windows-kernel-x86_64','windows-kernel-windows-aarch64',
+                ]
+            return {"error": str(e), "available_platforms": platforms}
+
     def define_types(self, c_code: str) -> Dict[str, str]:
         """Define types from C code string
         

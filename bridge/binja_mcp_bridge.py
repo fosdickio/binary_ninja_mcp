@@ -34,7 +34,10 @@ def safe_get(endpoint: str, params: dict = None, timeout: float | None = 5) -> l
 
 def get_json(endpoint: str, params: dict = None, timeout: float | None = 5):
     """
-    Perform a GET and return parsed JSON. Returns None on error.
+    Perform a GET and return parsed JSON.
+    - On 2xx: returns parsed JSON.
+    - On 4xx/5xx: attempts to parse JSON body and return it; if not JSON, returns {'error': 'Error <code>: <text>'}.
+    Returns None only on transport errors.
     """
     if params is None:
         params = {}
@@ -49,11 +52,24 @@ def get_json(endpoint: str, params: dict = None, timeout: float | None = 5):
         else:
             response = requests.get(url, timeout=timeout)
         response.encoding = "utf-8"
+        # Try to parse JSON regardless of status
+        try:
+            data = response.json()
+        except Exception:
+            data = None
         if response.ok:
-            return response.json()
-        return None
-    except Exception:
-        return None
+            return data
+        # Non-OK: return parsed error object if available; otherwise synthesize one
+        if isinstance(data, dict):
+            # Ensure at least an error field for LLMs
+            if "error" not in data:
+                data = {"error": str(data)}
+            data.setdefault("status", response.status_code)
+            return data
+        text = (response.text or "").strip()
+        return {"error": f"Error {response.status_code}: {text}"}
+    except Exception as e:
+        return {"error": f"Request failed: {str(e)}"}
 
 
 def get_text(endpoint: str, params: dict = None, timeout: float | None = 5) -> str:
@@ -535,6 +551,44 @@ def set_function_prototype(name_or_address: str, prototype: str) -> str:
     if isinstance(data, dict) and "error" in data:
         return f"Error: {data['error']}"
     return str(data)
+
+@mcp.tool()
+def make_function_at(address: str, platform: str = "") -> str:
+    """
+    Create a function at the given address. Platform is optional (e.g., "linux-x86_64").
+    Use "default" to explicitly select the BinaryView/platform default.
+    Returns status and function info; no-op if the function already exists.
+    """
+    params = {"address": address}
+    if platform:
+        params["platform"] = platform
+    data = get_json("makeFunctionAt", params)
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and data.get("error"):
+        import json as _json
+        return _json.dumps(data, indent=2, ensure_ascii=False)
+    if isinstance(data, dict) and data.get("status") == "exists":
+        return f"Function already exists at {data.get('address')}: {data.get('name')}"
+    if isinstance(data, dict) and data.get("status") == "ok":
+        return f"Created function at {data.get('address')}: {data.get('name')}"
+    return str(data)
+
+@mcp.tool()
+def list_platforms() -> str:
+    """
+    List all available platform names from Binary Ninja.
+    """
+    data = get_json("platforms")
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and data.get("error"):
+        import json as _json
+        return _json.dumps(data, indent=2, ensure_ascii=False)
+    plats = data.get("platforms") if isinstance(data, dict) else None
+    if not plats:
+        return "(no platforms)"
+    return "\n".join(plats)
 
 @mcp.tool()
 def declare_c_type(c_declaration: str) -> str:

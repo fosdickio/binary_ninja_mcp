@@ -422,6 +422,166 @@ class BinaryOperations:
             bn.log_error(f"Failed to rename data: {e}")
         return False
 
+    def make_function_at(self, address: str | int, architecture: str | None = None) -> Dict[str, Any]:
+        """Create a function at the given address (no-op if it already exists).
+
+        Args:
+            address: Hex string (e.g., 0x401000) or integer address.
+            architecture: Optional architecture name (e.g., "x86_64", "x86", "armv7").
+
+        Returns:
+            Dict with keys: status (ok|exists), address, name (if found), architecture (if resolved).
+
+        Raises:
+            RuntimeError if no binary is loaded.
+            ValueError on invalid address or creation failure.
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+
+        # Parse address
+        try:
+            if isinstance(address, str) and address.lower().startswith("0x"):
+                addr = int(address, 16)
+            else:
+                addr = int(address)
+        except Exception:
+            raise ValueError(f"Invalid address: {address}")
+
+        bv = self._current_view
+
+        # If a function already exists, return info
+        try:
+            existing = bv.get_function_at(addr)
+            if existing:
+                return {
+                    "status": "exists",
+                    "address": hex(addr),
+                    "name": existing.name,
+                    "architecture": str(getattr(existing, "arch", getattr(bv, "arch", ""))) or None,
+                }
+        except Exception:
+            pass
+
+        # Resolve platform if provided; otherwise use view/platform default.
+        # Note: BinaryView.create_user_function expects a Platform, not an Architecture.
+        plat_obj = None
+        arch_token = None
+        if isinstance(architecture, str):
+            arch_token = architecture.strip().lower()
+        if architecture and arch_token not in (None, "", "default", "auto", "platform"):
+            try:
+                P = getattr(__import__('binaryninja', fromlist=['Platform']), 'Platform', None)
+            except Exception:
+                P = None
+            if P is not None:
+                try:
+                    plat_obj = P[architecture]
+                except Exception:
+                    try:
+                        getp = getattr(P, 'get_by_name', None)
+                        if callable(getp):
+                            plat_obj = getp(architecture)
+                    except Exception:
+                        plat_obj = None
+            # If user explicitly provided an architecture/platform name and we couldn't resolve it,
+            # return an error with suggestions instead of silently using the default.
+            if plat_obj is None:
+                import re as _re
+                from difflib import get_close_matches as _gcm
+                suggestions: list[str] = []
+                names: list[str] = []
+                # Prefer dynamic enumeration via binaryninja.Platform
+                try:
+                    import binaryninja as _bn  # type: ignore
+                    try:
+                        names = [str(getattr(p, 'name', str(p))) for p in list(getattr(_bn, 'Platform'))]
+                    except Exception:
+                        names = []
+                except Exception:
+                    names = []
+                # Fallback: try iterating via imported P if available
+                if not names and P is not None:
+                    try:
+                        names = [str(getattr(p, 'name', str(p))) for p in list(P)]
+                    except Exception:
+                        names = []
+                # Last resort: static catalog (kept up-to-date best-effort)
+                if not names:
+                    names = [
+                        'decree-x86','efi-x86','efi-windows-x86','efi-x86_64','efi-windows-x86_64','efi-aarch64','efi-windows-aarch64','efi-armv7','efi-thumb2',
+                        'freebsd-x86','freebsd-x86_64','freebsd-aarch64','freebsd-armv7','freebsd-thumb2',
+                        'ios-aarch64','ios-armv7','ios-thumb2','ios-kernel-aarch64','ios-kernel-armv7','ios-kernel-thumb2',
+                        'linux-ppc32','linux-ppcvle32','linux-ppc64','linux-ppc32_le','linux-ppc64_le','linux-rv32gc','linux-rv64gc',
+                        'linux-x86','linux-x86_64','linux-x32','linux-aarch64','linux-armv7','linux-thumb2','linux-armv7eb','linux-thumb2eb',
+                        'linux-mipsel','linux-mips','linux-mips3','linux-mipsel3','linux-mips64','linux-cnmips64','linux-mipsel64',
+                        'mac-x86','mac-x86_64','mac-aarch64','mac-armv7','mac-thumb2','mac-kernel-x86','mac-kernel-x86_64','mac-kernel-aarch64','mac-kernel-armv7','mac-kernel-thumb2',
+                        'windows-x86','windows-x86_64','windows-aarch64','windows-armv7','windows-thumb2','windows-kernel-x86','windows-kernel-x86_64','windows-kernel-windows-aarch64',
+                    ]
+                # Build ranked suggestions
+                tl = (arch_token or "").lower()
+                def _score(n: str) -> float:
+                    nl = n.lower()
+                    s = 0.0
+                    if tl and tl in nl:
+                        s += 2.0
+                    # remove non-alnum for loose matching
+                    tlr = _re.sub(r"[^a-z0-9]", "", tl)
+                    nlr = _re.sub(r"[^a-z0-9]", "", nl)
+                    if tlr and tlr in nlr:
+                        s += 1.0
+                    return s
+                base = sorted(names)
+                # Start with substring matches, then extend with close matches
+                substr = [n for n in base if tl in n.lower()]
+                # Use difflib for additional candidates if needed
+                extra = _gcm(tl, base, n=10, cutoff=0.3) if tl else []
+                cand = []
+                seen = set()
+                for n in substr + extra:
+                    if n not in seen:
+                        seen.add(n)
+                        cand.append(n)
+                cand.sort(key=_score, reverse=True)
+                suggestions = cand[:10]
+                raise ValueError(f"Unknown platform/architecture '{architecture}'")
+        # Default/platform fallback when no explicit architecture provided
+        if plat_obj is None:
+            try:
+                plat_obj = getattr(bv, 'platform', None)
+            except Exception:
+                plat_obj = None
+
+        # Create the function
+        try:
+            if hasattr(bv, 'create_user_function'):
+                if plat_obj is not None:
+                    bv.create_user_function(addr, plat_obj)
+                else:
+                    bv.create_user_function(addr)
+            elif hasattr(bv, 'add_function'):
+                if plat_obj is not None:
+                    bv.add_function(addr, plat_obj)
+                else:
+                    bv.add_function(addr)
+            else:
+                raise ValueError('BinaryView does not support function creation')
+        except Exception as e:
+            raise ValueError(f"Failed to create function: {str(e)}")
+
+        # Fetch created function info
+        try:
+            fn = bv.get_function_at(addr)
+        except Exception:
+            fn = None
+        return {
+            "status": "ok",
+            "address": hex(addr),
+            "name": fn.name if fn else None,
+            "platform": str(plat_obj) if plat_obj is not None else None,
+            "architecture": str(getattr(plat_obj, 'arch', None)) if plat_obj is not None else (str(getattr(bv, 'arch', None)) if getattr(bv, 'arch', None) is not None else None),
+        }
+
     def get_defined_data(
         self, offset: int = 0, limit: int = 100, read_len: int = 32
     ) -> List[Dict[str, Any]]:
