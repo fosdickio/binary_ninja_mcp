@@ -193,8 +193,8 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            # For all endpoints except /status, check if binary is loaded
-            if not self.path.startswith("/status") and not self._check_binary_loaded():
+            # For all endpoints except /status and /convertNumber, check if binary is loaded
+            if not (self.path.startswith("/status") or self.path.startswith("/convertNumber")) and not self._check_binary_loaded():
                 return
 
             params = self._parse_query_params()
@@ -1362,6 +1362,27 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     })
                 except Exception as e:
                     bn.log_error(f"Error handling formatValue: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/convertNumber":
+                # Compute number/string representations (bases, LE/BE, C literals)
+                try:
+                    text = params.get("text")
+                    size_param = params.get("size")
+                    if text is None:
+                        self._send_json_response(
+                            {
+                                "error": "Missing text parameter",
+                                "help": "Required: text. Optional: size (1,2,4,8 or 0 for auto)",
+                                "received": params,
+                            },
+                            400,
+                        )
+                        return
+                    conv = util_convert_number(text, size_param)
+                    self._send_json_response(conv)
+                except Exception as e:
+                    bn.log_error(f"Error handling convertNumber: {e}")
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/getXrefsToUnion":

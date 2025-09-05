@@ -501,6 +501,21 @@ def format_value(address: str, text: str, size: int = 0) -> list:
     return safe_get("formatValue", {"address": address, "text": text, "size": size}, timeout=None)
 
 @mcp.tool()
+def convert_number(text: str, size: int = 0) -> str:
+    """
+    Convert a number or string to multiple representations (hex/dec/bin, LE/BE, C char/string literals).
+    Accepts decimal (e.g., 123), hex (0x7b or 7Bh), binary (0b1111011), octal (0o173),
+    char ('A'), or string ("ABC" with escapes like \x41).
+    """
+    data = get_json("convertNumber", {"text": text, "size": size}, timeout=None)
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and data.get("error"):
+        return f"Error: {data['error']}"
+    import json as _json
+    return _json.dumps(data, indent=2, ensure_ascii=False)
+
+@mcp.tool()
 def get_type_info(type_name: str) -> str:
     """
     Resolve a type name and return its declaration and details (kind, members, enum values).
