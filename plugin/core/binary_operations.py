@@ -1,5 +1,6 @@
 import binaryninja as bn
 from typing import Optional, List, Dict, Any, Union
+import weakref
 from .config import BinaryNinjaConfig
 from binaryninja.enums import TypeClass, StructureVariant
 from ..utils.string_utils import escape_non_ascii
@@ -13,7 +14,8 @@ class BinaryOperations:
         self.config = config
         self._current_view: Optional[bn.BinaryView] = None
         # Multi-binary support
-        self._views_by_id: dict[str, bn.BinaryView] = {}
+        # Store weak references so closed views are auto-pruned
+        self._views_by_id: dict[str, weakref.ReferenceType] = {}
         self._next_view_id: int = 1
         self._id_by_filename: dict[str, str] = {}
 
@@ -78,10 +80,44 @@ class BinaryOperations:
             raise
 
     # ---------------- Multi-binary helpers ----------------
+    def _prune_views(self) -> None:
+        """Remove entries for BinaryViews that no longer exist and rebuild filename map."""
+        alive: dict[str, weakref.ReferenceType] = {}
+        new_fn_map: dict[str, str] = {}
+        alive_objs: list[object] = []
+        for vid, w in list(self._views_by_id.items()):
+            try:
+                vb = w()
+            except Exception:
+                vb = None
+            if vb is None:
+                continue
+            alive[vid] = w
+            alive_objs.append(vb)
+            try:
+                fn = str(getattr(vb.file, 'filename', None)) if getattr(vb, 'file', None) else None
+            except Exception:
+                fn = None
+            if fn and fn not in new_fn_map:
+                new_fn_map[fn] = vid
+        self._views_by_id = alive
+        self._id_by_filename = new_fn_map
+        # If current_view no longer exists among alive views, clear it
+        try:
+            if self._current_view is not None and all(obj is not self._current_view for obj in alive_objs):
+                self._current_view = None
+        except Exception:
+            self._current_view = None
+
     def _register_view(self, bv: bn.BinaryView) -> str:
         """Add a view to the managed list if not present, return its id."""
+        self._prune_views()
         # Reuse existing id if the exact object is already tracked
-        for vid, vb in list(self._views_by_id.items()):
+        for vid, w in list(self._views_by_id.items()):
+            try:
+                vb = w()
+            except Exception:
+                vb = None
             if vb is bv:
                 return vid
         # Prefer deduplication by canonical filename
@@ -94,12 +130,13 @@ class BinaryOperations:
             # If a view for this filename already exists, reuse its id and update the view
             existing_id = self._id_by_filename.get(fn)
             if existing_id and existing_id in self._views_by_id:
-                self._views_by_id[existing_id] = bv
+                # Always store weak references so closed views can be pruned
+                self._views_by_id[existing_id] = weakref.ref(bv)
                 return existing_id
         # Assign a new id
         vid = str(self._next_view_id)
         self._next_view_id += 1
-        self._views_by_id[vid] = bv
+        self._views_by_id[vid] = weakref.ref(bv)
         if fn:
             self._id_by_filename[fn] = vid
         return vid
@@ -108,21 +145,62 @@ class BinaryOperations:
         """Public wrapper to register a BinaryView and return its id."""
         return self._register_view(bv)
 
+    def unregister_by_filename(self, filename: str) -> int:
+        """Remove all tracked views that match the given absolute filename.
+
+        Returns number of entries removed.
+        """
+        if not filename:
+            return 0
+        self._prune_views()
+        to_delete: list[str] = []
+        for vid, w in list(self._views_by_id.items()):
+            try:
+                vb = w()
+            except Exception:
+                vb = None
+            if vb is None:
+                continue
+            try:
+                fn = getattr(vb.file, 'filename', None)
+            except Exception:
+                fn = None
+            if fn == filename:
+                to_delete.append(vid)
+        for vid in to_delete:
+            self._views_by_id.pop(vid, None)
+        # Rebuild filename map and clear current_view if it matched
+        try:
+            cur_fn = None
+            if self._current_view and getattr(self._current_view, 'file', None):
+                cur_fn = getattr(self._current_view.file, 'filename', None)
+            if cur_fn == filename:
+                self._current_view = None
+        except Exception:
+            self._current_view = None
+        self._prune_views()
+        return len(to_delete)
+
     def list_open_binaries(self) -> list[dict[str, str]]:
         """Return a list of managed/open binaries with ids.
 
         Note: Tracks binaries opened via this plugin or explicitly registered as current_view.
         """
         items: list[dict[str, str]] = []
-        try:
-            # Ensure the current view (if any) is registered
-            if self._current_view is not None:
-                self._register_view(self._current_view)
-        except Exception:
-            pass
+        # Cleanup first
+        self._prune_views()
+        # Do NOT auto-register current_view here; UI monitor handles discovery.
+        # This avoids re-introducing closed views via a stale strong reference.
         # Deduplicate by canonical filename; prefer the id mapped in _id_by_filename
+        entries: list[tuple[str, str, bool]] = []  # (id, filename, active)
         seen: set[str] = set()
-        for vid, vb in self._views_by_id.items():
+        for vid, w in self._views_by_id.items():
+            try:
+                vb = w()
+            except Exception:
+                vb = None
+            if vb is None:
+                continue
             try:
                 fn = vb.file.filename
             except Exception:
@@ -134,14 +212,15 @@ class BinaryOperations:
             # Resolve canonical id for this filename when available
             canonical_id = self._id_by_filename.get(fn, vid)
             try:
-                vb_canon = self._views_by_id.get(canonical_id, vb)
+                vb_canon_ref = self._views_by_id.get(canonical_id)
+                vb_canon = vb_canon_ref() if vb_canon_ref else vb
             except Exception:
                 vb_canon = vb
-            items.append({
-                "id": canonical_id,
-                "filename": fn,
-                "active": bool(vb_canon is self._current_view),
-            })
+            entries.append((canonical_id, fn, bool(vb_canon is self._current_view)))
+        # Sort by filename for stable ordering
+        entries.sort(key=lambda t: (t[1] or ""))
+        for cid, fn, active in entries:
+            items.append({"id": cid, "filename": fn, "active": active})
         return items
 
     def select_view(self, ident: str) -> dict[str, str] | None:
@@ -152,20 +231,49 @@ class BinaryOperations:
         s = (ident or "").strip()
         if not s:
             return None
+        self._prune_views()
         # Try id
-        vb = self._views_by_id.get(s)
+        w = self._views_by_id.get(s)
+        vb = None
+        if w is not None:
+            try:
+                vb = w()
+            except Exception:
+                vb = None
+        # If user passed a 1-based ordinal (from /binaries), map it to filename
+        if vb is None and s.isdigit():
+            try:
+                idx = int(s)
+                if idx >= 1:
+                    lst = self.list_open_binaries()  # sorted order
+                    if 1 <= idx <= len(lst):
+                        fname = lst[idx - 1].get("filename")
+                        if fname:
+                            map_id = self._id_by_filename.get(fname)
+                            if map_id:
+                                wmap = self._views_by_id.get(map_id)
+                                vb = wmap() if wmap else None
+            except Exception:
+                vb = None
         # Try direct filename mapping
         if vb is None:
             try:
                 # Exact filename
                 map_id = self._id_by_filename.get(s)
                 if map_id:
-                    vb = self._views_by_id.get(map_id)
+                    wmap = self._views_by_id.get(map_id)
+                    vb = wmap() if wmap else None
             except Exception:
                 vb = None
         if vb is None:
             # Try match by full filename or basename
-            for vid, v in self._views_by_id.items():
+            for vid, w2 in self._views_by_id.items():
+                try:
+                    v = w2()
+                except Exception:
+                    v = None
+                if v is None:
+                    continue
                 try:
                     fn = v.file.filename
                 except Exception:
@@ -180,8 +288,12 @@ class BinaryOperations:
             return None
         self.current_view = vb
         vid = None
-        for k, v in self._views_by_id.items():
-            if v is vb:
+        for k, wv in self._views_by_id.items():
+            try:
+                vv = wv()
+            except Exception:
+                vv = None
+            if vv is vb:
                 vid = k
                 break
         return {"id": vid or "", "filename": getattr(vb.file, 'filename', '(unknown)')}

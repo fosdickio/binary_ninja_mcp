@@ -22,8 +22,20 @@ class BinaryNinjaEndpoints:
 
     # -------- Multi-binary helpers --------
     def list_binaries(self) -> Dict[str, Any]:
-        """List managed/open binaries with ids and active flag."""
-        return {"binaries": self.binary_ops.list_open_binaries()}
+        """List managed/open binaries with sequential ids (1..N) and active flag.
+
+        The server maintains internal keys for views; this endpoint presents
+        a user-friendly, 1-based index stable under sorting by filename.
+        """
+        raw = self.binary_ops.list_open_binaries()
+        out = []
+        for i, item in enumerate(raw, start=1):
+            out.append({
+                "id": str(i),
+                "filename": item.get("filename"),
+                "active": bool(item.get("active")),
+            })
+        return {"binaries": out}
 
     def select_binary(self, ident: str) -> Dict[str, Any]:
         """Select active binary by id or filename/basename."""

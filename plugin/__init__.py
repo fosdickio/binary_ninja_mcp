@@ -133,6 +133,7 @@ def _show_no_bv_popup():
 # ------- Status bar indicator -------
 _status_button = None
 _indicator_timer = None
+_bv_monitor_timer = None
 
 
 def _ensure_status_indicator():
@@ -325,6 +326,173 @@ def _schedule_status_init():
         pass
 
 
+def _start_bv_monitor():
+    """Start a lightweight UI timer that keeps the server's BinaryView list in sync in near real-time.
+
+    - Registers any newly opened views discovered via UI contexts
+    - Prunes closed views so /binaries reflects current state without user interaction
+    """
+    global _bv_monitor_timer
+    try:
+        import binaryninjaui as ui
+        from PySide6.QtCore import QTimer
+
+        if _bv_monitor_timer is not None:
+            return
+
+        def _discover_all_open_bvs(ops):
+            """Heuristically discover all open BinaryViews from UI and sync registry.
+
+            Attempts multiple UI paths defensively; safe if some APIs are unavailable.
+            """
+            try:
+                from binaryninjaui import UIContext
+            except Exception:
+                UIContext = None
+
+            found_fns: set[str] = set()
+            found_bvs: list = []
+            contexts = []
+            try:
+                if UIContext and hasattr(UIContext, "allContexts"):
+                    contexts = list(UIContext.allContexts())
+            except Exception:
+                contexts = []
+            if not contexts and UIContext:
+                try:
+                    ctx = UIContext.activeContext()
+                    if ctx:
+                        contexts = [ctx]
+                except Exception:
+                    contexts = []
+
+            def _collect_from_frame(vf):
+                try:
+                    if vf and hasattr(vf, "getCurrentBinaryView"):
+                        bv = vf.getCurrentBinaryView()
+                        if bv:
+                            found_bvs.append(bv)
+                except Exception:
+                    pass
+                # Try alternative accessors
+                try:
+                    if vf and hasattr(vf, "getBinaryView"):
+                        bv2 = vf.getBinaryView()
+                        if bv2:
+                            found_bvs.append(bv2)
+                except Exception:
+                    pass
+
+            for ctx in contexts:
+                # Current frame
+                try:
+                    vf = ctx.getCurrentViewFrame()
+                    _collect_from_frame(vf)
+                except Exception:
+                    pass
+                # Any additional frames if available
+                for attr in ("getViewFrames", "viewFrames", "allViewFrames", "frames"):
+                    try:
+                        getter = getattr(ctx, attr, None)
+                        frames = None
+                        if callable(getter):
+                            frames = getter()
+                        elif getter is not None:
+                            frames = getter
+                        if frames:
+                            for vf2 in list(frames):
+                                _collect_from_frame(vf2)
+                    except Exception:
+                        continue
+
+            # Register discovered BVs and build set of filenames
+            for bv in found_bvs:
+                try:
+                    ops.register_view(bv)
+                    fn = None
+                    try:
+                        if getattr(bv, 'file', None):
+                            fn = getattr(bv.file, 'filename', None)
+                    except Exception:
+                        fn = None
+                    if fn:
+                        found_fns.add(str(fn))
+                except Exception:
+                    continue
+            return found_fns
+
+
+        def _tick():
+            try:
+                ops = plugin.server.binary_ops if (plugin.server and plugin.server.binary_ops) else None
+                if not ops:
+                    return
+
+                # First, prune internal weakrefs and get a snapshot of tracked views
+                try:
+                    current_list = ops.list_open_binaries()
+                except Exception:
+                    current_list = []
+
+                # Discover all open BVs from UI and sync registry (returns filenames)
+                try:
+                    ui_fns = _discover_all_open_bvs(ops) or set()
+                except Exception:
+                    ui_fns = set()
+
+                # Do not prune solely based on UI heuristics; UI enumeration may miss open tabs.
+                # Rely on explicit close notifications and weakref pruning in ops.
+
+                # If the previously selected view was closed, adopt the UI active view
+                try:
+                    cur = ops.current_view
+                    cur_fn = None
+                    try:
+                        if cur and getattr(cur, 'file', None):
+                            cur_fn = getattr(cur.file, 'filename', None)
+                    except Exception:
+                        cur_fn = None
+
+                    if cur_fn and ui_fns and (cur_fn not in ui_fns):
+                        # Stale active view; switch to current UI active view if available
+                        try:
+                            from binaryninjaui import UIContext
+                            act_ctx = UIContext.activeContext()
+                            act_bv = None
+                            if act_ctx:
+                                vf = act_ctx.getCurrentViewFrame()
+                                if vf and hasattr(vf, 'getCurrentBinaryView'):
+                                    act_bv = vf.getCurrentBinaryView()
+                            ops.current_view = act_bv
+                            if act_bv:
+                                ops.register_view(act_bv)
+                        except Exception:
+                            ops.current_view = None
+                except Exception:
+                    pass
+            except Exception:
+                # Never raise out of the timer
+                pass
+
+        _bv_monitor_timer = QTimer()
+        _bv_monitor_timer.setInterval(1000)  # 1s; light periodic sync
+        _bv_monitor_timer.timeout.connect(_tick)
+
+        def _start():
+            try:
+                _tick()
+                _bv_monitor_timer.start()
+            except Exception:
+                pass
+
+        try:
+            ui.execute_on_main_thread(_start)
+        except Exception:
+            _start()
+    except Exception:
+        pass
+
+
 # Install UI notifications (when UI is available)
 try:
     import binaryninjaui as ui
@@ -348,6 +516,7 @@ try:
                 _ensure_status_indicator()
                 _set_status_indicator(bool(plugin.server and plugin.server.server))
                 _start_indicator_watcher()
+                _start_bv_monitor()
                 if bv:
                     # Track the BinaryView for multi-binary support
                     try:
@@ -366,6 +535,7 @@ try:
                 _ensure_status_indicator()
                 _set_status_indicator(bool(plugin.server and plugin.server.server))
                 _start_indicator_watcher()
+                _start_bv_monitor()
                 if bv:
                     try:
                         plugin.server.binary_ops.register_view(bv)
@@ -374,6 +544,28 @@ try:
                     _try_autostart_for_bv(bv)
             except Exception as e:
                 bn.log_error(f"MCP Max OnAfterOpenFile error: {e}")
+
+        # Best-effort close notifications (may not be called on all versions)
+        def OnBeforeCloseFile(self, *args):  # type: ignore[override]
+            try:
+                bv = self._get_active_bv()
+                if bv and plugin.server and plugin.server.binary_ops:
+                    try:
+                        fn = getattr(bv.file, 'filename', None)
+                    except Exception:
+                        fn = None
+                    if fn:
+                        plugin.server.binary_ops.unregister_by_filename(fn)
+            except Exception:
+                pass
+
+        def OnAfterCloseFile(self, *args):  # type: ignore[override]
+            try:
+                # Force a prune after close
+                if plugin.server and plugin.server.binary_ops:
+                    _ = plugin.server.binary_ops.list_open_binaries()
+            except Exception:
+                pass
 
         # Ensure status indicator exists when a UI context opens
         def OnContextOpen(self, *args):  # type: ignore[override]
@@ -389,6 +581,7 @@ try:
     # Ensure status control is present at startup with retries
     _schedule_status_init()
     _start_indicator_watcher()
+    _start_bv_monitor()
 except Exception as e:
     # UI not available (headless) or API mismatch; ignore
     bn.log_debug(f"MCP Max UI notifications not installed: {e}")
@@ -485,5 +678,11 @@ try:
         bn.log_info("Registered BinaryView initial analysis completion event for MCP Max")
     except Exception as e:
         bn.log_debug(f"Unable to register BV analysis completion event: {e}")
+    # Also register finalized event to catch newly created/opened views early
+    try:
+        BinaryViewType.add_binaryview_finalized_event(_on_bv_initial_analysis)
+        bn.log_info("Registered BinaryView finalized event for MCP Max")
+    except Exception as e:
+        bn.log_debug(f"Unable to register BV finalized event: {e}")
 except Exception:
     pass
