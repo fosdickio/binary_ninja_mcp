@@ -7,13 +7,14 @@
 
 This repository contains a Binary Ninja plugin, MCP server, and bridge that enables seamless integration of Binary Ninja's capabilities with your favorite LLM client.
 
-## Features
+## Features ✨
 
-- Seamless, real-time integration between Binary Ninja and MCP clients
-- Enhanced reverse engineering workflow with AI assistance
-- Support for every MCP client (Cline, Claude desktop, Roo Code, etc)
+- ⚡ Seamless, real-time integration between Binary Ninja and MCP clients
+- 🧠 Enhanced reverse engineering workflow with AI assistance
+- 🤝 Support for every MCP client (Cline, Claude desktop, Roo Code, etc)
+- 🗂️ Multi-binary supported: open multiple binaries and switch the active target automatically by the LLMs — no restart required
 
-## Examples
+## Examples 🎬
 
 ### Solving a CTF Challenge
 
@@ -21,14 +22,14 @@ https://github.com/user-attachments/assets/67b76a53-ea21-4bef-86d2-f751b891c604
 
 You can also watch the demo video on [YouTube](https://www.youtube.com/watch?v=0ffMHH39L_M)
 
-## Components
+## Components 🧩
 
 This repository contains two separate components:
 
 1. A Binary Ninja plugin that provides an MCP server that exposes Binary Ninja's capabilities through HTTP endpoints. This can be used with any client that implements the MCP protocol.
 2. A separate MCP bridge component that connects your favorite MCP client to the Binary Ninja MCP server. While Claude Desktop is the primary integration path, the MCP server can be used with other clients.
 
-## Supported Integrations
+## Supported Integrations 🛠️
 
 The following table lists available MCP tools. Sorted alphabetically by function name.
 
@@ -115,59 +116,53 @@ HTTP endpoints
 
 ## Installation
 
+Please install the MCP client before you install the Binary Ninja MCP Max so that the MCP clients can be auto-setup. We currently support auto-setup for these MCP clients:
+
+    1. Cline (VS Code)
+    2. Roo Code (VS Code)
+    3. Claude Desktop
+    4. Cursor
+    5. Windsurf
+    6. Claude Code
+    7. LM Studio
+
+After the MCP client is installed, you can install the MCP server by **Binary Ninja plugin manager** or **manually**. Both methods support the MCP clients auto setup. 
+
+If your MCP client is not set, try reinstall Binary Ninja MCP Max.
+
 ### Binary Ninja Plugin Manager
 
 You may install the plugin through Binary Ninja's Plugin Manager (`Plugins > Manage Plugins`). When installed via the Plugin Manager, the plugin resides under:
 
-- macOS: `~/Library/Application Support/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max`
+- MacOS: `~/Library/Application Support/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max`
 - Linux: `~/.binaryninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max`
 - Windows: `%APPDATA%\Binary Ninja\plugins\repositories\community\plugins\CX330Blake_binary_ninja_mcp_max`
 
-To manually configure the plugin, this repository can be copied into the Binary Ninja plugins folder.
+### Manually Install
 
-#### Automatic MCP Client Setup
+To manually install the plugin, this repository can be copied into the [Binary Ninja plugins folder](https://arc.net/l/quote/ghhybrfz).
 
-The plugin includes an automatic installer that wires up supported MCP clients to this server using the key `binary_ninja_mcp_max`.
+## Manually Setup MCP Client
 
-- First run: When Binary Ninja loads the plugin, it will:
-  - Create a local venv under this plugin at `.venv/` (if missing) and install `bridge/requirements.txt`.
-  - Add an entry for `binary_ninja_mcp_max` to known MCP client configs when their config files are present.
-  - Write `.mcp_auto_setup_done` at the plugin root to avoid repeating on every launch.
-
-- Supported MCP clients (auto-setup):
-  1. Cline (VS Code)
-  2. Roo Code (VS Code)
-  3. Claude Desktop
-  4. Cursor
-  5. Windsurf
-  6. Claude Code
-  7. LM Studio
-
-- Re-run auto-setup: Delete the `.mcp_auto_setup_done` file or run the uninstall command below; then restart Binary Ninja or run the installer again.
-
-#### CLI Installer (all platforms)
+You do NOT need to set this up manually if you use the supported MCP client and follow the installation steps before.
 
 You can also manage MCP client entries from the command line:
 
 ```bash
-python scripts/mcp_client_installer.py --install    # add/update entries
-python scripts/mcp_client_installer.py --uninstall  # remove entries and delete .mcp_auto_setup_done
+python scripts/mcp_client_installer.py --install    # auto setup supported MCP clients
+python scripts/mcp_client_installer.py --uninstall  # remove entries and delete `.mcp_auto_setup_done`
 python scripts/mcp_client_installer.py --config     # print a generic JSON config snippet
 ```
 
-- Use `--quiet` to reduce output. The installer preserves any existing `env` overrides for this server key.
-
-### Manual Configuration
-
-For other MCP clients:
+For other MCP clients, this is an example config:
 
 ```json
 {
     "mcpServers": {
         "binary_ninja_mcp_max": {
-            "command": "/ABSOLUTE/PATH/TO/Binary\ Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max/.venv/bin/python",
+            "command": "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max/.venv/bin/python",
             "args": [
-                "/ABSOLUTE/PATH/TO/Binary\ Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max/bridge/binja_mcp_bridge.py"
+                "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max/bridge/binja_mcp_bridge.py"
             ]
         }
     }
@@ -189,10 +184,6 @@ You may now start prompting Claude about the currently open binary. Example prom
 - "Rename function X to Y in the current binary."
 - "List all functions in the current binary."
 - "What is the status of the loaded binary?"
-
-### Other MCP Client Integrations
-
-The bridge can be used with other MCP clients by implementing the appropriate integration layer.
 
 ## Development
 
