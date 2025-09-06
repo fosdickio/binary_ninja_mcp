@@ -421,6 +421,44 @@ def get_binary_status() -> str:
 
 
 @mcp.tool()
+def list_binaries() -> list:
+    """
+    List managed/open binaries known to the server with ids and active flag.
+    """
+    data = get_json("binaries")
+    if not data:
+        return ["Error: no response"]
+    if isinstance(data, dict) and data.get("error"):
+        return [data.get("error")]
+    items = data.get("binaries", [])
+    out = []
+    for it in items:
+        vid = it.get("id")
+        fn = it.get("filename")
+        active = it.get("active")
+        out.append(f"{vid}\t{fn}\t{'*' if active else ''}")
+    return out
+
+@mcp.tool()
+def select_binary(view: str) -> str:
+    """
+    Select the binary to be analyze by id or filename.
+    Remember to select the binary first then do the further analysis.
+    Everytime changing the analysis target should call this function again.
+    """
+    data = get_json("selectBinary", {"view": view})
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and data.get("error"):
+        import json as _json
+        return _json.dumps(data, indent=2, ensure_ascii=False)
+    sel = data.get("selected") if isinstance(data, dict) else None
+    if sel:
+        return f"Selected {sel.get('id')} -> {sel.get('filename')}"
+    return str(data)
+
+
+@mcp.tool()
 def delete_comment(address: str) -> str:
     """
     Delete the comment at a specific address.

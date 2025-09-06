@@ -30,14 +30,43 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         bn.log_info(format % args)
 
     def _set_headers(self, content_type="application/json", status_code=200):
-        self.send_response(status_code)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
+        try:
+            self.send_response(status_code)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            # Encourage clients to close promptly; reduces BrokenPipe on abrupt disconnects
+            self.send_header("Connection", "close")
+            self.end_headers()
+        except (BrokenPipeError, OSError):
+            try:
+                import binaryninja as _bn
+                _bn.log_warn("Client disconnected while sending headers")
+            except Exception:
+                pass
 
     def _send_json_response(self, data: Dict[str, Any], status_code: int = 200):
-        self._set_headers(status_code=status_code)
-        self.wfile.write(json.dumps(data).encode("utf-8"))
+        try:
+            self._set_headers(status_code=status_code)
+            # If headers failed due to disconnect, avoid writing body
+            try:
+                body = json.dumps(data).encode("utf-8")
+            except Exception:
+                body = b"{}"
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, OSError):
+                try:
+                    import binaryninja as _bn
+                    _bn.log_warn("Client disconnected while sending body")
+                except Exception:
+                    pass
+        except Exception:
+            # Last-resort swallow to avoid cascading errors on disconnects
+            try:
+                import binaryninja as _bn
+                _bn.log_debug("Suppressed exception during response write")
+            except Exception:
+                pass
 
     def _parse_query_params(self) -> Dict[str, str]:
         parsed_path = urllib.parse.urlparse(self.path)
@@ -193,8 +222,8 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            # For all endpoints except /status, /convertNumber, and /platforms, check if binary is loaded
-            if not (self.path.startswith("/status") or self.path.startswith("/convertNumber") or self.path.startswith("/platforms")) and not self._check_binary_loaded():
+            # For all endpoints except /status, /convertNumber, /platforms, /binaries, /views, /selectBinary, check loaded
+            if not (self.path.startswith("/status") or self.path.startswith("/convertNumber") or self.path.startswith("/platforms") or self.path.startswith("/binaries") or self.path.startswith("/views") or self.path.startswith("/selectBinary")) and not self._check_binary_loaded():
                 return
 
             params = self._parse_query_params()
@@ -232,6 +261,17 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             elif path == "/imports":
                 imports = self.endpoints.get_imports(offset, limit)
                 self._send_json_response({"imports": imports})
+
+            elif path == "/binaries" or path == "/views":
+                # List managed/open binaries
+                self._send_json_response(self.endpoints.list_binaries())
+
+            elif path == "/selectBinary":
+                ident = params.get("view") or params.get("binary") or params.get("id") or params.get("file")
+                if not ident:
+                    self._send_json_response({"error": "Missing parameter", "help": "Use ?view=<id|filename>"}, 400)
+                else:
+                    self._send_json_response(self.endpoints.select_binary(ident))
 
             elif path == "/exports":
                 exports = self.endpoints.get_exports(offset, limit)

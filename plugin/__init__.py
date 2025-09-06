@@ -26,9 +26,19 @@ class BinaryNinjaMCP:
                 # Ensure BV is set if not already
                 if self.server.binary_ops.current_view is None:
                     self.server.binary_ops.current_view = bv
+                else:
+                    # Register any newly seen view even if server is already running
+                    try:
+                        self.server.binary_ops.register_view(bv)
+                    except Exception:
+                        pass
                 _show_popup("MCP Server", "Server is already running.")
                 return
             self.server.binary_ops.current_view = bv
+            try:
+                self.server.binary_ops.register_view(bv)
+            except Exception:
+                pass
             self.server.start()
             global _mcp_user_stopped
             _mcp_user_stopped = False
@@ -339,6 +349,11 @@ try:
                 _set_status_indicator(bool(plugin.server and plugin.server.server))
                 _start_indicator_watcher()
                 if bv:
+                    # Track the BinaryView for multi-binary support
+                    try:
+                        plugin.server.binary_ops.register_view(bv)
+                    except Exception:
+                        pass
                     _try_autostart_for_bv(bv)
             except Exception as e:
                 bn.log_error(f"MCP Max UI notification error: {e}")
@@ -352,6 +367,10 @@ try:
                 _set_status_indicator(bool(plugin.server and plugin.server.server))
                 _start_indicator_watcher()
                 if bv:
+                    try:
+                        plugin.server.binary_ops.register_view(bv)
+                    except Exception:
+                        pass
                     _try_autostart_for_bv(bv)
             except Exception as e:
                 bn.log_error(f"MCP Max OnAfterOpenFile error: {e}")
@@ -447,4 +466,24 @@ try:
     _ = install_mcp_clients(quiet=True)
 except Exception:
     # Best-effort; ignore failures to avoid disrupting plugin load
+    pass
+
+# Register global handler to discover and track all opened BinaryViews
+try:
+    from binaryninja.binaryview import BinaryViewType
+
+    def _on_bv_initial_analysis(bv):
+        try:
+            # Ensure server exists; even if not running, register the view for listing later
+            if plugin.server and plugin.server.binary_ops:
+                plugin.server.binary_ops.register_view(bv)
+        except Exception:
+            pass
+
+    try:
+        BinaryViewType.add_binaryview_initial_analysis_completion_event(_on_bv_initial_analysis)
+        bn.log_info("Registered BinaryView initial analysis completion event for MCP Max")
+    except Exception as e:
+        bn.log_debug(f"Unable to register BV analysis completion event: {e}")
+except Exception:
     pass

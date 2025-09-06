@@ -59,6 +59,8 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `get_type_info(type_name)`                    | Resolve a type and return declaration, kind, and members.                                   |
 | `make_function_at(address, platform)`         | Create a function at an address. `platform` optional; use `default` to pick the BinaryView/platform default. |
 | `list_platforms()`                            | List all available platform names.                                                         |
+| `list_binaries()`                             | List managed/open binaries with ids and active flag.                                        |
+| `select_binary(view)`                         | Select active binary by id or filename.                                                    |
 | `list_all_strings()`                          | List all strings (no pagination; aggregates all pages).                                     |
 | `list_classes`                                | List all namespace/class names in the program.                                              |
 | `list_data_items`                             | List defined data labels and their values.                                                  |
@@ -92,6 +94,8 @@ HTTP endpoints
 - `/hexdumpByName?name=<symbol>&length=<n>`: Text hexdump by symbol name. Recognizes BN auto-labels like `data_<hex>`, `byte_<hex>`, `word_<hex>`, `dword_<hex>`, `qword_<hex>`, `off_<hex>`, `unk_<hex>`, and plain hex addresses.
 - `/makeFunctionAt?address=<addr>&platform=<name|default>`: Create a function at an address (idempotent if already exists). `platform=default` uses the BinaryView/platform default.
 - `/platforms`: List all available platform names.
+- `/binaries` or `/views`: List managed/open binaries with ids and active flag.
+- `/selectBinary?view=<id|filename>`: Select active binary for subsequent operations.
 - `/data?offset=<n>&limit=<m>&length=<n>`: Defined data items with previews. `length` controls bytes read per item (capped at defined size). Default behavior reads exact defined size when available; `length=-1` forces exact-size.
 - `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
 - `/getXrefsToField?struct=<name>&field=<name>`: Xrefs to struct field.

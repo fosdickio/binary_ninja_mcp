@@ -20,6 +20,18 @@ class BinaryNinjaEndpoints:
         """Get entry point(s) for the current binary"""
         return self.binary_ops.get_entry_points()
 
+    # -------- Multi-binary helpers --------
+    def list_binaries(self) -> Dict[str, Any]:
+        """List managed/open binaries with ids and active flag."""
+        return {"binaries": self.binary_ops.list_open_binaries()}
+
+    def select_binary(self, ident: str) -> Dict[str, Any]:
+        """Select active binary by id or filename/basename."""
+        info = self.binary_ops.select_view(ident)
+        if not info:
+            return {"error": f"Binary not found: {ident}", "available": self.binary_ops.list_open_binaries()}
+        return {"status": "ok", "selected": info}
+
     def get_function_info(self, identifier: str) -> Optional[Dict[str, Any]]:
         """Get detailed information about a function"""
         try:

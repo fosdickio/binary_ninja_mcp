@@ -12,6 +12,10 @@ class BinaryOperations:
     def __init__(self, config: BinaryNinjaConfig):
         self.config = config
         self._current_view: Optional[bn.BinaryView] = None
+        # Multi-binary support
+        self._views_by_id: dict[str, bn.BinaryView] = {}
+        self._next_view_id: int = 1
+        self._id_by_filename: dict[str, str] = {}
 
     @property
     def current_view(self) -> Optional[bn.BinaryView]:
@@ -22,6 +26,10 @@ class BinaryOperations:
         self._current_view = bv
         if bv:
             bn.log_info(f"Set current binary view: {bv.file.filename}")
+            try:
+                self._register_view(bv)
+            except Exception:
+                pass
         else:
             bn.log_info("Cleared current binary view")
 
@@ -59,10 +67,124 @@ class BinaryOperations:
                 else:
                     raise Exception("No view type available for this file")
 
+            try:
+                if self._current_view is not None:
+                    self._register_view(self._current_view)
+            except Exception:
+                pass
             return self._current_view
         except Exception as e:
             bn.log_error(f"Failed to load binary: {e}")
             raise
+
+    # ---------------- Multi-binary helpers ----------------
+    def _register_view(self, bv: bn.BinaryView) -> str:
+        """Add a view to the managed list if not present, return its id."""
+        # Reuse existing id if the exact object is already tracked
+        for vid, vb in list(self._views_by_id.items()):
+            if vb is bv:
+                return vid
+        # Prefer deduplication by canonical filename
+        fn = None
+        try:
+            fn = str(getattr(bv.file, 'filename', None)) if getattr(bv, 'file', None) else None
+        except Exception:
+            fn = None
+        if fn:
+            # If a view for this filename already exists, reuse its id and update the view
+            existing_id = self._id_by_filename.get(fn)
+            if existing_id and existing_id in self._views_by_id:
+                self._views_by_id[existing_id] = bv
+                return existing_id
+        # Assign a new id
+        vid = str(self._next_view_id)
+        self._next_view_id += 1
+        self._views_by_id[vid] = bv
+        if fn:
+            self._id_by_filename[fn] = vid
+        return vid
+
+    def register_view(self, bv: bn.BinaryView) -> str:
+        """Public wrapper to register a BinaryView and return its id."""
+        return self._register_view(bv)
+
+    def list_open_binaries(self) -> list[dict[str, str]]:
+        """Return a list of managed/open binaries with ids.
+
+        Note: Tracks binaries opened via this plugin or explicitly registered as current_view.
+        """
+        items: list[dict[str, str]] = []
+        try:
+            # Ensure the current view (if any) is registered
+            if self._current_view is not None:
+                self._register_view(self._current_view)
+        except Exception:
+            pass
+        # Deduplicate by canonical filename; prefer the id mapped in _id_by_filename
+        seen: set[str] = set()
+        for vid, vb in self._views_by_id.items():
+            try:
+                fn = vb.file.filename
+            except Exception:
+                fn = "(unknown)"
+            key = fn
+            if key in seen:
+                continue
+            seen.add(key)
+            # Resolve canonical id for this filename when available
+            canonical_id = self._id_by_filename.get(fn, vid)
+            try:
+                vb_canon = self._views_by_id.get(canonical_id, vb)
+            except Exception:
+                vb_canon = vb
+            items.append({
+                "id": canonical_id,
+                "filename": fn,
+                "active": bool(vb_canon is self._current_view),
+            })
+        return items
+
+    def select_view(self, ident: str) -> dict[str, str] | None:
+        """Select active BinaryView by id or filename/basename.
+
+        Returns selection info on success, None on failure.
+        """
+        s = (ident or "").strip()
+        if not s:
+            return None
+        # Try id
+        vb = self._views_by_id.get(s)
+        # Try direct filename mapping
+        if vb is None:
+            try:
+                # Exact filename
+                map_id = self._id_by_filename.get(s)
+                if map_id:
+                    vb = self._views_by_id.get(map_id)
+            except Exception:
+                vb = None
+        if vb is None:
+            # Try match by full filename or basename
+            for vid, v in self._views_by_id.items():
+                try:
+                    fn = v.file.filename
+                except Exception:
+                    fn = None
+                if not fn:
+                    continue
+                import os as _os
+                if s == fn or s == _os.path.basename(fn):
+                    vb = v
+                    break
+        if vb is None:
+            return None
+        self.current_view = vb
+        vid = None
+        for k, v in self._views_by_id.items():
+            if v is vb:
+                vid = k
+                break
+        return {"id": vid or "", "filename": getattr(vb.file, 'filename', '(unknown)')}
 
     def get_function_by_name_or_address(
         self, identifier: Union[str, int]
