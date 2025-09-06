@@ -443,18 +443,12 @@ def _start_bv_monitor():
                 # Do not prune solely based on UI heuristics; UI enumeration may miss open tabs.
                 # Rely on explicit close notifications and weakref pruning in ops.
 
-                # If the previously selected view was closed, adopt the UI active view
+                # Keep MCP-selected active view independent of UI focus.
+                # Only adopt a UI-active view if there is no current selection
+                # (e.g., after the previously selected view was actually closed
+                # and pruned by weakrefs).
                 try:
-                    cur = ops.current_view
-                    cur_fn = None
-                    try:
-                        if cur and getattr(cur, 'file', None):
-                            cur_fn = getattr(cur.file, 'filename', None)
-                    except Exception:
-                        cur_fn = None
-
-                    if cur_fn and ui_fns and (cur_fn not in ui_fns):
-                        # Stale active view; switch to current UI active view if available
+                    if ops.current_view is None:
                         try:
                             from binaryninjaui import UIContext
                             act_ctx = UIContext.activeContext()
@@ -467,7 +461,8 @@ def _start_bv_monitor():
                             if act_bv:
                                 ops.register_view(act_bv)
                         except Exception:
-                            ops.current_view = None
+                            # If UI is unavailable or no active view, leave as None
+                            pass
                 except Exception:
                     pass
             except Exception:
