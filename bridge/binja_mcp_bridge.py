@@ -675,5 +675,7 @@ def set_local_variable_type(function_address: str, variable_name: str, new_type:
     return str(data)
     
 if __name__ == "__main__":
-    print("Starting MCP bridge service...")
+    import sys as _sys
+    # Important: write any logs to stderr to avoid corrupting MCP stdio JSON-RPC
+    print("Starting MCP bridge service...", file=_sys.stderr)
     mcp.run()

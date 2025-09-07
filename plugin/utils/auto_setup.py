@@ -26,7 +26,10 @@ def _venv_dir() -> str:
 def _venv_python() -> str:
     d = _venv_dir()
     if sys.platform == "win32":
-        return os.path.join(d, "Scripts", "python.exe")
+        # Always prefer a real Python interpreter (python.exe) for MCP stdio servers.
+        # Returning binaryninja.exe here causes the MCP client to fail on Windows.
+        py = os.path.join(d, "Scripts", "python.exe")
+        return py
     return os.path.join(d, "bin", "python3")
 
 
@@ -39,10 +42,25 @@ def _ensure_local_venv() -> str:
     vdir = _venv_dir()
     py = _venv_python()
     try:
-        if not os.path.exists(py):
+        # If this looks like a BN-embedded venv (binaryninja.exe present) or
+        # python.exe is missing, (re)build the venv using a system Python.
+        bn_launcher = os.path.join(vdir, "Scripts", "binaryninja.exe") if sys.platform == "win32" else None
+        if not os.path.exists(py) or (sys.platform == "win32" and os.path.exists(bn_launcher)):
             os.makedirs(vdir, exist_ok=True)
-            builder = venv.EnvBuilder(with_pip=True, upgrade=False)
-            builder.create(vdir)
+            created = False
+            # On Windows, prefer system Python launcher to avoid embedding
+            # Binary Ninja's interpreter into the venv.
+            if sys.platform == "win32":
+                try:
+                    subprocess.run(["py", "-3", "-m", "venv", vdir], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    created = True
+                except Exception:
+                    created = False
+            if not created:
+                builder = venv.EnvBuilder(with_pip=True, upgrade=False)
+                builder.create(vdir)
+            # Re-evaluate interpreter path after creation (may be python.exe now)
+            py = _venv_python()
             # Best-effort: install bridge requirements
             req = os.path.join(_repo_root(), "bridge", "requirements.txt")
             if os.path.exists(req):

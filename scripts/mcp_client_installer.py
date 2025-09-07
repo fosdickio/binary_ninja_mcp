@@ -26,7 +26,11 @@ def _venv_dir() -> str:
 def _venv_python() -> str:
     d = _venv_dir()
     if sys.platform == "win32":
-        return os.path.join(d, "Scripts", "python.exe")
+        # Always prefer a real Python interpreter for MCP stdio servers.
+        # "binaryninja.exe" is an embedded interpreter launcher and does not
+        # behave like a normal Python on stdio, causing MCP clients to fail.
+        py = os.path.join(d, "Scripts", "python.exe")
+        return py
     return os.path.join(d, "bin", "python3")
 
 
@@ -35,10 +39,25 @@ def ensure_local_venv() -> str:
     vdir = _venv_dir()
     py = _venv_python()
     try:
-        if not os.path.exists(py):
+        # If this looks like a BN-embedded venv (binaryninja.exe present) or
+        # python.exe is missing, (re)build the venv using a system Python.
+        bn_launcher = os.path.join(vdir, "Scripts", "binaryninja.exe") if sys.platform == "win32" else None
+        if not os.path.exists(py) or (sys.platform == "win32" and os.path.exists(bn_launcher)):
             os.makedirs(vdir, exist_ok=True)
-            builder = venv.EnvBuilder(with_pip=True, upgrade=False)
-            builder.create(vdir)
+            created = False
+            # On Windows, prefer using the system Python launcher to avoid
+            # embedding Binary Ninja's interpreter into the venv.
+            if sys.platform == "win32":
+                try:
+                    subprocess.run(["py", "-3", "-m", "venv", vdir], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    created = True
+                except Exception:
+                    created = False
+            if not created:
+                builder = venv.EnvBuilder(with_pip=True, upgrade=False)
+                builder.create(vdir)
+            # Re-evaluate interpreter path after creation (may be python.exe now)
+            py = _venv_python()
             # Best-effort: install bridge requirements
             req = os.path.join(_repo_root(), "bridge", "requirements.txt")
             if os.path.exists(req):
@@ -48,6 +67,8 @@ def ensure_local_venv() -> str:
                     pass
     except Exception:
         return get_python_executable()
+    # If we still couldn't provision a python.exe in the venv, fall back to a
+    # system Python to keep the bridge usable.
     return py if os.path.exists(py) else get_python_executable()
 
 
