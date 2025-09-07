@@ -5,6 +5,16 @@ import requests
 binja_server_url = "http://localhost:9009"
 mcp = FastMCP("binja-mcp")
 
+def _active_filename() -> str:
+    """Return the currently active filename as known by the server."""
+    try:
+        st = get_json("status")
+        if isinstance(st, dict) and st.get("filename"):
+            return str(st.get("filename"))
+    except Exception:
+        pass
+    return "(none)"
+
 
 def safe_get(endpoint: str, params: dict = None, timeout: float | None = 5) -> list:
     """
@@ -119,7 +129,9 @@ def list_methods(offset: int = 0, limit: int = 100) -> list:
     """
     List all function names in the program with pagination.
     """
-    return safe_get("methods", {"offset": offset, "limit": limit})
+    header = f"File: {_active_filename()}"
+    body = safe_get("methods", {"offset": offset, "limit": limit})
+    return [header] + (body or [])
 
 @mcp.tool()
 def get_entry_points() -> list:
@@ -236,28 +248,30 @@ def decompile_function(name: str) -> str:
     """
     Decompile a specific function by name and return the decompiled C code.
     """
+    file_line = f"File: {_active_filename()}\n\n"
     data = get_json("decompile", {"name": name}, timeout=None)
     if not data:
-        return "Error: no response"
+        return file_line + "Error: no response"
     if "decompiled" in data:
-        return data["decompiled"]
+        return file_line + data["decompiled"]
     if "error" in data:
-        return f"Error: {data.get('error')}"
-    return str(data)
+        return file_line + f"Error: {data.get('error')}"
+    return file_line + str(data)
 
 @mcp.tool()
 def fetch_disassembly(name: str) -> str:
     """
     Retrive the disassembled code of a function with a given name as assemby mnemonic instructions.
     """
+    file_line = f"File: {_active_filename()}\n\n"
     data = get_json("assembly", {"name": name}, timeout=None)
     if not data:
-        return "Error: no response"
+        return file_line + "Error: no response"
     if "assembly" in data:
-        return data["assembly"]
+        return file_line + data["assembly"]
     if "error" in data:
-        return f"Error: {data.get('error')}"
-    return str(data)
+        return file_line + f"Error: {data.get('error')}"
+    return file_line + str(data)
 
 @mcp.tool()
 def rename_function(old_name: str, new_name: str) -> str:
