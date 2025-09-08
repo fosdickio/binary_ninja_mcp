@@ -299,6 +299,140 @@ class BinaryNinjaEndpoints:
         except Exception as e:
             raise ValueError(f"Failed to rename variable: {str(e)}")
 
+    def rename_variables(self, function_identifier: str | int, renames: List[Dict[str, str]] | Dict[str, str]) -> Dict[str, Any]:
+        """Rename multiple local variables in a function.
+
+        Args:
+            function_identifier: Function name or address
+            renames: Either a list of {"old": str, "new": str} pairs or a dict mapping old->new
+
+        Returns:
+            Dictionary with overall status and per-item results.
+
+        Raises:
+            RuntimeError: If no binary is loaded
+            ValueError: If the function is not found or inputs are invalid
+        """
+        if not self.binary_ops.current_view:
+            raise RuntimeError("No binary loaded")
+
+        # Resolve function first
+        func = self.binary_ops.get_function_by_name_or_address(function_identifier)
+        if not func:
+            raise ValueError(f"Function '{function_identifier}' not found")
+
+        # Normalize renames into ordered list of {old, new}
+        pairs: List[Dict[str, str]] = []
+        if isinstance(renames, dict):
+            for k, v in renames.items():
+                if k is None or v is None:
+                    continue
+                pairs.append({"old": str(k), "new": str(v)})
+        elif isinstance(renames, list):
+            for entry in renames:
+                try:
+                    old = entry.get("old") or entry.get("from") or entry.get("src") or entry.get("before")
+                    new = entry.get("new") or entry.get("to") or entry.get("dst") or entry.get("after")
+                except Exception:
+                    old = None
+                    new = None
+                if old is None or new is None:
+                    continue
+                pairs.append({"old": str(old), "new": str(new)})
+        else:
+            raise ValueError("Invalid 'renames' format; expected list of {old,new} or mapping old->new")
+
+        if not pairs:
+            raise ValueError("No valid rename pairs provided")
+
+        results: List[Dict[str, Any]] = []
+        success_count = 0
+
+        # Apply in order; later entries can refer to names produced by earlier renames
+        for idx, item in enumerate(pairs, start=1):
+            old_name = item.get("old")
+            new_name = item.get("new")
+            if not old_name or not new_name:
+                results.append({
+                    "index": idx,
+                    "old": old_name,
+                    "new": new_name,
+                    "success": False,
+                    "error": "Missing old or new name",
+                })
+                continue
+
+            try:
+                var = None
+                try:
+                    if hasattr(func, "get_variable_by_name"):
+                        var = func.get_variable_by_name(old_name)
+                except Exception:
+                    var = None
+                if not var:
+                    results.append({
+                        "index": idx,
+                        "old": old_name,
+                        "new": new_name,
+                        "success": False,
+                        "error": f"Variable '{old_name}' not found",
+                    })
+                    continue
+
+                # Primary method: direct property set
+                try:
+                    var.name = new_name
+                except Exception:
+                    # Fallback: attempt create_user_var with same storage/type but new name
+                    try:
+                        if hasattr(func, "create_user_var") and hasattr(var, "storage"):
+                            vtype = getattr(var, "type", None)
+                            if vtype is None:
+                                # attempt to infer type if possible
+                                vtype = getattr(bn, "Type", None)
+                            func.create_user_var(var, vtype, new_name)
+                        else:
+                            raise
+                    except Exception as e:
+                        results.append({
+                            "index": idx,
+                            "old": old_name,
+                            "new": new_name,
+                            "success": False,
+                            "error": f"Failed to rename: {e}",
+                        })
+                        continue
+
+                success_count += 1
+                results.append({
+                    "index": idx,
+                    "old": old_name,
+                    "new": new_name,
+                    "success": True,
+                })
+            except Exception as e:
+                results.append({
+                    "index": idx,
+                    "old": old_name,
+                    "new": new_name,
+                    "success": False,
+                    "error": str(e),
+                })
+
+        # Best-effort reanalysis for consistency
+        try:
+            func.reanalyze(bn.FunctionUpdateType.UserFunctionUpdate)
+        except Exception:
+            pass
+
+        return {
+            "status": "ok",
+            "function": func.name,
+            "address": hex(func.start),
+            "total": len(pairs),
+            "renamed": success_count,
+            "results": results,
+        }
 
     def retype_variable(self, function_name: str, name: str, type_str: str) -> Dict[str, str]:
         """Retype a variable inside a function

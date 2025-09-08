@@ -1298,6 +1298,76 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         {"error": str(e)},
                         500,
                     )
+
+            elif path == "/renameVariables":
+                # Batch rename local variables in a function
+                # Accept flexible identifiers and payload formats (GET/POST)
+                fn_ident = (
+                    params.get("functionAddress")
+                    or params.get("address")
+                    or params.get("function")
+                    or params.get("functionName")
+                    or params.get("name")
+                )
+                if not fn_ident:
+                    self._send_json_response(
+                        {
+                            "error": "Missing function identifier",
+                            "help": "Provide functionAddress/address or functionName/name",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+
+                raw_renames = None
+                # Prefer explicit 'renames' in JSON when POSTed
+                if isinstance(params, dict) and "renames" in params:
+                    raw_renames = params.get("renames")
+                # Or a JSON mapping under 'mapping'
+                if raw_renames is None and "mapping" in params:
+                    try:
+                        m = params.get("mapping")
+                        if isinstance(m, str):
+                            raw_renames = json.loads(m)
+                        else:
+                            raw_renames = m
+                    except Exception:
+                        raw_renames = None
+                # Or a compact 'pairs' string: old1:new1,old2:new2
+                if raw_renames is None and "pairs" in params:
+                    pairs_str = params.get("pairs") or ""
+                    mapping = {}
+                    try:
+                        for item in pairs_str.split(","):
+                            if not item.strip():
+                                continue
+                            if ":" in item:
+                                o, n = item.split(":", 1)
+                                mapping[o.strip()] = n.strip()
+                    except Exception:
+                        mapping = {}
+                    raw_renames = mapping
+
+                if raw_renames is None:
+                    self._send_json_response(
+                        {
+                            "error": "Missing renames payload",
+                            "help": "Provide 'renames' (array of {old,new}) or 'mapping' (JSON object old->new) or 'pairs' (old:new,...)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+
+                try:
+                    result = self.endpoints.rename_variables(fn_ident, raw_renames)
+                    self._send_json_response(result)
+                except ValueError as ve:
+                    self._send_json_response({"error": str(ve)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Error handling renameVariables request: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
                     
             elif path == "/getXrefsTo":
                 address_str = params.get("address")

@@ -76,7 +76,8 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | `list_strings_filter(offset, count, filter)`                         | List matching strings (paginated, filtered by substring).                                                    |
 | `rename_data`                                                        | Rename a data label at the specified address.                                                                |
 | `rename_function`                                                    | Rename a function by its current name to a new user-defined name.                                            |
-| `rename_variable`                                                    | Rename variable inside a given function.                                                                     |
+| `rename_single_variable`                                             | Rename a single local variable inside a function.                                                            |
+| `rename_multi_variables`                                             | Batch rename multiple local variables in a function (mapping or pairs).                                      |
 | `set_local_variable_type(function_address, variable_name, new_type)` | Set a local variable's type.                                                                                 |
 | `retype_variable`                                                    | Retype variable inside a given function.                                                                     |
 | `search_functions_by_name`                                           | Search for functions whose name contains the given substring.                                                |
@@ -108,6 +109,13 @@ HTTP endpoints
 - `/strings?offset=<n>&limit=<m>`: Paginated strings.
 - `/strings/filter?offset=<n>&limit=<m>&filter=<substr>`: Filtered strings.
 - `/searchTypes?query=<substr>&offset=<n>&limit=<m>`: Search local types by substring.
+- `/renameVariables`: Batch rename locals in a function. Parameters:
+  - Function: one of `functionAddress`, `address`, `function`, `functionName`, or `name`.
+  - Provide renames via one of:
+    - `renames`: JSON array of `{old, new}` objects
+    - `mapping`: JSON object of `old->new`
+    - `pairs`: compact string `old1:new1,old2:new2`
+  Returns per-item results plus totals. Order is respected; later pairs can refer to earlier new names.
 
 ## Prerequisites
 

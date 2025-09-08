@@ -163,7 +163,7 @@ def retype_variable(function_name: str, variable_name: str, type_str: str) -> st
     return str(data)
 
 @mcp.tool()
-def rename_variable(function_name: str, variable_name: str, new_name: str) -> str:
+def rename_single_variable(function_name: str, variable_name: str, new_name: str) -> str:
     """
     Rename a variable in a function.
     """
@@ -175,6 +175,52 @@ def rename_variable(function_name: str, variable_name: str, new_name: str) -> st
     if isinstance(data, dict) and "error" in data:
         return f"Error: {data['error']}"
     return str(data)
+
+@mcp.tool()
+def rename_multi_variables(function_identifier: str, mapping_json: str = "", pairs: str = "", renames_json: str = "") -> str:
+    """
+    Rename multiple local variables in one call.
+    - function_identifier: function name or address (hex)
+    - Provide either mapping_json (JSON object old->new), renames_json (JSON array of {old,new}), or pairs ("old1:new1,old2:new2").
+    Returns per-item results and totals.
+    """
+    params: dict[str, object] = {}
+    ident = (function_identifier or "").strip()
+    if ident.lower().startswith("0x") or ident.isdigit():
+        params["address"] = ident
+    else:
+        params["functionName"] = ident
+
+    payload = None
+    import json as _json
+    if renames_json:
+        try:
+            payload = _json.loads(renames_json)
+        except Exception:
+            return "Error: renames_json is not valid JSON"
+        params["renames"] = payload
+    elif mapping_json:
+        try:
+            payload = _json.loads(mapping_json)
+        except Exception:
+            return "Error: mapping_json is not valid JSON"
+        params["mapping"] = payload
+    elif pairs:
+        params["pairs"] = pairs
+    else:
+        return "Error: provide mapping_json, renames_json, or pairs"
+
+    data = get_json("renameVariables", params)
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and data.get("error"):
+        return f"Error: {data['error']}"
+    try:
+        total = data.get("total")
+        renamed = data.get("renamed")
+        return f"Batch rename: {renamed}/{total} applied"
+    except Exception:
+        return str(data)
 
 @mcp.tool()
 def define_types(c_code: str) -> str:
