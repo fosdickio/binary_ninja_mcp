@@ -35,7 +35,8 @@ The following table lists available MCP tools. Sorted alphabetically by function
 
 | Function                                                             | Description                                                                                                  |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `decompile_function`                                                 | Decompile a specific function by name and return the decompiled C code.                                      |
+| `decompile_function`                                                 | Decompile a specific function by name and return HLIL-like code with addresses.                              |
+| `get_il(name_or_address, view, ssa)`                                 | Get IL for a function in `hlil`, `mlil`, or `llil` (SSA supported for MLIL/LLIL).                           |
 | `define_types`                                                       | Add type definitions from a C string type definition.                                                        |
 | `delete_comment`                                                     | Delete the comment at a specific address.                                                                    |
 | `delete_function_comment`                                            | Delete the comment for a function.                                                                           |

@@ -641,6 +641,71 @@ class BinaryOperations:
             bn.log_error(f"Error decompiling function: {str(e)}")
             return None
 
+    def get_function_il(self, identifier: Union[str, int], view: str = "hlil", ssa: bool = False) -> Optional[str]:
+        """Return IL for a function with selectable view and optional SSA form.
+
+        Args:
+            identifier: Function name or address
+            view: One of 'hlil', 'mlil', 'llil' (case-insensitive). Aliases: 'il' -> 'llil'.
+            ssa: When True, use SSA form if available (MLIL/LLIL only)
+
+        Returns:
+            Concatenated string with one instruction per line prefixed by address.
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+
+        func = self.get_function_by_name_or_address(identifier)
+        if not func:
+            return None
+
+        # Ensure analysis has run for this function
+        try:
+            func.analysis_skipped = False
+            self._current_view.update_analysis_and_wait()
+        except Exception:
+            pass
+
+        v = (view or "").strip().lower()
+        if v in ("il", "llil", "low", "lowlevel", "low-level", "low_level"):
+            prop = "llil"
+        elif v in ("mlil", "medium", "mediumlevel", "medium-level", "medium_level"):
+            prop = "mlil"
+        else:
+            # Default to HLIL when unknown
+            prop = "hlil"
+
+        try:
+            il_func = getattr(func, prop, None)
+            if il_func is None:
+                return None
+
+            # Only MLIL/LLIL support SSA form in practice
+            if ssa and hasattr(il_func, "ssa_form") and il_func.ssa_form is not None:
+                il_func = il_func.ssa_form
+
+            if not hasattr(il_func, "instructions"):
+                # As a last resort, stringify the object
+                return str(il_func)
+
+            lines: list[str] = []
+            last_addr: Optional[int] = None
+            for ins in il_func.instructions:
+                try:
+                    addr = getattr(ins, "address", None)
+                except Exception:
+                    addr = None
+                if addr is None:
+                    addr = last_addr if last_addr is not None else func.start
+                last_addr = addr
+                addr_str = f"{int(addr):08x}"
+                text = str(ins)
+                lines.append(f"{addr_str}        {text}")
+            return "\n".join(lines)
+        except Exception as e:
+            bn.log_error(f"Error getting {prop}{' SSA' if ssa else ''} for function {identifier}: {str(e)}")
+            return None
+
     def rename_data(self, address: int, new_name: str) -> bool:
         """Rename data at a specific address"""
         if not self._current_view:

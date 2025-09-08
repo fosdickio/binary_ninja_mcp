@@ -259,6 +259,30 @@ def decompile_function(name: str) -> str:
     return file_line + str(data)
 
 @mcp.tool()
+def get_il(name_or_address: str, view: str = "hlil", ssa: bool = False) -> str:
+    """
+    Get IL for a function in the selected view.
+    - view: one of hlil, mlil, llil
+    - ssa: set True to request SSA form (MLIL/LLIL only)
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    ident = (name_or_address or "").strip()
+    params = {"view": view, "ssa": int(bool(ssa))}
+    if ident.lower().startswith("0x") or ident.isdigit():
+        params["address"] = ident
+    else:
+        params["name"] = ident
+    data = get_json("il", params, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "il" in data:
+        return file_line + data["il"]
+    if "error" in data:
+        import json as _json
+        return file_line + _json.dumps(data, indent=2, ensure_ascii=False)
+    return file_line + str(data)
+
+@mcp.tool()
 def fetch_disassembly(name: str) -> str:
     """
     Retrive the disassembled code of a function with a given name as assemby mnemonic instructions.

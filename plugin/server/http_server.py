@@ -722,6 +722,67 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         500,
                     )
 
+            elif path == "/il":
+                # Return IL by view (hlil/mlil/llil) and optional SSA form
+                ident = params.get("name") or params.get("functionName") or params.get("address")
+                if not ident:
+                    self._send_json_response(
+                        {
+                            "error": "Missing function identifier",
+                            "help": "Use ?name=<func> or ?address=<hex> with optional &view=hlil|mlil|llil&ssa=0|1",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+
+                view = (params.get("view") or params.get("il") or "hlil").strip()
+                ssa_param = (params.get("ssa") or params.get("isSSA") or "0").strip().lower()
+                ssa = ssa_param in ("1", "true", "yes", "on")
+
+                try:
+                    func_info = self.binary_ops.get_function_info(ident)
+                    if not func_info:
+                        self._send_json_response(
+                            {
+                                "error": "Function not found",
+                                "requested": ident,
+                                "available_functions": self.binary_ops.get_function_names(0, 10),
+                            },
+                            404,
+                        )
+                        return
+
+                    il_text = self.binary_ops.get_function_il(ident, view=view, ssa=ssa)
+                    if il_text is None:
+                        self._send_json_response(
+                            {
+                                "error": "Failed to get IL",
+                                "function": func_info,
+                                "view": view,
+                                "ssa": ssa,
+                                "reason": "Unsupported IL view or unavailable instructions",
+                            },
+                            500,
+                        )
+                        return
+
+                    self._send_json_response(
+                        {"il": il_text, "function": func_info, "view": view, "ssa": ssa}
+                    )
+                except Exception as e:
+                    bn.log_error(f"Error handling IL request: {str(e)}")
+                    self._send_json_response(
+                        {
+                            "error": "IL retrieval failed",
+                            "requested": ident,
+                            "view": view,
+                            "ssa": ssa,
+                            "exception": str(e),
+                        },
+                        500,
+                    )
+
             elif path == "/functionAt":
                 address_str = params.get("address")
                 if not address_str:
