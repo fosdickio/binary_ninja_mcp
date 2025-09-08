@@ -470,6 +470,92 @@ class BinaryOperations:
 
         return segments[offset : offset + limit]
 
+    def get_sections(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get list of sections with pagination.
+
+        Returns per-section fields when available:
+        - name: section name
+        - start/end: hex strings
+        - size: integer number of bytes (end - start)
+        - type: stringified section type (if exposed by BN)
+        - semantics: stringified semantics (if exposed by BN)
+        - linked_section: related/paired section name if exposed
+        - alignment: alignment in bytes if exposed
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+
+        results: List[Dict[str, Any]] = []
+
+        # Binary Ninja has exposed sections across versions either as an
+        # iterable of Section objects or a dict-like object. Handle both.
+        try:
+            sec_container = getattr(self._current_view, "sections", None)
+        except Exception:
+            sec_container = None
+        if not sec_container:
+            return []
+
+        def _iter_sections(container):
+            try:
+                # If it's a dict-like {name: Section}
+                if hasattr(container, "items"):
+                    for _name, _sec in list(container.items()):
+                        yield _sec
+                    return
+            except Exception:
+                pass
+            # Otherwise assume it's iterable of Section objects
+            try:
+                for _sec in list(container):
+                    yield _sec
+            except Exception:
+                return
+
+        for sec in _iter_sections(sec_container):
+            try:
+                start = getattr(sec, "start", None)
+                end = getattr(sec, "end", None)
+                if start is None or end is None:
+                    continue
+                name = None
+                try:
+                    name = getattr(sec, "name", None)
+                except Exception:
+                    name = None
+                try:
+                    size = int(end) - int(start)
+                except Exception:
+                    size = None
+
+                entry: Dict[str, Any] = {
+                    "name": name or "",
+                    "start": hex(int(start)),
+                    "end": hex(int(end)),
+                    "size": size,
+                }
+
+                # Optional attributes: type, semantics, linked_section, alignment
+                for attr, key in (
+                    ("type", "type"),
+                    ("semantics", "semantics"),
+                    ("linked_section", "linked_section"),
+                    ("align", "alignment"),
+                    ("alignment", "alignment"),
+                ):
+                    try:
+                        val = getattr(sec, attr, None)
+                        if val is not None:
+                            entry[key] = str(val)
+                    except Exception:
+                        pass
+
+                results.append(entry)
+            except Exception:
+                continue
+
+        return results[offset : offset + limit]
+
     def rename_function(self, old_name: str, new_name: str) -> bool:
         """Rename a function using multiple fallback methods.
 

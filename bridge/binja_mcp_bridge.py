@@ -354,6 +354,33 @@ def list_segments(offset: int = 0, limit: int = 100) -> list:
 
 
 @mcp.tool()
+def list_sections(offset: int = 0, limit: int = 100) -> list:
+    """
+    List sections in the program with pagination.
+
+    Returns one line per section with: start-end, size, name, and any semantics/type if available.
+    """
+    data = get_json("sections", {"offset": offset, "limit": limit})
+    if not data or not isinstance(data, dict):
+        return ["Error: no response"]
+    if data.get("error"):
+        return [f"Error: {data.get('error')}"]
+    sections = data.get("sections", []) or []
+    out: list[str] = [f"File: {_active_filename()}"]
+    for s in sections:
+        try:
+            start = s.get("start") or ""
+            end = s.get("end") or ""
+            size = s.get("size")
+            name = s.get("name") or "(unnamed)"
+            sem = s.get("semantics") or s.get("type") or ""
+            tail = f"\t{sem}" if sem else ""
+            out.append(f"{start}-{end}\t{size}\t{name}{tail}")
+        except Exception:
+            continue
+    return out
+
+@mcp.tool()
 def list_imports(offset: int = 0, limit: int = 100) -> list:
     """
     List imported symbols in the program with pagination.
