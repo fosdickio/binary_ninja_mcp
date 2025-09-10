@@ -143,9 +143,9 @@ If your MCP client is not set, you should install it first then try to reinstall
 
 You may install the plugin through Binary Ninja's Plugin Manager (`Plugins > Manage Plugins`). When installed via the Plugin Manager, the plugin resides under:
 
-- MacOS: `~/Library/Application Support/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max`
-- Linux: `~/.binaryninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max`
-- Windows: `%APPDATA%\Binary Ninja\plugins\repositories\community\plugins\CX330Blake_binary_ninja_mcp_max`
+- MacOS: `~/Library/Application Support/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp`
+- Linux: `~/.binaryninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp`
+- Windows: `%APPDATA%\Binary Ninja\plugins\repositories\community\plugins\CX330Blake_binary_ninja_mcp`
 
 ### Manually Install
 
@@ -168,10 +168,10 @@ For other MCP clients, this is an example config:
 ```json
 {
     "mcpServers": {
-        "binary_ninja_mcp_max": {
-            "command": "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max/.venv/bin/python",
+        "binary_ninja_mcp": {
+            "command": "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp/.venv/bin/python",
             "args": [
-                "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max/bridge/binja_mcp_bridge.py"
+                "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp/bridge/binja_mcp_bridge.py"
             ]
         }
     }
@@ -197,7 +197,7 @@ You're the best CTF player in the world. Please solve this reversing CTF challen
 ### Malware Analysis
 
 ```txt
-Your task is to analyze an unknown file which is currently open in Binary Ninja. You can use the existing MCP server called "binary_ninja_mcp_max" to interact with the Binary Ninja instance and retrieve information, using the tools made available by this server. In general use the following strategy:
+Your task is to analyze an unknown file which is currently open in Binary Ninja. You can use the existing MCP server called "binary_ninja_mcp" to interact with the Binary Ninja instance and retrieve information, using the tools made available by this server. In general use the following strategy:
 
 - Start from the entry point of the code
 - If this function call others, make sure to follow through the calls and analyze these functions as well to understand their context

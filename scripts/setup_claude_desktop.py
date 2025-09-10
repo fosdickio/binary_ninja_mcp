@@ -70,14 +70,14 @@ def setup_claude_desktop():
             config = json.load(f)
 
         # Use the installed plugin path (works for Plugin Manager installs):
-        # <BinaryNinja>/repositories/community/plugins/CX330Blake_binary_ninja_mcp_max
+        # <BinaryNinja>/repositories/community/plugins/CX330Blake_binary_ninja_mcp
         plugin_root = Path(__file__).resolve().parent.parent
         src_dir = plugin_root / "bridge"
 
         if "mcpServers" not in config:
             config["mcpServers"] = {}
 
-        config["mcpServers"]["binary_ninja_mcp_max"] = {
+        config["mcpServers"]["binary_ninja_mcp"] = {
             "command": _ensure_plugin_venv(plugin_root),
             "args": [str(src_dir / "binja_mcp_bridge.py")],
         }

@@ -7,7 +7,7 @@ import venv
 
 
 # Unique key used in MCP client configs
-MCP_SERVER_KEY = "binary_ninja_mcp_max"
+MCP_SERVER_KEY = "binary_ninja_mcp"
 
 
 def _repo_root() -> str:
