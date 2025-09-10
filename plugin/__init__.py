@@ -132,15 +132,38 @@ def _show_no_bv_popup():
 
 # ------- Status bar indicator -------
 _status_button = None
+_status_container = None
 _indicator_timer = None
 _bv_monitor_timer = None
+
+
+def _sidebar_icon_margin_default() -> int:
+    """Return a reasonable UI icon size to use as horizontal margin.
+
+    Tries to query the Qt style's toolbar icon size (commonly 24). Falls back to 24 on failure.
+    """
+    try:
+        import binaryninjaui as ui
+        from PySide6.QtWidgets import QStyle
+        ctx = ui.UIContext.activeContext()
+        mw = getattr(ctx, "mainWindow", None)
+        mw = mw() if callable(mw) else mw
+        if mw and hasattr(mw, "style"):
+            st = mw.style()
+            if st:
+                val = int(st.pixelMetric(QStyle.PM_ToolBarIconSize))
+                if val > 0:
+                    return val
+    except Exception:
+        pass
+    return 24
 
 
 def _ensure_status_indicator():
     global _status_button
     try:
         import binaryninjaui as ui
-        from PySide6.QtWidgets import QPushButton
+        from PySide6.QtWidgets import QPushButton, QWidget, QHBoxLayout
         from PySide6.QtCore import Qt
 
         def _create():
@@ -175,6 +198,17 @@ def _ensure_status_indicator():
             _status_button.setToolTip("Click to start/stop MCP server")
             _status_button.setContentsMargins(0, 0, 0, 0)
             _status_button.setStyleSheet("margin:0; padding:0 6px; border:0; border-radius:1px;")
+
+            # Wrap the button in a container with side margins so the margin area is unclickable
+            m = _sidebar_icon_margin_default()
+            container = QWidget()
+            container.setObjectName("mcpStatusContainer")
+            lay = QHBoxLayout(container)
+            lay.setContentsMargins(m, 0, 3, 0)  # left margin = icon size + 1; right margin = 3px
+            lay.setSpacing(0)
+            lay.addWidget(_status_button)
+            global _status_container
+            _status_container = container
 
             # Set initial visible state so the indicator shows up immediately
             try:
@@ -215,14 +249,14 @@ def _ensure_status_indicator():
 
             _status_button.clicked.connect(_on_click)
 
-            # Place as the first widget on the left
+            # Place slightly to the right (not the far-right): index 1
             try:
-                sb.insertWidget(0, _status_button, 0)
+                sb.insertWidget(1, container, 0)
             except Exception:
                 try:
-                    sb.addWidget(_status_button)
+                    sb.addWidget(container)
                 except Exception:
-                    sb.addPermanentWidget(_status_button)
+                    sb.addPermanentWidget(container)
 
         # Ensure we run on UI thread if available
         try:
