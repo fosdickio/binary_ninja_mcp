@@ -34,15 +34,88 @@ def _venv_python() -> str:
     return os.path.join(d, "bin", "python3")
 
 
+def _looks_like_binja_embedded(py_path: str) -> bool:
+    """Heuristic to detect a venv built from Binary Ninja's embedded interpreter on macOS.
+
+    Such venvs often place a "binaryninja" executable next to python3 and the
+    copied binaries have identical sizes. These don't behave like a normal
+    stdio Python and will be killed by MCP clients.
+    """
+    try:
+        bin_dir = os.path.dirname(py_path)
+        bn = os.path.join(bin_dir, "binaryninja")
+        if os.path.exists(bn) and os.path.exists(py_path):
+            sp = os.stat(py_path)
+            sb = os.stat(bn)
+            if sp.st_size == sb.st_size:
+                return True
+        # Path hints
+        base = os.path.basename(py_path).lower()
+        if base.startswith("binaryninja") or "Binary Ninja.app" in py_path:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _select_system_python(min_major: int = 3, min_minor: int = 10) -> str | None:
+    """Select a real system Python meeting the minimum version.
+
+    Order of preference (macOS):
+      1) BINJA_MCP_PYTHON (if set and valid)
+      2) sys.executable (if valid)
+      3) Homebrew paths (/opt/homebrew, /usr/local)
+      4) python3 on PATH, then specific versions (3.12..3.10)
+      5) /usr/bin/python3 (last resort, may be too old)
+    """
+    def ok(p: str) -> bool:
+        try:
+            r = subprocess.run([p, "-c", "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')"], capture_output=True, text=True, check=False)
+            if r.returncode == 0:
+                s = (r.stdout or "").strip()
+                parts = s.split(".")
+                if len(parts) >= 2:
+                    maj, minor = int(parts[0]), int(parts[1])
+                    return (maj > min_major) or (maj == min_major and minor >= min_minor)
+        except Exception:
+            pass
+        return False
+
+    env_p = os.environ.get("BINJA_MCP_PYTHON")
+    if env_p and ok(env_p):
+        return env_p
+    if ok(sys.executable):
+        return sys.executable
+    candidates: list[str] = []
+    if sys.platform == "darwin":
+        candidates += [
+            "/opt/homebrew/bin/python3",
+            "/usr/local/bin/python3",
+        ]
+    candidates += [
+        "python3",
+        "python3.12",
+        "python3.11",
+        "python3.10",
+        "/usr/bin/python3",
+    ]
+    for c in candidates:
+        if ok(c):
+            return c
+    return None
+
+
 def ensure_local_venv() -> str:
     """Create a local venv under the plugin root if missing and return its python."""
     vdir = _venv_dir()
     py = _venv_python()
     try:
-        # If this looks like a BN-embedded venv (binaryninja.exe present) or
-        # python.exe is missing, (re)build the venv using a system Python.
+        # If this looks missing or like a BN-embedded venv, (re)build using a real system Python.
         bn_launcher = os.path.join(vdir, "Scripts", "binaryninja.exe") if sys.platform == "win32" else None
-        if not os.path.exists(py) or (sys.platform == "win32" and os.path.exists(bn_launcher)):
+        needs_build = not os.path.exists(py) or (sys.platform == "win32" and os.path.exists(bn_launcher))
+        if not needs_build and sys.platform == "darwin" and _looks_like_binja_embedded(py):
+            needs_build = True
+        if needs_build:
             os.makedirs(vdir, exist_ok=True)
             created = False
             # On Windows, prefer using the system Python launcher to avoid
@@ -53,11 +126,23 @@ def ensure_local_venv() -> str:
                     created = True
                 except Exception:
                     created = False
+            # On macOS, prefer a real Python >=3.10 (Homebrew if available)
+            if sys.platform == "darwin" and not created:
+                cand = _select_system_python(3, 10)
+                if cand:
+                    try:
+                        subprocess.run([cand, "-m", "venv", vdir], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        created = True
+                    except Exception:
+                        created = False
             if not created:
                 builder = venv.EnvBuilder(with_pip=True, upgrade=False)
                 builder.create(vdir)
             # Re-evaluate interpreter path after creation (may be python.exe now)
             py = _venv_python()
+            # If we still ended up with BN's embedded launcher on macOS, don't use it
+            if sys.platform == "darwin" and _looks_like_binja_embedded(py):
+                return get_python_executable()
             # Best-effort: install bridge requirements
             req = os.path.join(_repo_root(), "bridge", "requirements.txt")
             if os.path.exists(req):

@@ -29,12 +29,85 @@ def get_config_path():
     )
 
 
+def _looks_like_binja_embedded(py_path: Path) -> bool:
+    try:
+        bin_dir = py_path.parent
+        bn = bin_dir / "binaryninja"
+        if bn.exists() and py_path.exists():
+            sp = py_path.stat()
+            sb = bn.stat()
+            if sp.st_size == sb.st_size:
+                return True
+        base = py_path.name.lower()
+        if base.startswith("binaryninja") or "Binary Ninja.app" in str(py_path):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _select_system_python() -> str | None:
+    def ok(p: str) -> bool:
+        try:
+            r = subprocess.run([p, "-c", "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')"], capture_output=True, text=True, check=False)
+            if r.returncode == 0:
+                s = (r.stdout or "").strip()
+                parts = s.split(".")
+                if len(parts) >= 2:
+                    maj, minor = int(parts[0]), int(parts[1])
+                    return (maj > 3) or (maj == 3 and minor >= 10)
+        except Exception:
+            pass
+        return False
+
+    env_p = os.environ.get("BINJA_MCP_PYTHON")
+    if env_p and ok(env_p):
+        return env_p
+    if ok(sys.executable):
+        return sys.executable
+    cands = [
+        "/opt/homebrew/bin/python3",
+        "/usr/local/bin/python3",
+        "python3",
+        "python3.12",
+        "python3.11",
+        "python3.10",
+        "/usr/bin/python3",
+    ]
+    for c in cands:
+        if ok(c):
+            return c
+    return None
+
+
 def _ensure_plugin_venv(plugin_root: Path) -> str:
     vdir = plugin_root / ".venv"
     py = vdir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python3")
     try:
-        if not py.exists():
-            venv.EnvBuilder(with_pip=True).create(str(vdir))
+        needs_build = not py.exists() or (sys.platform == "darwin" and _looks_like_binja_embedded(py))
+        if needs_build:
+            vdir.mkdir(parents=True, exist_ok=True)
+            created = False
+            if sys.platform == "win32":
+                try:
+                    subprocess.run(["py", "-3", "-m", "venv", str(vdir)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    created = True
+                except Exception:
+                    created = False
+            if sys.platform == "darwin" and not created:
+                cand = _select_system_python()
+                if cand:
+                    try:
+                        subprocess.run([cand, "-m", "venv", str(vdir)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        created = True
+                    except Exception:
+                        created = False
+            if not created:
+                venv.EnvBuilder(with_pip=True).create(str(vdir))
+            py = vdir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python3")
+            if sys.platform == "darwin" and _looks_like_binja_embedded(py):
+                return sys.executable
+            # Best-effort deps
             req = plugin_root / "bridge" / "requirements.txt"
             if req.exists():
                 try:
@@ -44,14 +117,6 @@ def _ensure_plugin_venv(plugin_root: Path) -> str:
     except Exception:
         return sys.executable
     return str(py) if py.exists() else sys.executable
-    if sys.platform == "win32":
-        cand = plugin_root / ".venv" / "Scripts" / "python.exe"
-    else:
-        cand = plugin_root / ".venv" / "bin" / "python3"
-    if cand.exists():
-        return str(cand)
-    # Fallback for safety
-    return sys.executable
 
 
 def setup_claude_desktop():
