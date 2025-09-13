@@ -8,6 +8,7 @@ static inline uint8_t rol8(uint8_t x, unsigned r) {
 }
 
 // 對輸入做位移 + 滾動 XOR 的目標結果（作者預先計算好）
+// Shift + rolling XOR applied to the input with the target result
 static const uint8_t EXPECTED[32] = {
     0x1c, 0x2e, 0x74, 0xd0, 0x52, 0xe2, 0xd4, 0x86,
     0x0e, 0xa6, 0xec, 0x39, 0x75, 0x21, 0x17, 0x8d,

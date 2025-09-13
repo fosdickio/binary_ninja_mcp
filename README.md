@@ -1,9 +1,4 @@
-# Binary Ninja MCP Max <img src="images/binja.png" height="24" style="margin-left: 5px; vertical-align: middle;">
-
-<p align="center">
-  <img src="images/logo.png" alt="Binary Ninja MCP Max Logo" width="480">
-  <br>
-</p>
+# Binary Ninja MCP
 
 This repository contains a Binary Ninja plugin, MCP server, and bridge that enables seamless integration of Binary Ninja's capabilities with your favorite LLM client.
 
@@ -20,7 +15,7 @@ This repository contains a Binary Ninja plugin, MCP server, and bridge that enab
 
 https://github.com/user-attachments/assets/67b76a53-ea21-4bef-86d2-f751b891c604
 
-You can also watch the demo video on [YouTube](https://www.youtube.com/watch?v=0ffMHH39L_M)
+You can also watch the demo video on [YouTube](https://www.youtube.com/watch?v=0ffMHH39L_M).
 
 ## Components 🧩
 
@@ -125,7 +120,7 @@ HTTP endpoints
 
 ## Installation
 
-Please install the MCP client before you install the Binary Ninja MCP Max so that the MCP clients can be auto-setup. We currently support auto-setup for these MCP clients:
+Please install the MCP client before you install Binary Ninja MCP so that the MCP clients can be auto-setup. We currently support auto-setup for these MCP clients:
 
     1. Cline (Recommended)
     2. Roo Code
@@ -137,15 +132,15 @@ Please install the MCP client before you install the Binary Ninja MCP Max so tha
 
 After the MCP client is installed, you can install the MCP server by **Binary Ninja plugin manager** or **manually**. Both methods support the MCP clients auto setup.
 
-If your MCP client is not set, you should install it first then try to reinstall Binary Ninja MCP Max.
+If your MCP client is not set, you should install it first then try to reinstall Binary Ninja MCP.
 
 ### Binary Ninja Plugin Manager
 
 You may install the plugin through Binary Ninja's Plugin Manager (`Plugins > Manage Plugins`). When installed via the Plugin Manager, the plugin resides under:
 
-- MacOS: `~/Library/Application Support/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp`
-- Linux: `~/.binaryninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp`
-- Windows: `%APPDATA%\Binary Ninja\plugins\repositories\community\plugins\CX330Blake_binary_ninja_mcp`
+- MacOS: `~/Library/Application Support/Binary Ninja/plugins/repositories/community/plugins/fosdickio_binary_ninja_mcp`
+- Linux: `~/.binaryninja/plugins/repositories/community/plugins/fosdickio_binary_ninja_mcp`
+- Windows: `%APPDATA%\Binary Ninja\plugins\repositories\community\plugins\fosdickio_binary_ninja_mcp`
 
 ### Manually Install
 
@@ -169,9 +164,9 @@ For other MCP clients, this is an example config:
 {
     "mcpServers": {
         "binary_ninja_mcp": {
-            "command": "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp/.venv/bin/python",
+            "command": "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/fosdickio_binary_ninja_mcp/.venv/bin/python",
             "args": [
-                "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/CX330Blake_binary_ninja_mcp/bridge/binja_mcp_bridge.py"
+                "/ABSOLUTE/PATH/TO/Binary Ninja/plugins/repositories/community/plugins/fosdickio_binary_ninja_mcp/bridge/binja_mcp_bridge.py"
             ]
         }
     }
