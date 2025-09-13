@@ -1,5 +1,10 @@
 # Binary Ninja MCP
 
+<p align="center">
+  <img src="images/logo.png" alt="Binary Ninja MCP Max Logo" width="480">
+  <br>
+</p>
+
 This repository contains a Binary Ninja plugin, MCP server, and bridge that enables seamless integration of Binary Ninja's capabilities with your favorite LLM client.
 
 ## Features ✨
@@ -13,7 +18,7 @@ This repository contains a Binary Ninja plugin, MCP server, and bridge that enab
 
 ### Solving a CTF Challenge
 
-https://github.com/user-attachments/assets/67b76a53-ea21-4bef-86d2-f751b891c604
+<https://github.com/user-attachments/assets/67b76a53-ea21-4bef-86d2-f751b891c604>
 
 You can also watch the demo video on [YouTube](https://www.youtube.com/watch?v=0ffMHH39L_M).
 
@@ -31,7 +36,7 @@ The following table lists available MCP tools. Sorted alphabetically by function
 | Function                                                             | Description                                                                                                  |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `decompile_function`                                                 | Decompile a specific function by name and return HLIL-like code with addresses.                              |
-| `get_il(name_or_address, view, ssa)`                                 | Get IL for a function in `hlil`, `mlil`, or `llil` (SSA supported for MLIL/LLIL).                           |
+| `get_il(name_or_address, view, ssa)`                                 | Get IL for a function in `hlil`, `mlil`, or `llil` (SSA supported for MLIL/LLIL).                            |
 | `define_types`                                                       | Add type definitions from a C string type definition.                                                        |
 | `delete_comment`                                                     | Delete the comment at a specific address.                                                                    |
 | `delete_function_comment`                                            | Delete the comment for a function.                                                                           |
@@ -110,7 +115,7 @@ HTTP endpoints
     - `renames`: JSON array of `{old, new}` objects
     - `mapping`: JSON object of `old->new`
     - `pairs`: compact string `old1:new1,old2:new2`
-  Returns per-item results plus totals. Order is respected; later pairs can refer to earlier new names.
+          Returns per-item results plus totals. Order is respected; later pairs can refer to earlier new names.
 
 ## Prerequisites
 
