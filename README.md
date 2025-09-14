@@ -1,9 +1,6 @@
 # Binary Ninja MCP
 
-<p align="center">
-  <img src="images/logo.png" alt="Binary Ninja MCP Max Logo" width="480">
-  <br>
-</p>
+![Binary Ninja MCP Logo](images/logo.png)
 
 This repository contains a Binary Ninja plugin, MCP server, and bridge that enables seamless integration of Binary Ninja's capabilities with your favorite LLM client.
 

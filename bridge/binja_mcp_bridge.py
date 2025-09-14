@@ -4,17 +4,7 @@ import traceback as _tb
 
 # Install a very-early excepthook so any ImportError at module import time is captured.
 def _bridge_excepthook(exc_type, exc, tb):
-    try:
-        log_path = _os.environ.get("BINJA_MCP_LOG", "/tmp/binja_mcp_bridge.log")
-        with open(log_path, "a", encoding="utf-8") as _f:
-            _f.write("==== Uncaught exception ====" + "\n")
-            _f.write("executable: " + _sys.executable + "\n")
-            _f.write("version: " + _sys.version.replace("\n", " ") + "\n")
-            _tb.print_exception(exc_type, exc, tb, file=_f)
-            _f.write("\n")
-    except Exception:
-        pass
-    # Still print to stderr for interactive runs
+    # Print to stderr for interactive runs
     _tb.print_exception(exc_type, exc, tb, file=_sys.stderr)
 
 _sys.excepthook = _bridge_excepthook
@@ -795,16 +785,6 @@ def set_local_variable_type(function_address: str, variable_name: str, new_type:
 if __name__ == "__main__":
     # Important: write any logs to stderr to avoid corrupting MCP stdio JSON-RPC
     print("Starting MCP bridge service...", file=_sys.stderr)
-    # Log some environment details to file for troubleshooting
-    try:
-        _log_path = _os.environ.get("BINJA_MCP_LOG", "/tmp/binja_mcp_bridge.log")
-        with open(_log_path, "a", encoding="utf-8") as _f:
-            _f.write("==== Bridge start ====" + "\n")
-            _f.write("executable: " + _sys.executable + "\n")
-            _f.write("argv: " + " ".join(map(str, _sys.argv)) + "\n")
-            _f.write("version: " + _sys.version.replace("\n", " ") + "\n\n")
-    except Exception:
-        pass
     try:
         mcp.run()
     except Exception as _e:
