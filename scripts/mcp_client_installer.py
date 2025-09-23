@@ -42,9 +42,6 @@ def _venv_python() -> str:
     return os.path.join(d, "bin", "python3")
 
 
-# Note: Binary Ninja detection and system Python selection are now handled by utils.python_detection
-
-
 def ensure_local_venv() -> str:
     """Create a local venv under the plugin root if missing and return its python."""
     vdir = _venv_dir()
