@@ -16,6 +16,6 @@
         "Windows": "See https://github.com/fosdickio/binary_ninja_mcp",
         "Linux": "See https://github.com/fosdickio/binary_ninja_mcp"
     },
-    "version": "1.0.0",
+    "version": "1.0.1",
     "minimumbinaryninjaversion": 4000
 }
