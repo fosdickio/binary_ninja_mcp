@@ -19,9 +19,9 @@ def get_system_python_candidates() -> List[str]:
         return ["py", "python.exe", "python3.exe"]
     elif sys.platform == "darwin":
         return [
-            "/usr/bin/python3",
             "/opt/homebrew/bin/python3",
-            "/usr/local/bin/python3"
+            "/usr/local/bin/python3",
+            "/usr/bin/python3"
         ]
     else:  # Linux and other Unix-like systems
         return [
@@ -124,7 +124,7 @@ def create_venv_with_system_python(venv_dir: str, requirements_file: str = None)
         try:
             result = subprocess.run(
                 [venv_python, "-c", "import sys; print(sys.executable)"], 
-                capture_output=True, text=True, timeout=5
+                capture_output=True, text=True, timeout=10
             )
             if result.returncode == 0 and is_binary_ninja_python(result.stdout.strip()):
                 should_recreate = True
