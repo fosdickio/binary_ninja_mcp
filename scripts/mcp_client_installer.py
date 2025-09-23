@@ -2,8 +2,16 @@ import os
 import sys
 import json
 import argparse
-import subprocess
-import venv
+from typing import Optional, Dict
+
+# Import shared utilities
+try:
+    # Try relative import first (when run as module)
+    from ..plugin.utils.python_detection import get_python_executable, create_venv_with_system_python, copy_python_env
+except ImportError:
+    # Fallback for direct script execution
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "plugin"))
+    from utils.python_detection import get_python_executable, create_venv_with_system_python, copy_python_env
 
 
 # Unique key used in MCP client configs
@@ -34,187 +42,22 @@ def _venv_python() -> str:
     return os.path.join(d, "bin", "python3")
 
 
-def _looks_like_binja_embedded(py_path: str) -> bool:
-    """Heuristic to detect a venv built from Binary Ninja's embedded interpreter on macOS.
-
-    Such venvs often place a "binaryninja" executable next to python3 and the
-    copied binaries have identical sizes. These don't behave like a normal
-    stdio Python and will be killed by MCP clients.
-    """
-    try:
-        bin_dir = os.path.dirname(py_path)
-        bn = os.path.join(bin_dir, "binaryninja")
-        if os.path.exists(bn) and os.path.exists(py_path):
-            sp = os.stat(py_path)
-            sb = os.stat(bn)
-            if sp.st_size == sb.st_size:
-                return True
-        # Path hints
-        base = os.path.basename(py_path).lower()
-        if base.startswith("binaryninja") or "Binary Ninja.app" in py_path:
-            return True
-    except Exception:
-        pass
-    return False
-
-
-def _select_system_python(min_major: int = 3, min_minor: int = 10) -> str | None:
-    """Select a real system Python meeting the minimum version.
-
-    Order of preference (macOS):
-      1) BINJA_MCP_PYTHON (if set and valid)
-      2) sys.executable (if valid)
-      3) Homebrew paths (/opt/homebrew, /usr/local)
-      4) python3 on PATH, then specific versions (3.12..3.10)
-      5) /usr/bin/python3 (last resort, may be too old)
-    """
-    def ok(p: str) -> bool:
-        try:
-            r = subprocess.run([p, "-c", "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')"], capture_output=True, text=True, check=False)
-            if r.returncode == 0:
-                s = (r.stdout or "").strip()
-                parts = s.split(".")
-                if len(parts) >= 2:
-                    maj, minor = int(parts[0]), int(parts[1])
-                    return (maj > min_major) or (maj == min_major and minor >= min_minor)
-        except Exception:
-            pass
-        return False
-
-    env_p = os.environ.get("BINJA_MCP_PYTHON")
-    if env_p and ok(env_p):
-        return env_p
-    if ok(sys.executable):
-        return sys.executable
-    candidates: list[str] = []
-    if sys.platform == "darwin":
-        candidates += [
-            "/opt/homebrew/bin/python3",
-            "/usr/local/bin/python3",
-        ]
-    candidates += [
-        "python3",
-        "python3.12",
-        "python3.11",
-        "python3.10",
-        "/usr/bin/python3",
-    ]
-    for c in candidates:
-        if ok(c):
-            return c
-    return None
+# Note: Binary Ninja detection and system Python selection are now handled by utils.python_detection
 
 
 def ensure_local_venv() -> str:
     """Create a local venv under the plugin root if missing and return its python."""
     vdir = _venv_dir()
-    py = _venv_python()
+    req = os.path.join(_repo_root(), "bridge", "requirements.txt")
+    
     try:
-        # If this looks missing or like a BN-embedded venv, (re)build using a real system Python.
-        bn_launcher = os.path.join(vdir, "Scripts", "binaryninja.exe") if sys.platform == "win32" else None
-        needs_build = not os.path.exists(py) or (sys.platform == "win32" and os.path.exists(bn_launcher))
-        if not needs_build and sys.platform == "darwin" and _looks_like_binja_embedded(py):
-            needs_build = True
-        if needs_build:
-            os.makedirs(vdir, exist_ok=True)
-            created = False
-            # On Windows, prefer using the system Python launcher to avoid
-            # embedding Binary Ninja's interpreter into the venv.
-            if sys.platform == "win32":
-                try:
-                    subprocess.run(["py", "-3", "-m", "venv", vdir], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    created = True
-                except Exception:
-                    created = False
-            # On macOS, prefer a real Python >=3.10 (Homebrew if available)
-            if sys.platform == "darwin" and not created:
-                cand = _select_system_python(3, 10)
-                if cand:
-                    try:
-                        subprocess.run([cand, "-m", "venv", vdir], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        created = True
-                    except Exception:
-                        created = False
-            if not created:
-                builder = venv.EnvBuilder(with_pip=True, upgrade=False)
-                builder.create(vdir)
-            # Re-evaluate interpreter path after creation (may be python.exe now)
-            py = _venv_python()
-            # If we still ended up with BN's embedded launcher on macOS, don't use it
-            if sys.platform == "darwin" and _looks_like_binja_embedded(py):
-                return get_python_executable()
-            # Best-effort: install bridge requirements
-            req = os.path.join(_repo_root(), "bridge", "requirements.txt")
-            if os.path.exists(req):
-                try:
-                    subprocess.run([py, "-m", "pip", "install", "-r", req], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-                except Exception:
-                    pass
+        py = create_venv_with_system_python(vdir, req if os.path.exists(req) else None)
+        return py if os.path.exists(py) else get_python_executable()
     except Exception:
         return get_python_executable()
-    # If we still couldn't provision a python.exe in the venv, fall back to a
-    # system Python to keep the bridge usable.
-    return py if os.path.exists(py) else get_python_executable()
 
 
-def get_python_executable() -> str:
-    """Best-effort detection of a Python interpreter for running the bridge.
-
-    Priority:
-    1) VIRTUAL_ENV (if active)
-    2) Inferred from sys.path zip/embedded layout
-    3) Fallback to current interpreter
-    """
-    venv = os.environ.get("VIRTUAL_ENV")
-    if venv:
-        if sys.platform == "win32":
-            python = os.path.join(venv, "Scripts", "python.exe")
-        else:
-            python = os.path.join(venv, "bin", "python3")
-        if os.path.exists(python):
-            return python
-
-    for path in sys.path:
-        if sys.platform == "win32":
-            path = path.replace("/", "\\")
-
-        split = path.split(os.sep)
-        if split and split[-1].endswith(".zip"):
-            path = os.path.dirname(path)
-            if sys.platform == "win32":
-                python_executable = os.path.join(path, "python.exe")
-            else:
-                python_executable = os.path.join(path, "..", "bin", "python3")
-            python_executable = os.path.abspath(python_executable)
-
-            if os.path.exists(python_executable):
-                return python_executable
-
-    return sys.executable
-
-
-def copy_python_env(env: dict[str, str]) -> bool:
-    """Copy Python-related environment variables that affect imports.
-
-    MCP clients often run servers in a clean environment; forward variables
-    that influence dependency resolution so the bridge can locate packages.
-    """
-    python_vars = [
-        "PYTHONHOME",
-        "PYTHONPATH",
-        "PYTHONSAFEPATH",
-        "PYTHONPLATLIBDIR",
-        "PYTHONPYCACHEPREFIX",
-        "PYTHONNOUSERSITE",
-        "PYTHONUSERBASE",
-    ]
-    result = False
-    for var in python_vars:
-        value = os.environ.get(var)
-        if value:
-            result = True
-            env[var] = value
-    return result
+# Note: get_python_executable and copy_python_env are now imported from utils.python_detection
 
 
 def print_mcp_config():
@@ -274,7 +117,7 @@ def _config_targets() -> dict[str, tuple[str, str]]:
         return {}
 
 
-def install_mcp_servers(*, uninstall: bool = False, quiet: bool = False, env: dict[str, str] | None = None) -> int:
+def install_mcp_servers(*, uninstall: bool = False, quiet: bool = False, env: Optional[Dict[str, str]] = None) -> int:
     """Install or remove MCP server entries for supported clients.
 
     Returns the number of configs modified.
