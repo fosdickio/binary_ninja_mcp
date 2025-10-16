@@ -556,17 +556,24 @@ def list_binaries() -> list:
     out = []
     for it in items:
         vid = it.get("id")
+        view_id = it.get("view_id")
         fn = it.get("filename")
+        basename = it.get("basename") or ""
+        selectors = it.get("selectors") or []
         active = it.get("active")
-        out.append(f"{vid}\t{fn}\t{'*' if active else ''}")
+        label = basename or fn or "(unknown)"
+        full = fn or "(no filename)"
+        selector_text = ", ".join(str(s) for s in selectors if s)
+        mark = " *active*" if active else ""
+        view_part = f" view={view_id}" if view_id else ""
+        out.append(f"{vid}. {label}{view_part}{mark}\n    path: {full}\n    selectors: {selector_text}")
     return out
 
 @mcp.tool()
 def select_binary(view: str) -> str:
     """
-    Select the binary to be analyze by id or filename.
-    Remember to select the binary first then do the further analysis.
-    Everytime changing the analysis target should call this function again.
+    Select which binary to analyze by ordinal, internal view id, full path, or basename.
+    Call this after listing binaries whenever you need to switch analysis targets.
     """
     data = get_json("selectBinary", {"view": view})
     if not data:
@@ -576,7 +583,16 @@ def select_binary(view: str) -> str:
         return _json.dumps(data, indent=2, ensure_ascii=False)
     sel = data.get("selected") if isinstance(data, dict) else None
     if sel:
-        return f"Selected {sel.get('id')} -> {sel.get('filename')}"
+        ordinal = sel.get("id") or "?"
+        view_id = sel.get("view_id") or ""
+        fn = sel.get("filename") or ""
+        basename = sel.get("basename") or ""
+        selectors = sel.get("selectors") or []
+        selector_text = ", ".join(str(s) for s in selectors if s)
+        display_name = basename or fn or "(unknown)"
+        view_part = f" (view {view_id})" if view_id else ""
+        path_part = f"\nFull path: {fn}" if fn else ""
+        return f"Selected {ordinal}: {display_name}{view_part}{path_part}\nSelectors: {selector_text}"
     return str(data)
 
 
