@@ -1,4 +1,5 @@
 from typing import Dict, Any, List, Optional
+import os
 import binaryninja as bn
 from ..core.binary_operations import BinaryOperations
 
@@ -21,6 +22,33 @@ class BinaryNinjaEndpoints:
         return self.binary_ops.get_entry_points()
 
     # -------- Multi-binary helpers --------
+    def _format_binary_listing(self, raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Normalize binary listing entries with ordinal, view id, basename, and selectors."""
+        formatted: List[Dict[str, Any]] = []
+        for ordinal, item in enumerate(raw, start=1):
+            filename = item.get("filename")
+            view_id = str(item.get("id") or "")
+            basename = os.path.basename(filename) if filename else None
+            entry: Dict[str, Any] = {
+                "id": str(ordinal),
+                "view_id": view_id,
+                "filename": filename,
+                "basename": basename,
+                "active": bool(item.get("active")),
+            }
+            selectors: List[str] = []
+            for candidate in (
+                entry["id"],
+                view_id,
+                filename,
+                basename,
+            ):
+                if candidate and candidate not in selectors:
+                    selectors.append(candidate)
+            entry["selectors"] = selectors
+            formatted.append(entry)
+        return formatted
+
     def list_binaries(self) -> Dict[str, Any]:
         """List managed/open binaries with sequential ids (1..N) and active flag.
 
@@ -28,21 +56,43 @@ class BinaryNinjaEndpoints:
         a user-friendly, 1-based index stable under sorting by filename.
         """
         raw = self.binary_ops.list_open_binaries()
-        out = []
-        for i, item in enumerate(raw, start=1):
-            out.append({
-                "id": str(i),
-                "filename": item.get("filename"),
-                "active": bool(item.get("active")),
-            })
-        return {"binaries": out}
+        return {"binaries": self._format_binary_listing(raw)}
 
     def select_binary(self, ident: str) -> Dict[str, Any]:
         """Select active binary by id or filename/basename."""
         info = self.binary_ops.select_view(ident)
         if not info:
-            return {"error": f"Binary not found: {ident}", "available": self.binary_ops.list_open_binaries()}
-        return {"status": "ok", "selected": info}
+            return {
+                "error": f"Binary not found: {ident}",
+                "available": self.list_binaries().get("binaries", []),
+            }
+        filename = info.get("filename")
+        view_id = info.get("id")
+        formatted = self._format_binary_listing(self.binary_ops.list_open_binaries())
+        selected_entry: Optional[Dict[str, Any]] = None
+        for entry in formatted:
+            if (filename and entry.get("filename") == filename) or (
+                view_id and entry.get("view_id") == view_id
+            ):
+                selected_entry = entry
+                break
+        if not selected_entry:
+            basename = os.path.basename(filename) if filename else None
+            selectors: List[str] = []
+            for candidate in (view_id, filename, basename):
+                if candidate and candidate not in selectors:
+                    selectors.append(candidate)
+            selected_entry = {
+                "id": None,
+                "view_id": view_id,
+                "filename": filename,
+                "basename": basename,
+                "active": True,
+                "selectors": selectors,
+            }
+        else:
+            selected_entry["active"] = True
+        return {"status": "ok", "selected": selected_entry}
 
     def get_function_info(self, identifier: str) -> Optional[Dict[str, Any]]:
         """Get detailed information about a function"""
