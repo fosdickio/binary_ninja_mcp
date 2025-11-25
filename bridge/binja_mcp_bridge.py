@@ -392,7 +392,8 @@ def fetch_disassembly(name: str) -> str:
 @mcp.tool()
 def rename_function(old_name: str, new_name: str) -> str:
     """
-    Rename a function by its current name to a new user-defined name. Use "vibe_" prefix to let user know it's renamed by AI.
+    Rename a function by its current name to a new user-defined name.
+    The configured prefix (default "vibe_") will be automatically prepended if not present.
     """
     return safe_post("renameFunction", {"oldName": old_name, "newName": new_name})
 

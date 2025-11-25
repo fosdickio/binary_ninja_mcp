@@ -1,4 +1,5 @@
 import binaryninja as bn
+from binaryninja.settings import Settings
 from .core.config import Config
 from .server.http_server import MCPServer
 
@@ -74,6 +75,17 @@ class BinaryNinjaMCP:
 
 
 plugin = BinaryNinjaMCP()
+
+
+def _register_settings():
+    settings = Settings()
+    settings.register_group("mcp", "MCP Server")
+    settings.register_setting(
+        "mcp.renamePrefix",
+        '{ "title": "Rename Prefix", "type": "string", "default": "vibe_", "description": "Prefix to prepend to renamed functions and variables (e.g. vibe_, mw_). Leave empty for no prefix." }'
+    )
+
+_register_settings()
 
 
 def _apply_settings_to_config():
