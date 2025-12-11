@@ -6,10 +6,10 @@ This repository contains a Binary Ninja plugin, MCP server, and bridge that enab
 
 ## Features
 
-- ⚡ Seamless, real-time integration between Binary Ninja and MCP clients
-- 🧠 Enhanced reverse engineering workflow with AI assistance
-- 🤝 Support for every MCP client (Cline, Claude desktop, Roo Code, etc.)
-- 🗂️ Open multiple binaries and switch the active target automatically
+- Seamless, real-time integration between Binary Ninja and MCP clients
+- Enhanced reverse engineering workflow with AI assistance
+- Support for every MCP client (Cline, Claude desktop, Roo Code, etc.)
+- Open multiple binaries and switch the active target automatically
 
 ## Examples
 
