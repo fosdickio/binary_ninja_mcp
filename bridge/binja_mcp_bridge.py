@@ -393,7 +393,7 @@ def fetch_disassembly(name: str) -> str:
 def rename_function(old_name: str, new_name: str) -> str:
     """
     Rename a function by its current name to a new user-defined name.
-    The configured prefix (default "vibe_") will be automatically prepended if not present.
+    The configured prefix (default "mcp_") will be automatically prepended if not present.
     """
     return safe_post("renameFunction", {"oldName": old_name, "newName": new_name})
 

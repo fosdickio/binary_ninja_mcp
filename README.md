@@ -115,7 +115,7 @@ Your task is to analyze an unknown file which is currently open in Binary Ninja.
 - Add a comment to each function with a brief summary of what it does
 - Rename variables and function parameters to more sensible names
 - Change the variable and argument types if necessary (especially pointer and array types)
-- Change function names to be more descriptive, using vibe_ as prefix.
+- Change function names to be more descriptive, using mcp_ as prefix.
 - NEVER convert number bases yourself. Use the convert_number MCP tool if needed!
 - When you finish your analysis, report how long the analysis took
 - At the end, create a report with your findings.
