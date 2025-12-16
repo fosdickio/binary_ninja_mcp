@@ -797,6 +797,66 @@ def set_local_variable_type(function_address: str, variable_name: str, new_type:
     if isinstance(data, dict) and "error" in data:
         return f"Error: {data['error']}"
     return str(data)
+
+@mcp.tool()
+def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
+    """
+    Patch bytes at a given address in the binary.
+    - address: Address to patch (hex string like "0x401000" or decimal)
+    - data: Hex string of bytes to write (e.g., "90 90" or "9090" or "0x90 0x90")
+    - save_to_file: If True (default), save patched binary to disk and re-sign on macOS.
+                    If False, only modify in memory without affecting the original file.
+    
+    Returns status with original and patched bytes.
+    On macOS, automatically re-signs the binary after patching to avoid execution errors.
+    """
+    # Handle boolean type conversion (MCP may pass as string)
+    if isinstance(save_to_file, str):
+        save_to_file = save_to_file.lower() not in ("false", "0", "no")
+    
+    params = {"address": address, "data": data, "save_to_file": save_to_file}
+    result = get_json("patch", params)
+    if not result:
+        return "Error: no response"
+    
+    status = result.get("status") if isinstance(result, dict) else None
+    if status in ("ok", "partial"):
+        orig = result.get("original_bytes", "")
+        patched = result.get("patched_bytes", "")
+        written = result.get("bytes_written", 0)
+        requested = result.get("bytes_requested", 0)
+        addr = result.get("address", address)
+        saved = result.get("saved_to_file", False)
+        saved_path = result.get("saved_path", "")
+        save_error = result.get("save_error", "")
+        codesign = result.get("codesign", {})
+        warning = result.get("warning", "")
+        
+        msg = f"Patched {written}/{requested} bytes at {addr}"
+        if status == "partial":
+            msg += " (PARTIAL WRITE)"
+        if warning:
+            msg += f"\nWarning: {warning}"
+        if orig:
+            msg += f"\nOriginal: {orig}"
+        if patched:
+            msg += f"\nPatched:  {patched}"
+        if saved:
+            msg += f"\nSaved to file: {saved_path}"
+        elif save_error:
+            msg += f"\nWarning: File not saved - {save_error}"
+        
+        # Show codesign status for macOS
+        if codesign:
+            if codesign.get("success"):
+                msg += f"\nCode signing: {codesign.get('message', 'Re-signed successfully')}"
+            elif codesign.get("attempted"):
+                msg += f"\nCode signing: Failed - {codesign.get('error', 'Unknown error')}"
+        
+        return msg
+    if isinstance(result, dict) and "error" in result:
+        return f"Error: {result['error']}"
+    return str(result)
     
 if __name__ == "__main__":
     # Important: write any logs to stderr to avoid corrupting MCP stdio JSON-RPC

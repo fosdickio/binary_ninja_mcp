@@ -1623,6 +1623,57 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     bn.log_error(f"Error handling declareCType request: {e}")
                     self._send_json_response({"error": str(e)}, 500)
+            elif path == "/patch" or path == "/patchBytes":
+                address = params.get("address") or params.get("addr")
+                data = params.get("data") or params.get("bytes")
+                # Parse save_to_file parameter (default True for backwards compatibility)
+                save_to_file_param = params.get("save_to_file", True)
+                if isinstance(save_to_file_param, bool):
+                    save_to_file = save_to_file_param
+                else:
+                    save_to_file = str(save_to_file_param).lower() not in ("false", "0", "no")
+                
+                if not address:
+                    self._send_json_response(
+                        {
+                            "error": "Missing address parameter",
+                            "help": "Required: address (hex like 0x401000 or decimal). Optional: data (hex string like '90 90' or '9090'), save_to_file (bool, default true)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                
+                if not data:
+                    self._send_json_response(
+                        {
+                            "error": "Missing data parameter",
+                            "help": "Required: data (hex string like '90 90' or '9090', or list of integers)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                
+                try:
+                    # Parse data if it's a JSON string (for list format)
+                    if isinstance(data, str):
+                        try:
+                            # Try to parse as JSON array
+                            parsed = json.loads(data)
+                            if isinstance(parsed, list):
+                                data = parsed
+                        except (json.JSONDecodeError, ValueError):
+                            # Not JSON, treat as hex string
+                            pass
+                    
+                    result = self.endpoints.patch_bytes(address, data, save_to_file)
+                    self._send_json_response(result)
+                except ValueError as ve:
+                    self._send_json_response({"error": str(ve)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Error handling patch request: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
             else:
                 self._send_json_response({"error": "Not found"}, 404)
 
@@ -2055,6 +2106,58 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                             "message": "No comment found for this function",
                         }
                     )
+
+            elif path == "/patch" or path == "/patchBytes":
+                address = params.get("address") or params.get("addr")
+                data = params.get("data") or params.get("bytes")
+                # Parse save_to_file parameter (default True for backwards compatibility)
+                save_to_file_param = params.get("save_to_file", True)
+                if isinstance(save_to_file_param, bool):
+                    save_to_file = save_to_file_param
+                else:
+                    save_to_file = str(save_to_file_param).lower() not in ("false", "0", "no")
+                
+                if not address:
+                    self._send_json_response(
+                        {
+                            "error": "Missing address parameter",
+                            "help": "Required: address (hex like 0x401000 or decimal). Optional: data (hex string like '90 90' or '9090'), save_to_file (bool, default true)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                
+                if not data:
+                    self._send_json_response(
+                        {
+                            "error": "Missing data parameter",
+                            "help": "Required: data (hex string like '90 90' or '9090', or list of integers)",
+                            "received": params,
+                        },
+                        400,
+                    )
+                    return
+                
+                try:
+                    # Parse data if it's a JSON string (for list format)
+                    if isinstance(data, str):
+                        try:
+                            # Try to parse as JSON array
+                            parsed = json.loads(data)
+                            if isinstance(parsed, list):
+                                data = parsed
+                        except (json.JSONDecodeError, ValueError):
+                            # Not JSON, treat as hex string
+                            pass
+                    
+                    result = self.endpoints.patch_bytes(address, data, save_to_file)
+                    self._send_json_response(result)
+                except ValueError as ve:
+                    self._send_json_response({"error": str(ve)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Error handling patch request: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
 
             else:
                 self._send_json_response({"error": "Not found"}, 404)
