@@ -178,7 +178,7 @@ The following table lists the available MCP functions for use:
 | `set_comment`                                                        | Set a comment at a specific address.                                                                         |
 | `set_function_comment`                                               | Set a comment for a function.                                                                                |
 | `set_function_prototype(name_or_address, prototype)`                 | Set a function's prototype by name or address.                                                               |
-| `patch_bytes(address, data, save_to_file)`                           | Patch bytes at an address. Address: hex (e.g., "0x401000") or decimal. Data: hex string (e.g., "90 90"). `save_to_file` (default True) saves to disk and re-signs on macOS. |
+| `patch_bytes(address, data, save_to_file)`                           | Patch raw bytes at an address (byte-level, not assembly). Can patch entire instructions by providing their bytecode. Address: hex (e.g., "0x401000") or decimal. Data: hex string (e.g., "90 90"). `save_to_file` (default True) saves to disk and re-signs on macOS. |
 
 These are the list of HTTP endpoints that can be called:
 
@@ -202,7 +202,7 @@ These are the list of HTTP endpoints that can be called:
 - `/strings?offset=<n>&limit=<m>`: Paginated strings.
 - `/strings/filter?offset=<n>&limit=<m>&filter=<substr>`: Filtered strings.
 - `/searchTypes?query=<substr>&offset=<n>&limit=<m>`: Search local types by substring.
-- `/patch` or `/patchBytes?address=<addr>&data=<hex>&save_to_file=<bool>`: Patch bytes at an address. Address: hex (e.g., "0x401000") or decimal. Data: hex string (e.g., "90 90"). `save_to_file` (default True) saves to disk and re-signs on macOS.
+- `/patch` or `/patchBytes?address=<addr>&data=<hex>&save_to_file=<bool>`: Patch raw bytes at an address (byte-level, not assembly). Can patch entire instructions by providing their bytecode. Address: hex (e.g., "0x401000") or decimal. Data: hex string (e.g., "90 90"). `save_to_file` (default True) saves to disk and re-signs on macOS.
 - `/renameVariables`: Batch rename locals in a function. Parameters:
   - Function: one of `functionAddress`, `address`, `function`, `functionName`, or `name`.
   - Provide renames via one of:
