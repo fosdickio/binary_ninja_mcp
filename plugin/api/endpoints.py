@@ -736,3 +736,31 @@ class BinaryNinjaEndpoints:
         }
 
     # display_as removed per request
+
+    def patch_bytes(self, address: str | int, data: str | bytes | List[int], save_to_file: bool = True) -> Dict[str, Any]:
+        """Patch bytes at a given address in the binary.
+        
+        Args:
+            address: Address to patch (hex string like "0x401000" or integer)
+            data: Bytes to write. Can be:
+                - Hex string: "90 90" or "9090" or "0x90 0x90"
+                - List of integers: [0x90, 0x90]
+                - Bytes object: b"\x90\x90"
+            save_to_file: If True (default), save the patched binary to disk and re-sign on macOS.
+                If False, only modify the BinaryView in memory without affecting the original file.
+                
+        Returns:
+            Dictionary with status, address, original bytes, and patched bytes
+            
+        Raises:
+            RuntimeError: If no binary is loaded
+            ValueError: If address or data format is invalid
+        """
+        if not self.binary_ops.current_view:
+            raise RuntimeError("No binary loaded")
+        
+        try:
+            return self.binary_ops.patch_bytes(address, data, save_to_file)
+        except Exception as e:
+            bn.log_error(f"Error patching bytes: {e}")
+            raise ValueError(f"Failed to patch bytes: {str(e)}")

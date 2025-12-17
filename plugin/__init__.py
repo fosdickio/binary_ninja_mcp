@@ -1,5 +1,5 @@
 import binaryninja as bn
-from binaryninja.settings import Settings
+from binaryninja import Settings
 from .core.config import Config
 from .server.http_server import MCPServer
 
@@ -85,6 +85,10 @@ def _register_settings():
     settings.register_setting(
         "mcp.renamePrefix",
         '{ "title": "Rename Prefix", "type": "string", "default": "mcp_", "description": "Prefix to prepend to renamed functions and variables (e.g. mcp_, mw_). Leave empty for no prefix." }',
+    )
+    settings.register_setting(
+        "mcp.showStatusButton",
+        '{ "title": "Show Status Button", "type": "boolean", "default": true, "description": "Show MCP server status button in the status bar." }',
     )
 
 
@@ -181,6 +185,11 @@ def _ensure_status_indicator():
         import binaryninjaui as ui
         from PySide6.QtWidgets import QPushButton, QWidget, QHBoxLayout
         from PySide6.QtCore import Qt
+
+        # Check if status button is disabled in settings
+        settings = Settings()
+        if not settings.get_bool("mcp.showStatusButton"):
+            return
 
         def _create():
             global _status_button
@@ -297,6 +306,11 @@ def _ensure_status_indicator():
 def _set_status_indicator(running: bool):
     try:
         import binaryninjaui as ui
+
+        # Check if status button is disabled in settings
+        settings = Settings()
+        if not settings.get_bool("mcp.showStatusButton"):
+            return
 
         def _update():
             _ensure_status_indicator()

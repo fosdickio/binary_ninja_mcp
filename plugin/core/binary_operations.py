@@ -1,6 +1,8 @@
 import binaryninja as bn
 from typing import Optional, List, Dict, Any, Union
 import weakref
+import subprocess
+import platform
 from .config import BinaryNinjaConfig
 from binaryninja.enums import TypeClass, StructureVariant
 from ..utils.string_utils import escape_non_ascii
@@ -3157,4 +3159,193 @@ class BinaryOperations:
             pass
 
         return out
+
+    def patch_bytes(self, address: Union[str, int], data: Union[str, bytes, List[int]], save_to_file: bool = True) -> Dict[str, Any]:
+        """Patch bytes at a given address in the binary.
+        
+        Args:
+            address: Address to patch (hex string like "0x401000" or integer)
+            data: Bytes to write. Can be:
+                - Hex string: "90 90" or "9090" or "0x90 0x90"
+                - List of integers: [0x90, 0x90]
+                - Bytes object: b"\x90\x90"
+            save_to_file: If True (default), save the patched binary to disk
+                
+        Returns:
+            Dictionary with status, address, original bytes, and patched bytes
+            
+        Raises:
+            RuntimeError: If no binary is loaded
+            ValueError: If address or data format is invalid
+        """
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+        
+        # Parse address
+        # Only treat as hex if it has "0x" prefix or contains a-f/A-F characters
+        # This avoids ambiguity where "123" would be treated as hex instead of decimal
+        if isinstance(address, str):
+            address = address.strip()
+            if address.startswith("0x") or address.startswith("0X"):
+                addr = int(address, 16)
+            elif any(c in "abcdefABCDEF" for c in address):
+                # Contains hex letters, treat as hex
+                addr = int(address, 16)
+            else:
+                # Pure digits, treat as decimal
+                addr = int(address, 10)
+        else:
+            addr = int(address)
+        
+        # Parse data into bytes
+        patch_bytes = None
+        if isinstance(data, bytes):
+            patch_bytes = data
+        elif isinstance(data, str):
+            # Try to parse as hex string
+            data_str = data.strip()
+            # Remove "0x" prefix if present
+            if data_str.startswith("0x"):
+                data_str = data_str[2:]
+            # Remove spaces
+            data_str = data_str.replace(" ", "").replace("\n", "").replace("\t", "")
+            # Convert hex string to bytes
+            try:
+                patch_bytes = bytes.fromhex(data_str)
+            except ValueError as e:
+                raise ValueError(f"Invalid hex string: {e}")
+        elif isinstance(data, list):
+            # List of integers
+            try:
+                patch_bytes = bytes(data)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid byte list: {e}")
+        else:
+            raise ValueError(f"Unsupported data type: {type(data)}")
+        
+        if not patch_bytes:
+            raise ValueError("Empty patch data")
+        
+        # Read original bytes for comparison
+        try:
+            original_bytes = self._current_view.read(addr, len(patch_bytes))
+            if original_bytes is None:
+                original_bytes = b""
+        except Exception as e:
+            bn.log_warn(f"Could not read original bytes at {hex(addr)}: {e}")
+            original_bytes = b""
+        
+        # Write the patch
+        try:
+            written = self._current_view.write(addr, patch_bytes)
+            
+            # Determine status based on whether all bytes were written
+            if written != len(patch_bytes):
+                bn.log_warn(f"Only wrote {written} of {len(patch_bytes)} bytes at {hex(addr)}")
+                status = "partial"
+            else:
+                status = "ok"
+            
+            result = {
+                "status": status,
+                "address": hex(addr),
+                "original_bytes": original_bytes.hex() if original_bytes else "",
+                "patched_bytes": patch_bytes.hex(),
+                "bytes_written": written,
+                "bytes_requested": len(patch_bytes),
+                "saved_to_file": False,
+            }
+            
+            # Add warning message if partial write
+            if status == "partial":
+                result["warning"] = f"Only wrote {written} of {len(patch_bytes)} bytes"
+            
+            # Save to file if requested
+            if save_to_file:
+                try:
+                    # Get the original file path
+                    original_file = self._current_view.file.filename
+                    if original_file:
+                        # Save the patched binary back to the original file
+                        if self._current_view.save(original_file):
+                            result["saved_to_file"] = True
+                            result["saved_path"] = original_file
+                            bn.log_info(f"Patched binary saved to: {original_file}")
+                            
+                            # On macOS, re-sign the binary to avoid "killed" error
+                            if platform.system() == "Darwin":
+                                result["codesign"] = self._codesign_binary(original_file)
+                        else:
+                            bn.log_warn(f"Failed to save patched binary to: {original_file}")
+                            result["save_error"] = "save() returned False"
+                    else:
+                        bn.log_warn("No original file path available for saving")
+                        result["save_error"] = "No original file path"
+                except Exception as save_e:
+                    bn.log_warn(f"Failed to save patched binary: {save_e}")
+                    result["save_error"] = str(save_e)
+            
+            return result
+        except Exception as e:
+            raise ValueError(f"Failed to patch bytes at {hex(addr)}: {str(e)}")
+
+    def _codesign_binary(self, file_path: str) -> Dict[str, Any]:
+        """Re-sign a binary on macOS after patching.
+        
+        On macOS, modifying a binary invalidates its code signature, causing the
+        system to kill the process when executed. This method removes the old
+        signature and applies an ad-hoc signature to make the binary executable.
+        
+        Args:
+            file_path: Path to the binary file to sign
+            
+        Returns:
+            Dictionary with codesign status and any error messages
+        """
+        result = {
+            "attempted": True,
+            "success": False,
+            "platform": "macOS",
+        }
+        
+        try:
+            # Step 1: Remove existing signature (optional, codesign -f will overwrite anyway)
+            remove_result = subprocess.run(
+                ["codesign", "--remove-signature", file_path],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if remove_result.returncode != 0:
+                # It's okay if removal fails (binary might not have been signed)
+                bn.log_info(f"codesign --remove-signature returned {remove_result.returncode}: {remove_result.stderr}")
+            
+            # Step 2: Apply ad-hoc signature with force flag
+            sign_result = subprocess.run(
+                ["codesign", "-f", "-s", "-", file_path],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if sign_result.returncode == 0:
+                result["success"] = True
+                result["message"] = "Binary re-signed with ad-hoc signature"
+                bn.log_info(f"Successfully re-signed binary: {file_path}")
+            else:
+                result["error"] = sign_result.stderr or f"codesign failed with code {sign_result.returncode}"
+                bn.log_warn(f"Failed to re-sign binary: {result['error']}")
+                
+        except FileNotFoundError:
+            result["error"] = "codesign command not found"
+            bn.log_warn("codesign command not found - is Xcode Command Line Tools installed?")
+        except subprocess.TimeoutExpired:
+            result["error"] = "codesign command timed out"
+            bn.log_warn("codesign command timed out")
+        except Exception as e:
+            result["error"] = str(e)
+            bn.log_warn(f"Error during codesign: {e}")
+        
+        return result
     
