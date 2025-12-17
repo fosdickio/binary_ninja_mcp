@@ -1,4 +1,5 @@
 import binaryninja as bn
+from binaryninja import Settings
 from .core.config import Config
 from .server.http_server import MCPServer
 
@@ -17,7 +18,9 @@ class BinaryNinjaMCP:
         try:
             # Require an active BinaryView (match menu behavior)
             if bv is None:
-                bn.log_debug("MCP Max start requested but no BinaryView is active; deferring")
+                bn.log_debug(
+                    "MCP Max start requested but no BinaryView is active; deferring"
+                )
                 _show_no_bv_popup()
                 return
             # Avoid duplicate starts
@@ -74,6 +77,22 @@ class BinaryNinjaMCP:
 
 
 plugin = BinaryNinjaMCP()
+
+
+def _register_settings():
+    settings = Settings()
+    settings.register_group("mcp", "MCP Server")
+    settings.register_setting(
+        "mcp.renamePrefix",
+        '{ "title": "Rename Prefix", "type": "string", "default": "mcp_", "description": "Prefix to prepend to renamed functions and variables (e.g. mcp_, mw_). Leave empty for no prefix." }',
+    )
+    settings.register_setting(
+        "mcp.showStatusButton",
+        '{ "title": "Show Status Button", "type": "boolean", "default": true, "description": "Show MCP server status button in the status bar." }',
+    )
+
+
+_register_settings()
 
 
 def _apply_settings_to_config():
@@ -145,6 +164,7 @@ def _sidebar_icon_margin_default() -> int:
     try:
         import binaryninjaui as ui
         from PySide6.QtWidgets import QStyle
+
         ctx = ui.UIContext.activeContext()
         mw = getattr(ctx, "mainWindow", None)
         mw = mw() if callable(mw) else mw
@@ -166,6 +186,11 @@ def _ensure_status_indicator():
         from PySide6.QtWidgets import QPushButton, QWidget, QHBoxLayout
         from PySide6.QtCore import Qt
 
+        # Check if status button is disabled in settings
+        settings = Settings()
+        if not settings.get_bool("mcp.showStatusButton"):
+            return
+
         def _create():
             global _status_button
             if _status_button is not None:
@@ -186,7 +211,9 @@ def _ensure_status_indicator():
                 if sb.layout():
                     sb.layout().setContentsMargins(0, 0, 0, 0)
                     sb.layout().setSpacing(0)
-                sb.setStyleSheet("QStatusBar{padding:0;margin:0;} QStatusBar::item{margin:0;padding:0;border:0;}")
+                sb.setStyleSheet(
+                    "QStatusBar{padding:0;margin:0;} QStatusBar::item{margin:0;padding:0;border:0;}"
+                )
             except Exception:
                 pass
 
@@ -197,14 +224,18 @@ def _ensure_status_indicator():
             _status_button.setCursor(Qt.PointingHandCursor)
             _status_button.setToolTip("Click to start/stop MCP server")
             _status_button.setContentsMargins(0, 0, 0, 0)
-            _status_button.setStyleSheet("margin:0; padding:0 6px; border:0; border-radius:1px;")
+            _status_button.setStyleSheet(
+                "margin:0; padding:0 6px; border:0; border-radius:1px;"
+            )
 
             # Wrap the button in a container with side margins so the margin area is unclickable
             m = _sidebar_icon_margin_default()
             container = QWidget()
             container.setObjectName("mcpStatusContainer")
             lay = QHBoxLayout(container)
-            lay.setContentsMargins(m, 0, 3, 0)  # left margin = icon size + 1; right margin = 3px
+            lay.setContentsMargins(
+                m, 0, 3, 0
+            )  # left margin = icon size + 1; right margin = 3px
             lay.setSpacing(0)
             lay.addWidget(_status_button)
             global _status_container
@@ -217,10 +248,14 @@ def _ensure_status_indicator():
                 running_now = False
             if running_now:
                 _status_button.setText("🟢 MCP: Running")
-                _status_button.setStyleSheet("margin:0; padding:0 6px; border:0; border-radius:2px;")
+                _status_button.setStyleSheet(
+                    "margin:0; padding:0 6px; border:0; border-radius:2px;"
+                )
             else:
                 _status_button.setText("🔴 MCP: Stopped")
-                _status_button.setStyleSheet("margin:0; padding:0 6px; border:0; border-radius:2px;")
+                _status_button.setStyleSheet(
+                    "margin:0; padding:0 6px; border:0; border-radius:2px;"
+                )
 
             # Click handler to toggle server state
             def _on_click():
@@ -232,6 +267,7 @@ def _ensure_status_indicator():
                         # Acquire active BinaryView for start
                         try:
                             from binaryninjaui import UIContext
+
                             ctx = UIContext.activeContext()
                             bv = None
                             if ctx:
@@ -270,16 +306,26 @@ def _ensure_status_indicator():
 def _set_status_indicator(running: bool):
     try:
         import binaryninjaui as ui
+
+        # Check if status button is disabled in settings
+        settings = Settings()
+        if not settings.get_bool("mcp.showStatusButton"):
+            return
+
         def _update():
             _ensure_status_indicator()
             if _status_button is None:
                 return
             if running:
                 _status_button.setText("🟢 MCP: Running")
-                _status_button.setStyleSheet("margin:0; padding:0 6px; border:0; border-radius:1px;")
+                _status_button.setStyleSheet(
+                    "margin:0; padding:0 6px; border:0; border-radius:1px;"
+                )
             else:
                 _status_button.setText("🔴 MCP: Stopped")
-                _status_button.setStyleSheet("margin:0; padding:0 6px; border:0; border-radius:1px;")
+                _status_button.setStyleSheet(
+                    "margin:0; padding:0 6px; border:0; border-radius:1px;"
+                )
 
         try:
             ui.execute_on_main_thread(_update)
@@ -353,7 +399,9 @@ def _schedule_status_init():
 
         for delay in (200, 500, 1000, 1500, 2000):
             try:
-                ui.execute_on_main_thread(lambda d=delay: QTimer.singleShot(d, _init_once))
+                ui.execute_on_main_thread(
+                    lambda d=delay: QTimer.singleShot(d, _init_once)
+                )
             except Exception:
                 pass
     except Exception:
@@ -445,8 +493,8 @@ def _start_bv_monitor():
                     ops.register_view(bv)
                     fn = None
                     try:
-                        if getattr(bv, 'file', None):
-                            fn = getattr(bv.file, 'filename', None)
+                        if getattr(bv, "file", None):
+                            fn = getattr(bv.file, "filename", None)
                     except Exception:
                         fn = None
                     if fn:
@@ -455,10 +503,13 @@ def _start_bv_monitor():
                     continue
             return found_fns
 
-
         def _tick():
             try:
-                ops = plugin.server.binary_ops if (plugin.server and plugin.server.binary_ops) else None
+                ops = (
+                    plugin.server.binary_ops
+                    if (plugin.server and plugin.server.binary_ops)
+                    else None
+                )
                 if not ops:
                     return
 
@@ -485,11 +536,12 @@ def _start_bv_monitor():
                     if ops.current_view is None:
                         try:
                             from binaryninjaui import UIContext
+
                             act_ctx = UIContext.activeContext()
                             act_bv = None
                             if act_ctx:
                                 vf = act_ctx.getCurrentViewFrame()
-                                if vf and hasattr(vf, 'getCurrentBinaryView'):
+                                if vf and hasattr(vf, "getCurrentBinaryView"):
                                     act_bv = vf.getCurrentBinaryView()
                             ops.current_view = act_bv
                             if act_bv:
@@ -580,7 +632,7 @@ try:
                 bv = self._get_active_bv()
                 if bv and plugin.server and plugin.server.binary_ops:
                     try:
-                        fn = getattr(bv.file, 'filename', None)
+                        fn = getattr(bv.file, "filename", None)
                     except Exception:
                         fn = None
                     if fn:
@@ -618,6 +670,7 @@ except Exception as e:
 # Attempt an immediate autostart if a BV is already open (e.g., .bndb loaded)
 try:
     from binaryninjaui import UIContext
+
     ctx = UIContext.activeContext()
     if ctx:
         vf = ctx.getCurrentViewFrame()
@@ -645,11 +698,14 @@ try:
                 bn.log_debug(f"MCP Max auto-start retry error: {_e}")
 
         for delay in (200, 500, 1000, 1500, 2000):
-            ui.execute_on_main_thread(lambda d=delay: QTimer.singleShot(d, _kick_autostart))
+            ui.execute_on_main_thread(
+                lambda d=delay: QTimer.singleShot(d, _kick_autostart)
+            )
     except Exception:
         pass
 except Exception:
     pass
+
 
 def _is_server_running() -> bool:
     try:
@@ -685,6 +741,7 @@ bn.log_info("Binary Ninja MCP plugin loaded successfully")
 # One-time MCP client auto-setup: install bridge entry into popular MCP clients
 try:
     from .utils.auto_setup import install_mcp_clients
+
     _ = install_mcp_clients(quiet=True)
 except Exception:
     # Best-effort; ignore failures to avoid disrupting plugin load
@@ -703,8 +760,12 @@ try:
             pass
 
     try:
-        BinaryViewType.add_binaryview_initial_analysis_completion_event(_on_bv_initial_analysis)
-        bn.log_info("Registered BinaryView initial analysis completion event for MCP Max")
+        BinaryViewType.add_binaryview_initial_analysis_completion_event(
+            _on_bv_initial_analysis
+        )
+        bn.log_info(
+            "Registered BinaryView initial analysis completion event for MCP Max"
+        )
     except Exception as e:
         bn.log_debug(f"Unable to register BV analysis completion event: {e}")
     # Also register finalized event to catch newly created/opened views early
