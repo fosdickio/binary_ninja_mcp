@@ -671,6 +671,22 @@ def get_xrefs_to_union(union_name: str) -> list:
 
 
 @mcp.tool()
+def get_stack_frame_vars(function_identifier: str) -> list:
+    """
+    Get stack frame variable information for a function.
+    Returns names, offsets, sizes, and types of local variables.
+    """
+    data = get_json("getStackFrameVars", {"name": function_identifier})
+    if not data:
+        return []
+    if isinstance(data, dict) and data.get("error"):
+        return []
+    if isinstance(data, dict) and data.get("stack_frame_vars"):
+        return data["stack_frame_vars"]
+    return []
+
+
+@mcp.tool()
 def format_value(address: str, text: str, size: int = 0) -> list:
     """
     Convert and annotate a value at an address in Binary Ninja.
