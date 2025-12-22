@@ -18,9 +18,7 @@ class BinaryNinjaMCP:
         try:
             # Require an active BinaryView (match menu behavior)
             if bv is None:
-                bn.log_debug(
-                    "MCP Max start requested but no BinaryView is active; deferring"
-                )
+                bn.log_debug("MCP Max start requested but no BinaryView is active; deferring")
                 _show_no_bv_popup()
                 return
             # Avoid duplicate starts
@@ -224,18 +222,14 @@ def _ensure_status_indicator():
             _status_button.setCursor(Qt.PointingHandCursor)
             _status_button.setToolTip("Click to start/stop MCP server")
             _status_button.setContentsMargins(0, 0, 0, 0)
-            _status_button.setStyleSheet(
-                "margin:0; padding:0 6px; border:0; border-radius:1px;"
-            )
+            _status_button.setStyleSheet("margin:0; padding:0 6px; border:0; border-radius:1px;")
 
             # Wrap the button in a container with side margins so the margin area is unclickable
             m = _sidebar_icon_margin_default()
             container = QWidget()
             container.setObjectName("mcpStatusContainer")
             lay = QHBoxLayout(container)
-            lay.setContentsMargins(
-                m, 0, 3, 0
-            )  # left margin = icon size + 1; right margin = 3px
+            lay.setContentsMargins(m, 0, 3, 0)  # left margin = icon size + 1; right margin = 3px
             lay.setSpacing(0)
             lay.addWidget(_status_button)
             global _status_container
@@ -399,9 +393,7 @@ def _schedule_status_init():
 
         for delay in (200, 500, 1000, 1500, 2000):
             try:
-                ui.execute_on_main_thread(
-                    lambda d=delay: QTimer.singleShot(d, _init_once)
-                )
+                ui.execute_on_main_thread(lambda d=delay: QTimer.singleShot(d, _init_once))
             except Exception:
                 pass
     except Exception:
@@ -698,9 +690,7 @@ try:
                 bn.log_debug(f"MCP Max auto-start retry error: {_e}")
 
         for delay in (200, 500, 1000, 1500, 2000):
-            ui.execute_on_main_thread(
-                lambda d=delay: QTimer.singleShot(d, _kick_autostart)
-            )
+            ui.execute_on_main_thread(lambda d=delay: QTimer.singleShot(d, _kick_autostart))
     except Exception:
         pass
 except Exception:
@@ -760,12 +750,8 @@ try:
             pass
 
     try:
-        BinaryViewType.add_binaryview_initial_analysis_completion_event(
-            _on_bv_initial_analysis
-        )
-        bn.log_info(
-            "Registered BinaryView initial analysis completion event for MCP Max"
-        )
+        BinaryViewType.add_binaryview_initial_analysis_completion_event(_on_bv_initial_analysis)
+        bn.log_info("Registered BinaryView initial analysis completion event for MCP Max")
     except Exception as e:
         bn.log_debug(f"Unable to register BV analysis completion event: {e}")
     # Also register finalized event to catch newly created/opened views early

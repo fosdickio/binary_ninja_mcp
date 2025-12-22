@@ -10,31 +10,24 @@ import venv
 
 def get_system_python_candidates() -> list[str]:
     """Get a list of candidate system Python paths for the current platform.
-    
+
     Returns:
         List of potential Python interpreter paths to try.
     """
     if sys.platform == "win32":
         return ["py", "python.exe", "python3.exe"]
     elif sys.platform == "darwin":
-        return [
-            "/opt/homebrew/bin/python3",
-            "/usr/local/bin/python3",
-            "/usr/bin/python3"
-        ]
+        return ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3"]
     else:  # Linux and other Unix-like systems
-        return [
-            "/usr/bin/python3",
-            "/usr/local/bin/python3"
-        ]
+        return ["/usr/bin/python3", "/usr/local/bin/python3"]
 
 
 def is_binary_ninja_python(python_path: str) -> bool:
     """Check if a Python path appears to be Binary Ninja's embedded Python.
-    
+
     Args:
         python_path: Path to Python interpreter to check.
-        
+
     Returns:
         True if this appears to be Binary Ninja's embedded Python.
     """
@@ -92,14 +85,14 @@ def get_python_executable() -> str:
 
 def create_venv_with_system_python(venv_dir: str, requirements_file: str = None) -> str:
     """Create a virtual environment using system Python when possible.
-    
+
     Args:
         venv_dir: Directory where the virtual environment should be created.
         requirements_file: Optional path to requirements.txt to install.
-        
+
     Returns:
         Path to the Python interpreter in the created virtual environment.
-        
+
     Raises:
         Exception: If virtual environment creation fails.
     """
@@ -123,7 +116,9 @@ def create_venv_with_system_python(venv_dir: str, requirements_file: str = None)
         try:
             result = subprocess.run(
                 [venv_python, "-c", "import sys; print(sys.executable)"],
-                capture_output=True, text=True, timeout=10
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0 and is_binary_ninja_python(result.stdout.strip()):
                 should_recreate = True
@@ -140,7 +135,9 @@ def create_venv_with_system_python(venv_dir: str, requirements_file: str = None)
             try:
                 subprocess.run(
                     ["py", "-3", "-m", "venv", venv_dir],
-                    check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
                 created = True
             except Exception:
@@ -153,7 +150,10 @@ def create_venv_with_system_python(venv_dir: str, requirements_file: str = None)
                     try:
                         subprocess.run(
                             [python_path, "-m", "venv", venv_dir],
-                            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30
+                            check=True,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            timeout=30,
                         )
                         created = True
                         break
@@ -170,7 +170,9 @@ def create_venv_with_system_python(venv_dir: str, requirements_file: str = None)
             try:
                 subprocess.run(
                     [venv_python, "-m", "pip", "install", "-r", requirements_file],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
                 )
             except Exception:
                 pass
@@ -180,10 +182,10 @@ def create_venv_with_system_python(venv_dir: str, requirements_file: str = None)
 
 def copy_python_env(env: dict) -> bool:
     """Copy Python-related environment variables that affect imports.
-    
+
     Args:
         env: Dictionary to copy environment variables into.
-        
+
     Returns:
         True if any variables were copied, False otherwise.
     """

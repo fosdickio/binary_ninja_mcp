@@ -89,8 +89,23 @@ def _config_targets() -> dict[str, tuple[str, str]]:
     if sys.platform == "win32":
         appdata = os.getenv("APPDATA") or os.path.join(home, "AppData", "Roaming")
         return {
-            "Cline": (os.path.join(appdata, "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings"), "cline_mcp_settings.json"),
-            "Roo Code": (os.path.join(appdata, "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings"), "mcp_settings.json"),
+            "Cline": (
+                os.path.join(
+                    appdata, "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings"
+                ),
+                "cline_mcp_settings.json",
+            ),
+            "Roo Code": (
+                os.path.join(
+                    appdata,
+                    "Code",
+                    "User",
+                    "globalStorage",
+                    "rooveterinaryinc.roo-cline",
+                    "settings",
+                ),
+                "mcp_settings.json",
+            ),
             "Claude": (os.path.join(appdata, "Claude"), "claude_desktop_config.json"),
             "Cursor": (os.path.join(home, ".cursor"), "mcp.json"),
             "Windsurf": (os.path.join(home, ".codeium", "windsurf"), "mcp_config.json"),
@@ -99,9 +114,36 @@ def _config_targets() -> dict[str, tuple[str, str]]:
         }
     elif sys.platform == "darwin":
         return {
-            "Cline": (os.path.join(home, "Library", "Application Support", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings"), "cline_mcp_settings.json"),
-            "Roo Code": (os.path.join(home, "Library", "Application Support", "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings"), "mcp_settings.json"),
-            "Claude": (os.path.join(home, "Library", "Application Support", "Claude"), "claude_desktop_config.json"),
+            "Cline": (
+                os.path.join(
+                    home,
+                    "Library",
+                    "Application Support",
+                    "Code",
+                    "User",
+                    "globalStorage",
+                    "saoudrizwan.claude-dev",
+                    "settings",
+                ),
+                "cline_mcp_settings.json",
+            ),
+            "Roo Code": (
+                os.path.join(
+                    home,
+                    "Library",
+                    "Application Support",
+                    "Code",
+                    "User",
+                    "globalStorage",
+                    "rooveterinaryinc.roo-cline",
+                    "settings",
+                ),
+                "mcp_settings.json",
+            ),
+            "Claude": (
+                os.path.join(home, "Library", "Application Support", "Claude"),
+                "claude_desktop_config.json",
+            ),
             "Cursor": (os.path.join(home, ".cursor"), "mcp.json"),
             "Windsurf": (os.path.join(home, ".codeium", "windsurf"), "mcp_config.json"),
             "Claude Code": (home, ".claude.json"),
@@ -109,8 +151,30 @@ def _config_targets() -> dict[str, tuple[str, str]]:
         }
     elif sys.platform == "linux":
         return {
-            "Cline": (os.path.join(home, ".config", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings"), "cline_mcp_settings.json"),
-            "Roo Code": (os.path.join(home, ".config", "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings"), "mcp_settings.json"),
+            "Cline": (
+                os.path.join(
+                    home,
+                    ".config",
+                    "Code",
+                    "User",
+                    "globalStorage",
+                    "saoudrizwan.claude-dev",
+                    "settings",
+                ),
+                "cline_mcp_settings.json",
+            ),
+            "Roo Code": (
+                os.path.join(
+                    home,
+                    ".config",
+                    "Code",
+                    "User",
+                    "globalStorage",
+                    "rooveterinaryinc.roo-cline",
+                    "settings",
+                ),
+                "mcp_settings.json",
+            ),
             # Claude not supported on Linux
             "Cursor": (os.path.join(home, ".cursor"), "mcp.json"),
             "Windsurf": (os.path.join(home, ".codeium", "windsurf"), "mcp_config.json"),
@@ -121,7 +185,9 @@ def _config_targets() -> dict[str, tuple[str, str]]:
         return {}
 
 
-def install_mcp_servers(*, uninstall: bool = False, quiet: bool = False, env: dict[str, str] | None = None) -> int:
+def install_mcp_servers(
+    *, uninstall: bool = False, quiet: bool = False, env: dict[str, str] | None = None
+) -> int:
     """Install or remove MCP server entries for supported clients.
 
     Returns the number of configs modified.
@@ -190,7 +256,10 @@ def install_mcp_servers(*, uninstall: bool = False, quiet: bool = False, env: di
             json.dump(config, f, indent=2)
 
         if not quiet:
-            print(("Uninstalled" if uninstall else "Installed") + f" {name} MCP server (restart required)\n  Config: {config_path}")
+            print(
+                ("Uninstalled" if uninstall else "Installed")
+                + f" {name} MCP server (restart required)\n  Config: {config_path}"
+            )
         installed += 1
 
     if not uninstall and installed == 0 and not quiet:
@@ -201,9 +270,15 @@ def install_mcp_servers(*, uninstall: bool = False, quiet: bool = False, env: di
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Binary Ninja MCP Max - MCP Client Installer (CLI)")
-    parser.add_argument("--install", action="store_true", help="Install MCP server entries for supported clients")
-    parser.add_argument("--uninstall", action="store_true", help="Remove MCP server entries from supported clients")
+    parser = argparse.ArgumentParser(
+        description="Binary Ninja MCP Max - MCP Client Installer (CLI)"
+    )
+    parser.add_argument(
+        "--install", action="store_true", help="Install MCP server entries for supported clients"
+    )
+    parser.add_argument(
+        "--uninstall", action="store_true", help="Remove MCP server entries from supported clients"
+    )
     parser.add_argument("--config", action="store_true", help="Print generic MCP config JSON")
     parser.add_argument("--quiet", action="store_true", help="Reduce output noise")
     args = parser.parse_args()

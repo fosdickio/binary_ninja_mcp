@@ -120,9 +120,7 @@ def get_text(endpoint: str, params: dict = None, timeout: float | None = 5) -> s
 def safe_post(endpoint: str, data: dict | str) -> str:
     try:
         if isinstance(data, dict):
-            response = requests.post(
-                f"{binja_server_url}/{endpoint}", data=data, timeout=5
-            )
+            response = requests.post(f"{binja_server_url}/{endpoint}", data=data, timeout=5)
         else:
             response = requests.post(
                 f"{binja_server_url}/{endpoint}", data=data.encode("utf-8"), timeout=5
@@ -185,9 +183,7 @@ def retype_variable(function_name: str, variable_name: str, type_str: str) -> st
 
 
 @mcp.tool()
-def rename_single_variable(
-    function_name: str, variable_name: str, new_name: str
-) -> str:
+def rename_single_variable(function_name: str, variable_name: str, new_name: str) -> str:
     """
     Rename a variable in a function.
     """
@@ -501,9 +497,7 @@ def list_strings_filter(offset: int = 0, count: int = 100, filter: str = "") -> 
 
 
 @mcp.tool()
-def list_local_types(
-    offset: int = 0, count: int = 200, include_libraries: bool = False
-) -> list:
+def list_local_types(offset: int = 0, count: int = 200, include_libraries: bool = False) -> list:
     """
     List all local types in the database (paginated).
     """
@@ -545,9 +539,7 @@ def list_all_strings(batch_size: int = 500) -> list:
     results: list[str] = []
     offset = 0
     while True:
-        data = get_json(
-            "strings", {"offset": offset, "limit": batch_size}, timeout=None
-        )
+        data = get_json("strings", {"offset": offset, "limit": batch_size}, timeout=None)
         if not data or "strings" not in data:
             break
         items = data.get("strings", [])
@@ -596,9 +588,7 @@ def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> l
     """
     if not query:
         return ["Error: query string is required"]
-    return safe_get(
-        "searchFunctions", {"query": query, "offset": offset, "limit": limit}
-    )
+    return safe_get("searchFunctions", {"query": query, "offset": offset, "limit": limit})
 
 
 @mcp.tool()
@@ -663,7 +653,9 @@ def select_binary(view: str) -> str:
         display_name = basename or fn or "(unknown)"
         view_part = f" (view {view_id})" if view_id else ""
         path_part = f"\nFull path: {fn}" if fn else ""
-        return f"Selected {ordinal}: {display_name}{view_part}{path_part}\nSelectors: {selector_text}"
+        return (
+            f"Selected {ordinal}: {display_name}{view_part}{path_part}\nSelectors: {selector_text}"
+        )
     return str(data)
 
 
@@ -778,9 +770,7 @@ def format_value(address: str, text: str, size: int = 0) -> list:
     Convert and annotate a value at an address in Binary Ninja.
     Adds a comment with hex/dec and C literal/string so you can see the change.
     """
-    return safe_get(
-        "formatValue", {"address": address, "text": text, "size": size}, timeout=None
-    )
+    return safe_get("formatValue", {"address": address, "text": text, "size": size}, timeout=None)
 
 
 @mcp.tool()
@@ -897,9 +887,7 @@ def declare_c_type(c_declaration: str) -> str:
 
 
 @mcp.tool()
-def set_local_variable_type(
-    function_address: str, variable_name: str, new_type: str
-) -> str:
+def set_local_variable_type(function_address: str, variable_name: str, new_type: str) -> str:
     """
     Set a local variable's type.
     """
@@ -973,9 +961,7 @@ def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
             if codesign.get("success"):
                 msg += f"\nCode signing: {codesign.get('message', 'Re-signed successfully')}"
             elif codesign.get("attempted"):
-                msg += (
-                    f"\nCode signing: Failed - {codesign.get('error', 'Unknown error')}"
-                )
+                msg += f"\nCode signing: Failed - {codesign.get('error', 'Unknown error')}"
 
         return msg
     if isinstance(result, dict) and "error" in result:

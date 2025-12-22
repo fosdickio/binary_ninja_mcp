@@ -162,9 +162,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         try:
             import re as _re
 
-            m = _re.match(
-                r"^(?i)(?:data|byte|word|dword|qword|off|unk)_(?:0x)?([0-9a-fA-F]+)$", s
-            )
+            m = _re.match(r"^(?i)(?:data|byte|word|dword|qword|off|unk)_(?:0x)?([0-9a-fA-F]+)$", s)
             if m:
                 a = int(m.group(1), 16)
                 return a, s
@@ -177,10 +175,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     sy = bv.get_symbol_at(var)
                     if not sy:
                         continue
-                    if (
-                        getattr(sy, "name", None) == s
-                        or getattr(sy, "raw_name", None) == s
-                    ):
+                    if getattr(sy, "name", None) == s or getattr(sy, "raw_name", None) == s:
                         return int(var), getattr(sy, "name", s)
                 except Exception:
                     continue
@@ -259,8 +254,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
             if path == "/status":
                 status = {
-                    "loaded": self.binary_ops
-                    and self.binary_ops.current_view is not None,
+                    "loaded": self.binary_ops and self.binary_ops.current_view is not None,
                     "filename": self.binary_ops.current_view.file.filename
                     if self.binary_ops and self.binary_ops.current_view
                     else None,
@@ -340,9 +334,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     else:
                         # Default: read exact defined size when available
                         read_len = -1
-                    data_items = self.binary_ops.get_defined_data(
-                        offset, limit, read_len
-                    )
+                    data_items = self.binary_ops.get_defined_data(offset, limit, read_len)
                     self._send_json_response({"data": data_items})
                 except Exception as e:
                     bn.log_error(f"Error getting data items: {e}")
@@ -448,17 +440,13 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                             else int(
                                 address_str,
                                 16
-                                if all(
-                                    c in "0123456789abcdefABCDEF" for c in address_str
-                                )
+                                if all(c in "0123456789abcdefABCDEF" for c in address_str)
                                 else 10,
                             )
                         )
                     except Exception:
                         self._set_headers(content_type="text/plain", status_code=400)
-                        self.wfile.write(
-                            b"Invalid address format; use hex like 0x401000\n"
-                        )
+                        self.wfile.write(b"Invalid address format; use hex like 0x401000\n")
                         return
 
                     # Determine length
@@ -523,13 +511,9 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     if first_pad != 0 and total > 0:
                         take = min(16 - first_pad, total)
                         chunk = data[0:take]
-                        hex_area = ("   " * first_pad) + "".join(
-                            f"{b:02x} " for b in chunk
-                        )
+                        hex_area = ("   " * first_pad) + "".join(f"{b:02x} " for b in chunk)
                         hex_area += "   " * (16 - first_pad - take)
-                        ascii_area = (" " * first_pad) + "".join(
-                            _printable(b) for b in chunk
-                        )
+                        ascii_area = (" " * first_pad) + "".join(_printable(b) for b in chunk)
                         ascii_area += " " * (16 - first_pad - take)
                         lines.append(f"{addr_hex}  {hex_area} {ascii_area}")
                         offset += take
@@ -538,15 +522,9 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         line_addr = addr + offset
                         take = min(16, total - offset)
                         chunk = data[offset : offset + take]
-                        hex_area = "".join(f"{b:02x} " for b in chunk) + (
-                            "   " * (16 - take)
-                        )
-                        ascii_area = "".join(_printable(b) for b in chunk) + (
-                            " " * (16 - take)
-                        )
-                        lines.append(
-                            f"{format(line_addr, 'x')}  {hex_area} {ascii_area}"
-                        )
+                        hex_area = "".join(f"{b:02x} " for b in chunk) + ("   " * (16 - take))
+                        ascii_area = "".join(_printable(b) for b in chunk) + (" " * (16 - take))
+                        lines.append(f"{format(line_addr, 'x')}  {hex_area} {ascii_area}")
                         offset += take
 
                     text = "\n".join(lines) + "\n"
@@ -559,11 +537,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
             elif path == "/hexdumpByName":
                 try:
-                    name = (
-                        params.get("name")
-                        or params.get("symbol")
-                        or params.get("raw_name")
-                    )
+                    name = params.get("name") or params.get("symbol") or params.get("raw_name")
                     if not name:
                         self._set_headers(content_type="text/plain", status_code=400)
                         self.wfile.write(b"Missing name parameter\n")
@@ -613,13 +587,9 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     if first_pad != 0 and total > 0:
                         take = min(16 - first_pad, total)
                         chunk = data[0:take]
-                        hex_area = ("   " * first_pad) + "".join(
-                            f"{b:02x} " for b in chunk
-                        )
+                        hex_area = ("   " * first_pad) + "".join(f"{b:02x} " for b in chunk)
                         hex_area += "   " * (16 - first_pad - take)
-                        ascii_area = (" " * first_pad) + "".join(
-                            _printable(b) for b in chunk
-                        )
+                        ascii_area = (" " * first_pad) + "".join(_printable(b) for b in chunk)
                         ascii_area += " " * (16 - first_pad - take)
                         lines.append(f"{addr_hex}  {hex_area} {ascii_area}")
                         offset += take
@@ -627,15 +597,9 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         line_addr = addr + offset
                         take = min(16, total - offset)
                         chunk = data[offset : offset + take]
-                        hex_area = "".join(f"{b:02x} " for b in chunk) + (
-                            "   " * (16 - take)
-                        )
-                        ascii_area = "".join(_printable(b) for b in chunk) + (
-                            " " * (16 - take)
-                        )
-                        lines.append(
-                            f"{format(line_addr, 'x')}  {hex_area} {ascii_area}"
-                        )
+                        hex_area = "".join(f"{b:02x} " for b in chunk) + ("   " * (16 - take))
+                        ascii_area = "".join(_printable(b) for b in chunk) + (" " * (16 - take))
+                        lines.append(f"{format(line_addr, 'x')}  {hex_area} {ascii_area}")
                         offset += take
 
                     text = "\n".join(lines) + "\n"
@@ -665,9 +629,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         return
                     addr, label = self._resolve_name_to_address(ident)
                     if addr is None:
-                        self._send_json_response(
-                            {"error": "Symbol not found", "ident": ident}, 404
-                        )
+                        self._send_json_response({"error": "Symbol not found", "ident": ident}, 404)
                         return
 
                     # Determine exact size and type
@@ -675,19 +637,11 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     type_text = None
                     try:
                         bv = self.binary_ops.current_view
-                        dv = (
-                            bv.get_data_var_at(addr)
-                            if hasattr(bv, "get_data_var_at")
-                            else None
-                        )
+                        dv = bv.get_data_var_at(addr) if hasattr(bv, "get_data_var_at") else None
                         typ_obj = (
                             dv.type
                             if (dv is not None and hasattr(dv, "type"))
-                            else (
-                                bv.get_type_at(addr)
-                                if hasattr(bv, "get_type_at")
-                                else None
-                            )
+                            else (bv.get_type_at(addr) if hasattr(bv, "get_type_at") else None)
                         )
                         if typ_obj is not None:
                             type_text = str(typ_obj)
@@ -746,13 +700,9 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     if first_pad != 0 and total > 0:
                         take = min(16 - first_pad, total)
                         chunk = raw[0:take]
-                        hex_area = ("   " * first_pad) + "".join(
-                            f"{b:02x} " for b in chunk
-                        )
+                        hex_area = ("   " * first_pad) + "".join(f"{b:02x} " for b in chunk)
                         hex_area += "   " * (16 - first_pad - take)
-                        ascii_area = (" " * first_pad) + "".join(
-                            _printable(b) for b in chunk
-                        )
+                        ascii_area = (" " * first_pad) + "".join(_printable(b) for b in chunk)
                         ascii_area += " " * (16 - first_pad - take)
                         lines.append(f"{addr_hex}  {hex_area} {ascii_area}")
                         offset += take
@@ -760,15 +710,9 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         line_addr = addr + offset
                         take = min(16, total - offset)
                         chunk = raw[offset : offset + take]
-                        hex_area = "".join(f"{b:02x} " for b in chunk) + (
-                            "   " * (16 - take)
-                        )
-                        ascii_area = "".join(_printable(b) for b in chunk) + (
-                            " " * (16 - take)
-                        )
-                        lines.append(
-                            f"{format(line_addr, 'x')}  {hex_area} {ascii_area}"
-                        )
+                        hex_area = "".join(f"{b:02x} " for b in chunk) + ("   " * (16 - take))
+                        ascii_area = "".join(_printable(b) for b in chunk) + (" " * (16 - take))
+                        lines.append(f"{format(line_addr, 'x')}  {hex_area} {ascii_area}")
                         offset += take
                     hexdump_text = "\n".join(lines) + "\n"
 
@@ -799,8 +743,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         filtered = [
                             s
                             for s in all_strings
-                            if isinstance(s.get("value"), str)
-                            and pl in s.get("value", "").lower()
+                            if isinstance(s.get("value"), str) and pl in s.get("value", "").lower()
                         ]
                     else:
                         filtered = all_strings
@@ -847,9 +790,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                             {
                                 "error": "Function not found",
                                 "requested_name": function_name,
-                                "available_functions": self.binary_ops.get_function_names(
-                                    0, 10
-                                ),
+                                "available_functions": self.binary_ops.get_function_names(0, 10),
                             },
                             404,
                         )
@@ -868,9 +809,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                             500,
                         )
                     else:
-                        self._send_json_response(
-                            {"assembly": assembly, "function": func_info}
-                        )
+                        self._send_json_response({"assembly": assembly, "function": func_info})
                 except Exception as e:
                     bn.log_error(f"Error handling assembly request: {e!s}")
                     import traceback
@@ -887,11 +826,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
             elif path == "/il":
                 # Return IL by view (hlil/mlil/llil) and optional SSA form
-                ident = (
-                    params.get("name")
-                    or params.get("functionName")
-                    or params.get("address")
-                )
+                ident = params.get("name") or params.get("functionName") or params.get("address")
                 if not ident:
                     self._send_json_response(
                         {
@@ -904,9 +839,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     return
 
                 view = (params.get("view") or params.get("il") or "hlil").strip()
-                ssa_param = (
-                    (params.get("ssa") or params.get("isSSA") or "0").strip().lower()
-                )
+                ssa_param = (params.get("ssa") or params.get("isSSA") or "0").strip().lower()
                 ssa = ssa_param in ("1", "true", "yes", "on")
 
                 try:
@@ -916,9 +849,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                             {
                                 "error": "Function not found",
                                 "requested": ident,
-                                "available_functions": self.binary_ops.get_function_names(
-                                    0, 10
-                                ),
+                                "available_functions": self.binary_ops.get_function_names(0, 10),
                             },
                             404,
                         )
@@ -975,13 +906,9 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         offset = int(address_str)
 
                     # Add function to binary_operations.py
-                    function_names = self.binary_ops.get_functions_containing_address(
-                        offset
-                    )
+                    function_names = self.binary_ops.get_functions_containing_address(offset)
 
-                    self._send_json_response(
-                        {"address": hex(offset), "functions": function_names}
-                    )
+                    self._send_json_response({"address": hex(offset), "functions": function_names})
                 except ValueError:
                     self._send_json_response(
                         {
@@ -1026,15 +953,17 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
                         try:
                             if (
-                                hasattr(
-                                    self.binary_ops._current_view, "user_type_container"
-                                )
+                                hasattr(self.binary_ops._current_view, "user_type_container")
                                 and self.binary_ops._current_view.user_type_container
                             ):
-                                for type_id in self.binary_ops._current_view.user_type_container.types.keys():
-                                    current_type = self.binary_ops._current_view.user_type_container.types[
-                                        type_id
-                                    ]
+                                for (
+                                    type_id
+                                ) in self.binary_ops._current_view.user_type_container.types.keys():
+                                    current_type = (
+                                        self.binary_ops._current_view.user_type_container.types[
+                                            type_id
+                                        ]
+                                    )
                                     available_types[current_type[0]] = (
                                         str(current_type[1].type)
                                         if hasattr(current_type[1], "type")
@@ -1076,11 +1005,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         return
 
                     try:
-                        address_int = (
-                            int(address, 16)
-                            if isinstance(address, str)
-                            else int(address)
-                        )
+                        address_int = int(address, 16) if isinstance(address, str) else int(address)
                         comment = self.binary_ops.get_comment(address_int)
                         if comment is not None:
                             self._send_json_response(
@@ -1100,9 +1025,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                                 }
                             )
                     except ValueError:
-                        self._send_json_response(
-                            {"error": "Invalid address format"}, 400
-                        )
+                        self._send_json_response({"error": "Invalid address format"}, 400)
                 elif self.command == "DELETE":
                     address = params.get("address")
                     if not address:
@@ -1117,11 +1040,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         return
 
                     try:
-                        address_int = (
-                            int(address, 16)
-                            if isinstance(address, str)
-                            else int(address)
-                        )
+                        address_int = int(address, 16) if isinstance(address, str) else int(address)
                         success = self.binary_ops.delete_comment(address_int)
                         if success:
                             self._send_json_response(
@@ -1139,9 +1058,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                                 500,
                             )
                     except ValueError:
-                        self._send_json_response(
-                            {"error": "Invalid address format"}, 400
-                        )
+                        self._send_json_response({"error": "Invalid address format"}, 400)
                 else:  # POST
                     address = params.get("address")
                     comment = params.get("comment")
@@ -1157,11 +1074,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         return
 
                     try:
-                        address_int = (
-                            int(address, 16)
-                            if isinstance(address, str)
-                            else int(address)
-                        )
+                        address_int = int(address, 16) if isinstance(address, str) else int(address)
                         success = self.binary_ops.set_comment(address_int, comment)
                         if success:
                             self._send_json_response(
@@ -1180,9 +1093,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                                 500,
                             )
                     except ValueError:
-                        self._send_json_response(
-                            {"error": "Invalid address format"}, 400
-                        )
+                        self._send_json_response({"error": "Invalid address format"}, 400)
 
             elif path == "/comment/function":
                 if self.command == "GET":
@@ -1259,9 +1170,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         )
                         return
 
-                    success = self.binary_ops.set_function_comment(
-                        function_name, comment
-                    )
+                    success = self.binary_ops.set_function_comment(function_name, comment)
                     if success:
                         self._send_json_response(
                             {
@@ -1293,9 +1202,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     return
 
                 try:
-                    address_int = (
-                        int(address, 16) if isinstance(address, str) else int(address)
-                    )
+                    address_int = int(address, 16) if isinstance(address, str) else int(address)
                     comment = self.binary_ops.get_comment(address_int)
                     if comment is not None:
                         self._send_json_response(
@@ -1356,11 +1263,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     or params.get("addr")
                     or params.get("name")
                 )
-                proto = (
-                    params.get("prototype")
-                    or params.get("signature")
-                    or params.get("type")
-                )
+                proto = params.get("prototype") or params.get("signature") or params.get("type")
                 if not address_str or proto is None:
                     self._send_json_response(
                         {
@@ -1383,11 +1286,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             elif path == "/makeFunctionAt":
                 # Create a function at an address (idempotent if already exists)
                 address_str = params.get("address") or params.get("addr")
-                arch = (
-                    params.get("platform")
-                    or params.get("arch")
-                    or params.get("architecture")
-                )
+                arch = params.get("platform") or params.get("arch") or params.get("architecture")
                 if not address_str:
                     self._send_json_response(
                         {
@@ -1424,15 +1323,9 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     or params.get("name")
                 )
                 var_name = (
-                    params.get("variableName")
-                    or params.get("variable")
-                    or params.get("nameOrVar")
+                    params.get("variableName") or params.get("variable") or params.get("nameOrVar")
                 )
-                new_type = (
-                    params.get("newType")
-                    or params.get("type")
-                    or params.get("signature")
-                )
+                new_type = params.get("newType") or params.get("type") or params.get("signature")
                 if not fn_ident or not var_name or new_type is None:
                     self._send_json_response(
                         {
@@ -1444,9 +1337,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     )
                     return
                 try:
-                    res = self.endpoints.set_local_variable_type(
-                        fn_ident, var_name, new_type
-                    )
+                    res = self.endpoints.set_local_variable_type(fn_ident, var_name, new_type)
                     self._send_json_response(res)
                 except ValueError as ve:
                     self._send_json_response({"error": str(ve)}, 400)
@@ -1456,16 +1347,12 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             elif path == "/retypeVariable":
                 function_name = params.get("functionName")
                 if not function_name:
-                    self._send_json_response(
-                        {"error": "Missing function name parameter"}, 400
-                    )
+                    self._send_json_response({"error": "Missing function name parameter"}, 400)
                     return
 
                 variable_name = params.get("variableName")
                 if not variable_name:
-                    self._send_json_response(
-                        {"error": "Missing variable name parameter"}, 400
-                    )
+                    self._send_json_response({"error": "Missing variable name parameter"}, 400)
                     return
 
                 type_str = params.get("type")
@@ -1475,9 +1362,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
                 try:
                     self._send_json_response(
-                        self.endpoints.retype_variable(
-                            function_name, variable_name, type_str
-                        )
+                        self.endpoints.retype_variable(function_name, variable_name, type_str)
                     )
                 except Exception as e:
                     bn.log_error(f"Error handling retypeVariable request: {e}")
@@ -1488,30 +1373,22 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             elif path == "/renameVariable":
                 function_name = params.get("functionName")
                 if not function_name:
-                    self._send_json_response(
-                        {"error": "Missing function name parameter"}, 400
-                    )
+                    self._send_json_response({"error": "Missing function name parameter"}, 400)
                     return
 
                 variable_name = params.get("variableName")
                 if not variable_name:
-                    self._send_json_response(
-                        {"error": "Missing variable name parameter"}, 400
-                    )
+                    self._send_json_response({"error": "Missing variable name parameter"}, 400)
                     return
 
                 new_name = params.get("newName")
                 if not new_name:
-                    self._send_json_response(
-                        {"error": "Missing new name parameter"}, 400
-                    )
+                    self._send_json_response({"error": "Missing new name parameter"}, 400)
                     return
 
                 try:
                     self._send_json_response(
-                        self.endpoints.rename_variable(
-                            function_name, variable_name, new_name
-                        )
+                        self.endpoints.rename_variable(function_name, variable_name, new_name)
                     )
                 except Exception as e:
                     bn.log_error(f"Error handling renameVariable request: {e}")
@@ -1634,11 +1511,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/getXrefsToStruct":
-                struct_name = (
-                    params.get("name")
-                    or params.get("struct")
-                    or params.get("structName")
-                )
+                struct_name = params.get("name") or params.get("struct") or params.get("structName")
                 if not struct_name:
                     self._send_json_response(
                         {
@@ -1657,9 +1530,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/getXrefsToType":
-                type_name = (
-                    params.get("name") or params.get("type") or params.get("typeName")
-                )
+                type_name = params.get("name") or params.get("type") or params.get("typeName")
                 if not type_name:
                     self._send_json_response(
                         {
@@ -1678,9 +1549,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/getTypeInfo":
-                type_name = (
-                    params.get("name") or params.get("type") or params.get("typeName")
-                )
+                type_name = params.get("name") or params.get("type") or params.get("typeName")
                 if not type_name:
                     self._send_json_response(
                         {
@@ -1698,9 +1567,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/getXrefsToEnum":
-                enum_name = (
-                    params.get("name") or params.get("enum") or params.get("enumName")
-                )
+                enum_name = params.get("name") or params.get("enum") or params.get("enumName")
                 if not enum_name:
                     self._send_json_response(
                         {
@@ -1764,11 +1631,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         if len(s) > 64:
                             s = s[:61] + '"…'
                         parts.append(f"str={s}")
-                    annot = (
-                        "Converted: " + ", ".join(parts)
-                        if parts
-                        else f"Converted: {conv}"
-                    )
+                    annot = "Converted: " + ", ".join(parts) if parts else f"Converted: {conv}"
 
                     applied = self.binary_ops.set_comment(addr, annot)
                     self._send_json_response(
@@ -1805,9 +1668,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/getXrefsToUnion":
-                union_name = (
-                    params.get("name") or params.get("union") or params.get("unionName")
-                )
+                union_name = params.get("name") or params.get("union") or params.get("unionName")
                 if not union_name:
                     self._send_json_response(
                         {
@@ -1962,9 +1823,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     {
                         "error": "Function not found",
                         "requested_name": function_name,
-                        "available_functions": self.binary_ops.get_function_names(
-                            0, 10
-                        ),
+                        "available_functions": self.binary_ops.get_function_names(0, 10),
                     },
                     404,
                 )
@@ -1983,9 +1842,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     500,
                 )
             else:
-                self._send_json_response(
-                    {"decompiled": decompiled, "function": func_info}
-                )
+                self._send_json_response({"decompiled": decompiled, "function": func_info})
         except Exception as e:
             bn.log_error(f"Error during decompilation: {e}")
             self._send_json_response(
@@ -2009,9 +1866,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             if path == "/load":
                 filepath = params.get("filepath")
                 if not filepath:
-                    self._send_json_response(
-                        {"error": "Missing filepath parameter"}, 400
-                    )
+                    self._send_json_response({"error": "Missing filepath parameter"}, 400)
                     return
 
                 try:
@@ -2103,9 +1958,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     return
 
                 try:
-                    address_int = (
-                        int(address, 16) if isinstance(address, str) else int(address)
-                    )
+                    address_int = int(address, 16) if isinstance(address, str) else int(address)
                     success = self.binary_ops.rename_data(address_int, new_name)
                     self._send_json_response({"success": success})
                 except ValueError:
@@ -2126,11 +1979,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         return
 
                     try:
-                        address_int = (
-                            int(address, 16)
-                            if isinstance(address, str)
-                            else int(address)
-                        )
+                        address_int = int(address, 16) if isinstance(address, str) else int(address)
                         comment = self.binary_ops.get_comment(address_int)
                         if comment is not None:
                             self._send_json_response(
@@ -2150,9 +1999,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                                 }
                             )
                     except ValueError:
-                        self._send_json_response(
-                            {"error": "Invalid address format"}, 400
-                        )
+                        self._send_json_response({"error": "Invalid address format"}, 400)
                 elif self.command == "DELETE":
                     address = params.get("address")
                     if not address:
@@ -2167,11 +2014,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         return
 
                     try:
-                        address_int = (
-                            int(address, 16)
-                            if isinstance(address, str)
-                            else int(address)
-                        )
+                        address_int = int(address, 16) if isinstance(address, str) else int(address)
                         success = self.binary_ops.delete_comment(address_int)
                         if success:
                             self._send_json_response(
@@ -2189,9 +2032,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                                 500,
                             )
                     except ValueError:
-                        self._send_json_response(
-                            {"error": "Invalid address format"}, 400
-                        )
+                        self._send_json_response({"error": "Invalid address format"}, 400)
                 else:  # POST
                     address = params.get("address")
                     comment = params.get("comment")
@@ -2207,11 +2048,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         return
 
                     try:
-                        address_int = (
-                            int(address, 16)
-                            if isinstance(address, str)
-                            else int(address)
-                        )
+                        address_int = int(address, 16) if isinstance(address, str) else int(address)
                         success = self.binary_ops.set_comment(address_int, comment)
                         if success:
                             self._send_json_response(
@@ -2230,9 +2067,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                                 500,
                             )
                     except ValueError:
-                        self._send_json_response(
-                            {"error": "Invalid address format"}, 400
-                        )
+                        self._send_json_response({"error": "Invalid address format"}, 400)
 
             elif path == "/comment/function":
                 if self.command == "GET":
@@ -2309,9 +2144,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         )
                         return
 
-                    success = self.binary_ops.set_function_comment(
-                        function_name, comment
-                    )
+                    success = self.binary_ops.set_function_comment(function_name, comment)
                     if success:
                         self._send_json_response(
                             {
@@ -2343,9 +2176,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     return
 
                 try:
-                    address_int = (
-                        int(address, 16) if isinstance(address, str) else int(address)
-                    )
+                    address_int = int(address, 16) if isinstance(address, str) else int(address)
                     comment = self.binary_ops.get_comment(address_int)
                     if comment is not None:
                         self._send_json_response(
@@ -2493,9 +2324,7 @@ class MCPServer:
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.daemon = True
         self.thread.start()
-        bn.log_info(
-            f"Server started on {self.config.server.host}:{self.config.server.port}"
-        )
+        bn.log_info(f"Server started on {self.config.server.host}:{self.config.server.port}")
 
     def stop(self):
         """Stop the HTTP server and clean up resources."""

@@ -118,9 +118,7 @@ class BinaryNinjaEndpoints:
                     "name": sym.name,
                     "address": hex(sym.address),
                     "raw_name": sym.raw_name if hasattr(sym, "raw_name") else sym.name,
-                    "full_name": sym.full_name
-                    if hasattr(sym, "full_name")
-                    else sym.name,
+                    "full_name": sym.full_name if hasattr(sym, "full_name") else sym.name,
                 }
             )
         return imports[offset : offset + limit]
@@ -140,12 +138,8 @@ class BinaryNinjaEndpoints:
                     {
                         "name": sym.name,
                         "address": hex(sym.address),
-                        "raw_name": sym.raw_name
-                        if hasattr(sym, "raw_name")
-                        else sym.name,
-                        "full_name": sym.full_name
-                        if hasattr(sym, "full_name")
-                        else sym.name,
+                        "raw_name": sym.raw_name if hasattr(sym, "raw_name") else sym.name,
+                        "full_name": sym.full_name if hasattr(sym, "full_name") else sym.name,
                         "type": str(sym.type),
                     }
                 )
@@ -167,9 +161,7 @@ class BinaryNinjaEndpoints:
         sorted_namespaces = sorted(list(namespaces))
         return sorted_namespaces[offset : offset + limit]
 
-    def get_defined_data(
-        self, offset: int = 0, limit: int = 100
-    ) -> list[dict[str, Any]]:
+    def get_defined_data(self, offset: int = 0, limit: int = 100) -> list[dict[str, Any]]:
         """Get list of defined data variables"""
         if not self.binary_ops.current_view:
             raise RuntimeError("No binary loaded")
@@ -181,9 +173,7 @@ class BinaryNinjaEndpoints:
 
             try:
                 if data_type and data_type.width <= 8:
-                    value = str(
-                        self.binary_ops.current_view.read_int(var, data_type.width)
-                    )
+                    value = str(self.binary_ops.current_view.read_int(var, data_type.width))
                 else:
                     value = "(complex data)"
             except (ValueError, TypeError):
@@ -194,9 +184,7 @@ class BinaryNinjaEndpoints:
                 {
                     "address": hex(var),
                     "name": sym.name if sym else "(unnamed)",
-                    "raw_name": sym.raw_name
-                    if sym and hasattr(sym, "raw_name")
-                    else None,
+                    "raw_name": sym.raw_name if sym and hasattr(sym, "raw_name") else None,
                     "value": value,
                     "type": str(data_type) if data_type else None,
                 }
@@ -221,9 +209,7 @@ class BinaryNinjaEndpoints:
                     {
                         "name": func.name,
                         "address": hex(func.start),
-                        "raw_name": func.raw_name
-                        if hasattr(func, "raw_name")
-                        else func.name,
+                        "raw_name": func.raw_name if hasattr(func, "raw_name") else func.name,
                         "symbol": {
                             "type": str(func.symbol.type) if func.symbol else None,
                             "full_name": func.symbol.full_name if func.symbol else None,
@@ -269,9 +255,7 @@ class BinaryNinjaEndpoints:
                 plats_obj = getattr(bn, "Platform", None)
                 if plats_obj is not None:
                     try:
-                        platforms = [
-                            str(getattr(p, "name", str(p))) for p in list(plats_obj)
-                        ]
+                        platforms = [str(getattr(p, "name", str(p))) for p in list(plats_obj)]
                     except Exception:
                         platforms = []
             except Exception:
@@ -372,9 +356,7 @@ class BinaryNinjaEndpoints:
         except Exception as e:
             raise ValueError(f"Failed to define types: {e!s}")
 
-    def rename_variable(
-        self, function_name: str, old_name: str, new_name: str
-    ) -> dict[str, str]:
+    def rename_variable(self, function_name: str, old_name: str, new_name: str) -> dict[str, str]:
         """Rename a variable inside a function
 
         Args:
@@ -402,9 +384,7 @@ class BinaryNinjaEndpoints:
             # Get the variable by name and rename it
             variable = function.get_variable_by_name(old_name)
             if not variable:
-                raise ValueError(
-                    f"Variable '{old_name}' not found in function '{function_name}'"
-                )
+                raise ValueError(f"Variable '{old_name}' not found in function '{function_name}'")
 
             variable.name = new_name
             return {
@@ -574,9 +554,7 @@ class BinaryNinjaEndpoints:
             "results": results,
         }
 
-    def retype_variable(
-        self, function_name: str, name: str, type_str: str
-    ) -> dict[str, str]:
+    def retype_variable(self, function_name: str, name: str, type_str: str) -> dict[str, str]:
         """Retype a variable inside a function
 
         Args:
@@ -604,9 +582,7 @@ class BinaryNinjaEndpoints:
             # Get the variable by name and rename it
             variable = function.get_variable_by_name(name)
             if not variable:
-                raise ValueError(
-                    f"Variable '{name}' not found in function '{function_name}'"
-                )
+                raise ValueError(f"Variable '{name}' not found in function '{function_name}'")
 
             variable.type = type_str
             return {
@@ -615,9 +591,7 @@ class BinaryNinjaEndpoints:
         except Exception as e:
             raise ValueError(f"Failed to rename variable: {e!s}")
 
-    def set_function_prototype(
-        self, function_address: str | int, prototype: str
-    ) -> dict[str, str]:
+    def set_function_prototype(self, function_address: str | int, prototype: str) -> dict[str, str]:
         """Set a function's prototype by address.
 
         Args:
@@ -667,9 +641,7 @@ class BinaryNinjaEndpoints:
                         for name, tobj in pr.types.items():
                             try:
                                 if hasattr(tobj, "type_class") and int(
-                                    getattr(
-                                        bn.enums, "TypeClass", object
-                                    ).FunctionTypeClass
+                                    getattr(bn.enums, "TypeClass", object).FunctionTypeClass
                                 ) == int(getattr(tobj, "type_class")):
                                     chosen = tobj
                                     break
@@ -794,15 +766,11 @@ class BinaryNinjaEndpoints:
             var = None
 
         if not var:
-            raise ValueError(
-                f"Variable '{variable_name}' not found in function '{func.name}'"
-            )
+            raise ValueError(f"Variable '{variable_name}' not found in function '{func.name}'")
 
         # Parse type string
         try:
-            t, _ = self.binary_ops.current_view.parse_type_string(
-                (new_type or "").strip()
-            )
+            t, _ = self.binary_ops.current_view.parse_type_string((new_type or "").strip())
         except Exception:
             t = None
         if t is None:
@@ -823,9 +791,7 @@ class BinaryNinjaEndpoints:
                     if hasattr(func, "create_user_var") and hasattr(var, "storage"):
                         func.create_user_var(var, t, variable_name)
                     else:
-                        raise ValueError(
-                            "Retyping not supported by this Binary Ninja API version"
-                        )
+                        raise ValueError("Retyping not supported by this Binary Ninja API version")
                 except Exception as e:
                     raise ValueError(f"Failed to set variable type: {e!s}")
 
@@ -843,9 +809,7 @@ class BinaryNinjaEndpoints:
             "applied_type": applied,
         }
 
-    def get_stack_frame_vars(
-        self, function_identifier: str | int
-    ) -> list[dict[str, Any]]:
+    def get_stack_frame_vars(self, function_identifier: str | int) -> list[dict[str, Any]]:
         """Get stack frame variable information for a function.
 
         Returns information about local variables in the function's stack frame,
@@ -937,9 +901,7 @@ class BinaryNinjaEndpoints:
                 vars_list.append(var_info)
 
             except Exception as e:
-                bn.log_error(
-                    f"Error processing variable {getattr(var, 'name', '<unknown>')}: {e}"
-                )
+                bn.log_error(f"Error processing variable {getattr(var, 'name', '<unknown>')}: {e}")
                 continue
 
         result.append({"addr": hex(func.start), "vars": vars_list})
@@ -948,9 +910,11 @@ class BinaryNinjaEndpoints:
 
     # display_as removed per request
 
-    def patch_bytes(self, address: str | int, data: str | bytes | list[int], save_to_file: bool = True) -> dict[str, Any]:
+    def patch_bytes(
+        self, address: str | int, data: str | bytes | list[int], save_to_file: bool = True
+    ) -> dict[str, Any]:
         """Patch bytes at a given address in the binary.
-        
+
         Args:
             address: Address to patch (hex string like "0x401000" or integer)
             data: Bytes to write. Can be:
@@ -959,10 +923,10 @@ class BinaryNinjaEndpoints:
                 - Bytes object: b"\x90\x90"
             save_to_file: If True (default), save the patched binary to disk and re-sign on macOS.
                 If False, only modify the BinaryView in memory without affecting the original file.
-                
+
         Returns:
             Dictionary with status, address, original bytes, and patched bytes
-            
+
         Raises:
             RuntimeError: If no binary is loaded
             ValueError: If address or data format is invalid
