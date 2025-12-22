@@ -2,10 +2,12 @@ import os as _os
 import sys as _sys
 import traceback as _tb
 
+
 # Install a very-early excepthook so any ImportError at module import time is captured.
 def _bridge_excepthook(exc_type, exc, tb):
     # Print to stderr for interactive runs
     _tb.print_exception(exc_type, exc, tb, file=_sys.stderr)
+
 
 _sys.excepthook = _bridge_excepthook
 
@@ -15,6 +17,7 @@ import requests
 
 binja_server_url = "http://localhost:9009"
 mcp = FastMCP("binja-mcp")
+
 
 def _active_filename() -> str:
     """Return the currently active filename as known by the server."""
@@ -144,6 +147,7 @@ def list_methods(offset: int = 0, limit: int = 100) -> list:
     body = safe_get("methods", {"offset": offset, "limit": limit})
     return [header] + (body or [])
 
+
 @mcp.tool()
 def get_entry_points() -> list:
     """
@@ -159,12 +163,20 @@ def get_entry_points() -> list:
         out.append(f"{addr}\t{name}")
     return out
 
+
 @mcp.tool()
 def retype_variable(function_name: str, variable_name: str, type_str: str) -> str:
     """
     Retype a variable in a function.
     """
-    data = get_json("retypeVariable", {"functionName": function_name, "variableName": variable_name, "type": type_str})
+    data = get_json(
+        "retypeVariable",
+        {
+            "functionName": function_name,
+            "variableName": variable_name,
+            "type": type_str,
+        },
+    )
     if not data:
         return "Error: no response"
     if isinstance(data, dict) and "status" in data:
@@ -173,12 +185,22 @@ def retype_variable(function_name: str, variable_name: str, type_str: str) -> st
         return f"Error: {data['error']}"
     return str(data)
 
+
 @mcp.tool()
-def rename_single_variable(function_name: str, variable_name: str, new_name: str) -> str:
+def rename_single_variable(
+    function_name: str, variable_name: str, new_name: str
+) -> str:
     """
     Rename a variable in a function.
     """
-    data = get_json("renameVariable", {"functionName": function_name, "variableName": variable_name, "newName": new_name})
+    data = get_json(
+        "renameVariable",
+        {
+            "functionName": function_name,
+            "variableName": variable_name,
+            "newName": new_name,
+        },
+    )
     if not data:
         return "Error: no response"
     if isinstance(data, dict) and "status" in data:
@@ -187,8 +209,14 @@ def rename_single_variable(function_name: str, variable_name: str, new_name: str
         return f"Error: {data['error']}"
     return str(data)
 
+
 @mcp.tool()
-def rename_multi_variables(function_identifier: str, mapping_json: str = "", pairs: str = "", renames_json: str = "") -> str:
+def rename_multi_variables(
+    function_identifier: str,
+    mapping_json: str = "",
+    pairs: str = "",
+    renames_json: str = "",
+) -> str:
     """
     Rename multiple local variables in one call.
     - function_identifier: function name or address (hex)
@@ -204,6 +232,7 @@ def rename_multi_variables(function_identifier: str, mapping_json: str = "", pai
 
     payload = None
     import json as _json
+
     if renames_json:
         try:
             payload = _json.loads(renames_json)
@@ -233,6 +262,7 @@ def rename_multi_variables(function_identifier: str, mapping_json: str = "", pai
     except Exception:
         return str(data)
 
+
 @mcp.tool()
 def define_types(c_code: str) -> str:
     """
@@ -247,6 +277,7 @@ def define_types(c_code: str) -> str:
     if isinstance(data, (list, tuple)):
         return "Defined types: " + ", ".join(map(str, data))
     return str(data)
+
 
 @mcp.tool()
 def list_classes(offset: int = 0, limit: int = 100) -> list:
@@ -315,6 +346,7 @@ def decompile_function(name: str) -> str:
         return file_line + f"Error: {data.get('error')}"
     return file_line + str(data)
 
+
 @mcp.tool()
 def get_il(name_or_address: str, view: str = "hlil", ssa: bool = False) -> str:
     """
@@ -336,8 +368,10 @@ def get_il(name_or_address: str, view: str = "hlil", ssa: bool = False) -> str:
         return file_line + data["il"]
     if "error" in data:
         import json as _json
+
         return file_line + _json.dumps(data, indent=2, ensure_ascii=False)
     return file_line + str(data)
+
 
 @mcp.tool()
 def fetch_disassembly(name: str) -> str:
@@ -354,10 +388,12 @@ def fetch_disassembly(name: str) -> str:
         return file_line + f"Error: {data.get('error')}"
     return file_line + str(data)
 
+
 @mcp.tool()
 def rename_function(old_name: str, new_name: str) -> str:
     """
     Rename a function by its current name to a new user-defined name.
+    The configured prefix (default "mcp_") will be automatically prepended if not present.
     """
     return safe_post("renameFunction", {"oldName": old_name, "newName": new_name})
 
@@ -437,6 +473,7 @@ def list_sections(offset: int = 0, limit: int = 100) -> list:
             continue
     return out
 
+
 @mcp.tool()
 def list_imports(offset: int = 0, limit: int = 100) -> list:
     """
@@ -452,26 +489,55 @@ def list_strings(offset: int = 0, count: int = 100) -> list:
     """
     return safe_get("strings", {"offset": offset, "limit": count}, timeout=None)
 
+
 @mcp.tool()
 def list_strings_filter(offset: int = 0, count: int = 100, filter: str = "") -> list:
     """
     List matching strings in the database (paginated, filtered).
     """
-    return safe_get("strings/filter", {"offset": offset, "limit": count, "filter": filter}, timeout=None)
+    return safe_get(
+        "strings/filter",
+        {"offset": offset, "limit": count, "filter": filter},
+        timeout=None,
+    )
+
 
 @mcp.tool()
-def list_local_types(offset: int = 0, count: int = 200, include_libraries: bool = False) -> list:
+def list_local_types(
+    offset: int = 0, count: int = 200, include_libraries: bool = False
+) -> list:
     """
     List all local types in the database (paginated).
     """
-    return safe_get("localTypes", {"offset": offset, "limit": count, "includeLibraries": int(bool(include_libraries))}, timeout=None)
+    return safe_get(
+        "localTypes",
+        {
+            "offset": offset,
+            "limit": count,
+            "includeLibraries": int(bool(include_libraries)),
+        },
+        timeout=None,
+    )
+
 
 @mcp.tool()
-def search_types(query: str, offset: int = 0, count: int = 200, include_libraries: bool = False) -> list:
+def search_types(
+    query: str, offset: int = 0, count: int = 200, include_libraries: bool = False
+) -> list:
     """
     Search local types whose name or declaration contains the substring.
     """
-    return safe_get("searchTypes", {"query": query, "offset": offset, "limit": count, "includeLibraries": int(bool(include_libraries))}, timeout=None)
+    return safe_get(
+        "searchTypes",
+        {
+            "query": query,
+            "offset": offset,
+            "limit": count,
+            "includeLibraries": int(bool(include_libraries)),
+        },
+        timeout=None,
+    )
+
 
 @mcp.tool()
 def list_all_strings(batch_size: int = 500) -> list:
@@ -481,7 +547,9 @@ def list_all_strings(batch_size: int = 500) -> list:
     results: list[str] = []
     offset = 0
     while True:
-        data = get_json("strings", {"offset": offset, "limit": batch_size}, timeout=None)
+        data = get_json(
+            "strings", {"offset": offset, "limit": batch_size}, timeout=None
+        )
         if not data or "strings" not in data:
             break
         items = data.get("strings", [])
@@ -497,6 +565,7 @@ def list_all_strings(batch_size: int = 500) -> list:
             break
         offset += batch_size
     return results
+
 
 @mcp.tool()
 def list_exports(offset: int = 0, limit: int = 100) -> list:
@@ -566,8 +635,11 @@ def list_binaries() -> list:
         selector_text = ", ".join(str(s) for s in selectors if s)
         mark = " *active*" if active else ""
         view_part = f" view={view_id}" if view_id else ""
-        out.append(f"{vid}. {label}{view_part}{mark}\n    path: {full}\n    selectors: {selector_text}")
+        out.append(
+            f"{vid}. {label}{view_part}{mark}\n    path: {full}\n    selectors: {selector_text}"
+        )
     return out
+
 
 @mcp.tool()
 def select_binary(view: str) -> str:
@@ -580,6 +652,7 @@ def select_binary(view: str) -> str:
         return "Error: no response"
     if isinstance(data, dict) and data.get("error"):
         import json as _json
+
         return _json.dumps(data, indent=2, ensure_ascii=False)
     sel = data.get("selected") if isinstance(data, dict) else None
     if sel:
@@ -611,6 +684,7 @@ def delete_function_comment(function_name: str) -> str:
     """
     return safe_post("comment/function", {"name": function_name, "_method": "DELETE"})
 
+
 @mcp.tool()
 def function_at(address: str) -> str:
     """
@@ -618,13 +692,15 @@ def function_at(address: str) -> str:
     """
     return safe_get("functionAt", {"address": address})
 
+
 @mcp.tool()
 def get_user_defined_type(type_name: str) -> str:
     """
     Retrive definition of a user defined type (struct, enumeration, typedef, union)
     """
     return safe_get("getUserDefinedType", {"name": type_name})
-    
+
+
 @mcp.tool()
 def get_xrefs_to(address: str) -> list:
     """
@@ -633,6 +709,7 @@ def get_xrefs_to(address: str) -> list:
     """
     return safe_get("getXrefsTo", {"address": address})
 
+
 @mcp.tool()
 def get_xrefs_to_field(struct_name: str, field_name: str) -> list:
     """
@@ -640,12 +717,14 @@ def get_xrefs_to_field(struct_name: str, field_name: str) -> list:
     """
     return safe_get("getXrefsToField", {"struct": struct_name, "field": field_name})
 
+
 @mcp.tool()
 def get_xrefs_to_struct(struct_name: str) -> list:
     """
     Get cross references/usages related to a struct name.
     """
     return safe_get("getXrefsToStruct", {"name": struct_name})
+
 
 @mcp.tool()
 def get_xrefs_to_type(type_name: str) -> list:
@@ -655,12 +734,14 @@ def get_xrefs_to_type(type_name: str) -> list:
     """
     return safe_get("getXrefsToType", {"name": type_name})
 
+
 @mcp.tool()
 def get_xrefs_to_enum(enum_name: str) -> list:
     """
     Get usages/xrefs of an enum by scanning for member values and matches.
     """
     return safe_get("getXrefsToEnum", {"name": enum_name})
+
 
 @mcp.tool()
 def get_xrefs_to_union(union_name: str) -> list:
@@ -676,7 +757,10 @@ def format_value(address: str, text: str, size: int = 0) -> list:
     Convert and annotate a value at an address in Binary Ninja.
     Adds a comment with hex/dec and C literal/string so you can see the change.
     """
-    return safe_get("formatValue", {"address": address, "text": text, "size": size}, timeout=None)
+    return safe_get(
+        "formatValue", {"address": address, "text": text, "size": size}, timeout=None
+    )
+
 
 @mcp.tool()
 def convert_number(text: str, size: int = 0) -> str:
@@ -691,7 +775,9 @@ def convert_number(text: str, size: int = 0) -> str:
     if isinstance(data, dict) and data.get("error"):
         return f"Error: {data['error']}"
     import json as _json
+
     return _json.dumps(data, indent=2, ensure_ascii=False)
+
 
 @mcp.tool()
 def get_type_info(type_name: str) -> str:
@@ -704,7 +790,9 @@ def get_type_info(type_name: str) -> str:
     if "error" in data:
         return f"Error: {data.get('error')}"
     import json as _json
+
     return _json.dumps(data, indent=2, ensure_ascii=False)
+
 
 @mcp.tool()
 def set_function_prototype(name_or_address: str, prototype: str) -> str:
@@ -728,6 +816,7 @@ def set_function_prototype(name_or_address: str, prototype: str) -> str:
         return f"Error: {data['error']}"
     return str(data)
 
+
 @mcp.tool()
 def make_function_at(address: str, platform: str = "") -> str:
     """
@@ -743,12 +832,14 @@ def make_function_at(address: str, platform: str = "") -> str:
         return "Error: no response"
     if isinstance(data, dict) and data.get("error"):
         import json as _json
+
         return _json.dumps(data, indent=2, ensure_ascii=False)
     if isinstance(data, dict) and data.get("status") == "exists":
         return f"Function already exists at {data.get('address')}: {data.get('name')}"
     if isinstance(data, dict) and data.get("status") == "ok":
         return f"Created function at {data.get('address')}: {data.get('name')}"
     return str(data)
+
 
 @mcp.tool()
 def list_platforms() -> str:
@@ -760,11 +851,13 @@ def list_platforms() -> str:
         return "Error: no response"
     if isinstance(data, dict) and data.get("error"):
         import json as _json
+
         return _json.dumps(data, indent=2, ensure_ascii=False)
     plats = data.get("platforms") if isinstance(data, dict) else None
     if not plats:
         return "(no platforms)"
     return "\n".join(plats)
+
 
 @mcp.tool()
 def declare_c_type(c_declaration: str) -> str:
@@ -781,14 +874,21 @@ def declare_c_type(c_declaration: str) -> str:
         return f"Error: {data['error']}"
     return str(data)
 
+
 @mcp.tool()
-def set_local_variable_type(function_address: str, variable_name: str, new_type: str) -> str:
+def set_local_variable_type(
+    function_address: str, variable_name: str, new_type: str
+) -> str:
     """
     Set a local variable's type.
     """
     data = get_json(
         "setLocalVariableType",
-        {"functionAddress": function_address, "variableName": variable_name, "newType": new_type},
+        {
+            "functionAddress": function_address,
+            "variableName": variable_name,
+            "newType": new_type,
+        },
     )
     if not data:
         return "Error: no response"
