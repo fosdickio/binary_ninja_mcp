@@ -1,4 +1,3 @@
-import os as _os
 import sys as _sys
 import traceback as _tb
 
@@ -11,9 +10,8 @@ def _bridge_excepthook(exc_type, exc, tb):
 
 _sys.excepthook = _bridge_excepthook
 
-from mcp.server.fastmcp import FastMCP
 import requests
-
+from mcp.server.fastmcp import FastMCP
 
 binja_server_url = "http://localhost:9009"
 mcp = FastMCP("binja-mcp")
@@ -53,7 +51,7 @@ def safe_get(endpoint: str, params: dict = None, timeout: float | None = 5) -> l
         else:
             return [f"Error {response.status_code}: {response.text.strip()}"]
     except Exception as e:
-        return [f"Request failed: {str(e)}"]
+        return [f"Request failed: {e!s}"]
 
 
 def get_json(endpoint: str, params: dict = None, timeout: float | None = 5):
@@ -93,7 +91,7 @@ def get_json(endpoint: str, params: dict = None, timeout: float | None = 5):
         text = (response.text or "").strip()
         return {"error": f"Error {response.status_code}: {text}"}
     except Exception as e:
-        return {"error": f"Request failed: {str(e)}"}
+        return {"error": f"Request failed: {e!s}"}
 
 
 def get_text(endpoint: str, params: dict = None, timeout: float | None = 5) -> str:
@@ -116,7 +114,7 @@ def get_text(endpoint: str, params: dict = None, timeout: float | None = 5) -> s
         else:
             return f"Error {response.status_code}: {response.text.strip()}"
     except Exception as e:
-        return f"Request failed: {str(e)}"
+        return f"Request failed: {e!s}"
 
 
 def safe_post(endpoint: str, data: dict | str) -> str:
@@ -135,7 +133,7 @@ def safe_post(endpoint: str, data: dict | str) -> str:
         else:
             return f"Error {response.status_code}: {response.text.strip()}"
     except Exception as e:
-        return f"Request failed: {str(e)}"
+        return f"Request failed: {e!s}"
 
 
 @mcp.tool()

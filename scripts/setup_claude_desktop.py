@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import json
-import sys
-import platform
 import os
-from pathlib import Path
-import venv
+import platform
 import subprocess
+import sys
+import venv
+from pathlib import Path
 
 
 def check_os():
@@ -131,7 +131,7 @@ def setup_claude_desktop():
         sys.exit(1)
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = json.load(f)
 
         # Use the installed plugin path (works for Plugin Manager installs):

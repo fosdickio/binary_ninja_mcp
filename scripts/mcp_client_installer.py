@@ -1,17 +1,24 @@
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
-from typing import Optional, Dict
 
 # Import shared utilities
 try:
     # Try relative import first (when run as module)
-    from ..plugin.utils.python_detection import get_python_executable, create_venv_with_system_python, copy_python_env
+    from ..plugin.utils.python_detection import (
+        copy_python_env,
+        create_venv_with_system_python,
+        get_python_executable,
+    )
 except ImportError:
     # Fallback for direct script execution
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "plugin"))
-    from utils.python_detection import get_python_executable, create_venv_with_system_python, copy_python_env
+    from utils.python_detection import (
+        copy_python_env,
+        create_venv_with_system_python,
+        get_python_executable,
+    )
 
 
 # Unique key used in MCP client configs
@@ -46,7 +53,7 @@ def ensure_local_venv() -> str:
     """Create a local venv under the plugin root if missing and return its python."""
     vdir = _venv_dir()
     req = os.path.join(_repo_root(), "bridge", "requirements.txt")
-    
+
     try:
         py = create_venv_with_system_python(vdir, req if os.path.exists(req) else None)
         return py if os.path.exists(py) else get_python_executable()
@@ -114,7 +121,7 @@ def _config_targets() -> dict[str, tuple[str, str]]:
         return {}
 
 
-def install_mcp_servers(*, uninstall: bool = False, quiet: bool = False, env: Optional[Dict[str, str]] = None) -> int:
+def install_mcp_servers(*, uninstall: bool = False, quiet: bool = False, env: dict[str, str] | None = None) -> int:
     """Install or remove MCP server entries for supported clients.
 
     Returns the number of configs modified.
@@ -140,7 +147,7 @@ def install_mcp_servers(*, uninstall: bool = False, quiet: bool = False, env: Op
             config: dict = {}
         else:
             try:
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(config_path, encoding="utf-8") as f:
                     data = f.read().strip()
                     config = json.loads(data) if data else {}
             except json.decoder.JSONDecodeError:

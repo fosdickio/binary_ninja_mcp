@@ -1,8 +1,8 @@
 import binaryninja as bn
 from binaryninja import Settings
+
 from .core.config import Config
 from .server.http_server import MCPServer
-
 
 # When true, suppress auto-start while a BinaryView is open until the user
 # explicitly starts the server again. This prevents immediate re-start after stop.
@@ -54,7 +54,7 @@ class BinaryNinjaMCP:
                 f"Running at http://{self.config.server.host}:{self.config.server.port}",
             )
         except Exception as e:
-            bn.log_error(f"Failed to start MCP server: {str(e)}")
+            bn.log_error(f"Failed to start MCP server: {e!s}")
             _show_popup("MCP Server Error", f"Failed to start: {e}")
 
     def stop_server(self, bv):
@@ -72,7 +72,7 @@ class BinaryNinjaMCP:
             _set_status_indicator(False)
             _show_popup("MCP Server Stopped", "Server has been stopped.")
         except Exception as e:
-            bn.log_error(f"Failed to stop server: {str(e)}")
+            bn.log_error(f"Failed to stop server: {e!s}")
             _show_popup("MCP Server Error", f"Failed to stop: {e}")
 
 
@@ -130,9 +130,9 @@ def _show_no_bv_popup():
     msg = "No BinaryView is active, please open a binary first"
     try:
         from binaryninja.interaction import (
-            show_message_box,
             MessageBoxButtonSet,
             MessageBoxIcon,
+            show_message_box,
         )
 
         show_message_box(
@@ -183,8 +183,8 @@ def _ensure_status_indicator():
     global _status_button
     try:
         import binaryninjaui as ui
-        from PySide6.QtWidgets import QPushButton, QWidget, QHBoxLayout
         from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QHBoxLayout, QPushButton, QWidget
 
         # Check if status button is disabled in settings
         settings = Settings()

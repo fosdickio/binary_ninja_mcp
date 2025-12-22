@@ -1,15 +1,17 @@
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
+import threading
 import urllib.parse
-from typing import Dict, Any
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any
+
 import binaryninja as bn
 from binaryninja.settings import Settings
-import threading
+
+from ..api.endpoints import BinaryNinjaEndpoints
 from ..core.binary_operations import BinaryOperations
 from ..core.config import Config
-from ..api.endpoints import BinaryNinjaEndpoints
-from ..utils.string_utils import parse_int_or_default
 from ..utils.number_utils import convert_number as util_convert_number
+from ..utils.string_utils import parse_int_or_default
 
 
 class MCPRequestHandler(BaseHTTPRequestHandler):
@@ -46,7 +48,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
-    def _send_json_response(self, data: Dict[str, Any], status_code: int = 200):
+    def _send_json_response(self, data: dict[str, Any], status_code: int = 200):
         try:
             self._set_headers(status_code=status_code)
             # If headers failed due to disconnect, avoid writing body
@@ -72,11 +74,11 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
-    def _parse_query_params(self) -> Dict[str, str]:
+    def _parse_query_params(self) -> dict[str, str]:
         parsed_path = urllib.parse.urlparse(self.path)
         return dict(urllib.parse.parse_qsl(parsed_path.query))
 
-    def _parse_post_params(self) -> Dict[str, Any]:
+    def _parse_post_params(self) -> dict[str, Any]:
         """Parse POST request parameters from various formats.
 
         Supports:
@@ -553,7 +555,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     bn.log_error(f"Error handling hexdump: {e}")
                     self._set_headers(content_type="text/plain", status_code=500)
-                    self.wfile.write(f"Error: {e}\n".encode("utf-8"))
+                    self.wfile.write(f"Error: {e}\n".encode())
 
             elif path == "/hexdumpByName":
                 try:
@@ -642,7 +644,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     bn.log_error(f"Error handling hexdumpByName: {e}")
                     self._set_headers(content_type="text/plain", status_code=500)
-                    self.wfile.write(f"Error: {e}\n".encode("utf-8"))
+                    self.wfile.write(f"Error: {e}\n".encode())
 
             elif path == "/getDataDecl":
                 try:
@@ -870,7 +872,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                             {"assembly": assembly, "function": func_info}
                         )
                 except Exception as e:
-                    bn.log_error(f"Error handling assembly request: {str(e)}")
+                    bn.log_error(f"Error handling assembly request: {e!s}")
                     import traceback
 
                     bn.log_error(traceback.format_exc())
@@ -940,7 +942,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         {"il": il_text, "function": func_info, "view": view, "ssa": ssa}
                     )
                 except Exception as e:
-                    bn.log_error(f"Error handling IL request: {str(e)}")
+                    bn.log_error(f"Error handling IL request: {e!s}")
                     self._send_json_response(
                         {
                             "error": "IL retrieval failed",
@@ -1988,7 +1990,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             bn.log_error(f"Error during decompilation: {e}")
             self._send_json_response(
                 {
-                    "error": f"Decompilation error: {str(e)}",
+                    "error": f"Decompilation error: {e!s}",
                     "requested_name": function_name,
                 },
                 500,

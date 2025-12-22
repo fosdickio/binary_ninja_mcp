@@ -1,8 +1,8 @@
 import json
 import os
 import sys
-from typing import Optional
-from .python_detection import get_python_executable, create_venv_with_system_python, copy_python_env
+
+from .python_detection import copy_python_env, create_venv_with_system_python, get_python_executable
 
 
 def _repo_root() -> str:
@@ -40,7 +40,7 @@ def _ensure_local_venv() -> str:
     """
     vdir = _venv_dir()
     req = os.path.join(_repo_root(), "bridge", "requirements.txt")
-    
+
     try:
         py = create_venv_with_system_python(vdir, req if os.path.exists(req) else None)
         return py if os.path.exists(py) else get_python_executable()
@@ -101,7 +101,7 @@ def install_mcp_clients(quiet: bool = True) -> int:
                 config_path = os.path.join(config_dir, config_file)
                 if not os.path.exists(config_path):
                     continue
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(config_path, encoding="utf-8") as f:
                     data = f.read().strip()
                     if not data:
                         continue
@@ -132,7 +132,7 @@ def install_mcp_clients(quiet: bool = True) -> int:
             config = {}
         else:
             try:
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(config_path, encoding="utf-8") as f:
                     data = f.read().strip()
                     config = json.loads(data) if data else {}
             except Exception:

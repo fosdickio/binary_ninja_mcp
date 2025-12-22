@@ -3,13 +3,12 @@ Shared utilities for Python interpreter detection and virtual environment manage
 """
 
 import os
-import sys
 import subprocess
+import sys
 import venv
-from typing import List
 
 
-def get_system_python_candidates() -> List[str]:
+def get_system_python_candidates() -> list[str]:
     """Get a list of candidate system Python paths for the current platform.
     
     Returns:
@@ -76,7 +75,7 @@ def get_python_executable() -> str:
     for path in sys.path:
         if sys.platform == "win32":
             path = path.replace("/", "\\")
-        
+
         parts = path.split(os.sep)
         if parts and parts[-1].endswith(".zip"):
             base = os.path.dirname(path)
@@ -109,38 +108,38 @@ def create_venv_with_system_python(venv_dir: str, requirements_file: str = None)
         venv_python = os.path.join(venv_dir, "Scripts", "python.exe")
     else:
         venv_python = os.path.join(venv_dir, "bin", "python3")
-    
+
     # Check if we need to recreate the venv
     should_recreate = not os.path.exists(venv_python)
-    
+
     # On Windows, check for Binary Ninja launcher
     if sys.platform == "win32":
         bn_launcher = os.path.join(venv_dir, "Scripts", "binaryninja.exe")
         if os.path.exists(bn_launcher):
             should_recreate = True
-    
+
     # On macOS/Linux, check if existing venv uses Binary Ninja's Python
     if sys.platform in ("darwin", "linux") and os.path.exists(venv_python):
         try:
             result = subprocess.run(
-                [venv_python, "-c", "import sys; print(sys.executable)"], 
+                [venv_python, "-c", "import sys; print(sys.executable)"],
                 capture_output=True, text=True, timeout=10
             )
             if result.returncode == 0 and is_binary_ninja_python(result.stdout.strip()):
                 should_recreate = True
         except Exception:
             pass
-    
+
     if should_recreate:
         os.makedirs(venv_dir, exist_ok=True)
         created = False
-        
+
         # Try to use system Python for venv creation
         if sys.platform == "win32":
             # Use Python launcher on Windows
             try:
                 subprocess.run(
-                    ["py", "-3", "-m", "venv", venv_dir], 
+                    ["py", "-3", "-m", "venv", venv_dir],
                     check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                 )
                 created = True
@@ -153,29 +152,29 @@ def create_venv_with_system_python(venv_dir: str, requirements_file: str = None)
                 if os.path.exists(python_path):
                     try:
                         subprocess.run(
-                            [python_path, "-m", "venv", venv_dir], 
+                            [python_path, "-m", "venv", venv_dir],
                             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30
                         )
                         created = True
                         break
                     except Exception:
                         continue
-        
+
         # Fallback to venv.EnvBuilder if system Python methods failed
         if not created:
             builder = venv.EnvBuilder(with_pip=True, upgrade=False)
             builder.create(venv_dir)
-        
+
         # Install requirements if provided
         if requirements_file and os.path.exists(requirements_file):
             try:
                 subprocess.run(
-                    [venv_python, "-m", "pip", "install", "-r", requirements_file], 
+                    [venv_python, "-m", "pip", "install", "-r", requirements_file],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False
                 )
             except Exception:
                 pass
-    
+
     return venv_python
 
 
@@ -190,19 +189,19 @@ def copy_python_env(env: dict) -> bool:
     """
     python_vars = [
         "PYTHONHOME",
-        "PYTHONPATH", 
+        "PYTHONPATH",
         "PYTHONSAFEPATH",
         "PYTHONPLATLIBDIR",
         "PYTHONPYCACHEPREFIX",
         "PYTHONNOUSERSITE",
         "PYTHONUSERBASE",
     ]
-    
+
     copied = False
     for var in python_vars:
         value = os.environ.get(var)
         if value:
             copied = True
             env[var] = value
-    
+
     return copied
