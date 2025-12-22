@@ -507,15 +507,15 @@ def _start_bv_monitor():
 
                 # First, prune internal weakrefs and get a snapshot of tracked views
                 try:
-                    current_list = ops.list_open_binaries()
+                    ops.list_open_binaries()
                 except Exception:
-                    current_list = []
+                    pass
 
                 # Discover all open BVs from UI and sync registry (returns filenames)
                 try:
-                    ui_fns = _discover_all_open_bvs(ops) or set()
+                    _discover_all_open_bvs(ops) or set()
                 except Exception:
-                    ui_fns = set()
+                    pass
 
                 # Do not prune solely based on UI heuristics; UI enumeration may miss open tabs.
                 # Rely on explicit close notifications and weakref pruning in ops.

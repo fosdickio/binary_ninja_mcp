@@ -28,7 +28,7 @@ def _active_filename() -> str:
     return "(none)"
 
 
-def safe_get(endpoint: str, params: dict = None, timeout: float | None = 5) -> list:
+def safe_get(endpoint: str, params: dict | None = None, timeout: float | None = 5) -> list:
     """
     Perform a GET request. If 'params' is given, we convert it to a query string.
     """
@@ -54,7 +54,7 @@ def safe_get(endpoint: str, params: dict = None, timeout: float | None = 5) -> l
         return [f"Request failed: {e!s}"]
 
 
-def get_json(endpoint: str, params: dict = None, timeout: float | None = 5):
+def get_json(endpoint: str, params: dict | None = None, timeout: float | None = 5):
     """
     Perform a GET and return parsed JSON.
     - On 2xx: returns parsed JSON.
@@ -94,7 +94,7 @@ def get_json(endpoint: str, params: dict = None, timeout: float | None = 5):
         return {"error": f"Request failed: {e!s}"}
 
 
-def get_text(endpoint: str, params: dict = None, timeout: float | None = 5) -> str:
+def get_text(endpoint: str, params: dict | None = None, timeout: float | None = 5) -> str:
     """Perform a GET and return raw text (or an error string)."""
     if params is None:
         params = {}

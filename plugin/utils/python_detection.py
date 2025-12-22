@@ -83,7 +83,7 @@ def get_python_executable() -> str:
     return sys.executable
 
 
-def create_venv_with_system_python(venv_dir: str, requirements_file: str = None) -> str:
+def create_venv_with_system_python(venv_dir: str, requirements_file: str | None = None) -> str:
     """Create a virtual environment using system Python when possible.
 
     Args:

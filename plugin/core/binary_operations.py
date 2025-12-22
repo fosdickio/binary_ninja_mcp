@@ -872,7 +872,6 @@ class BinaryOperations:
                 import re as _re
                 from difflib import get_close_matches as _gcm
 
-                suggestions: list[str] = []
                 names: list[str] = []
                 # Prefer dynamic enumeration via binaryninja.Platform
                 try:
@@ -983,7 +982,7 @@ class BinaryOperations:
                         seen.add(n)
                         cand.append(n)
                 cand.sort(key=_score, reverse=True)
-                suggestions = cand[:10]
+                cand[:10]
                 raise ValueError(f"Unknown platform/architecture '{architecture}'")
         # Default/platform fallback when no explicit architecture provided
         if plat_obj is None:
@@ -1904,7 +1903,7 @@ class BinaryOperations:
                     func_length = func.total_bytes
                     if func_length <= 0:
                         func_length = 1024  # Use a reasonable default if length not available
-                except:
+                except Exception:
                     func_length = 1024  # Use a reasonable default if error
 
                 try:
@@ -1933,9 +1932,11 @@ class BinaryOperations:
                             block_lines.append(f"# Error at {hex(current_addr)}: {e!s}")
                             current_addr += 1  # Skip to next byte
 
-                    assembly_blocks[start_addr] = (
-                        [f"# Block at {hex(start_addr)}"] + block_lines + [""]
-                    )
+                    assembly_blocks[start_addr] = [
+                        f"# Block at {hex(start_addr)}",
+                        *block_lines,
+                        "",
+                    ]
 
                 except Exception as e:
                     bn.log_error(f"Linear disassembly failed: {e!s}")
@@ -1967,9 +1968,11 @@ class BinaryOperations:
                                 addr += 1  # Skip to next byte
 
                         # Store block with its starting address as key
-                        assembly_blocks[block.start] = (
-                            [f"# Block {i + 1} at {hex(block.start)}"] + block_lines + [""]
-                        )
+                        assembly_blocks[block.start] = [
+                            f"# Block {i + 1} at {hex(block.start)}",
+                            *block_lines,
+                            "",
+                        ]
 
                     except Exception as e:
                         bn.log_error(f"Error processing block {i + 1} at {hex(block.start)}: {e!s}")
@@ -2012,7 +2015,7 @@ class BinaryOperations:
             try:
                 raw_bytes = self._current_view.read(addr, instr_len)
                 hex_bytes = " ".join(f"{b:02x}" for b in raw_bytes)
-            except:
+            except Exception:
                 hex_bytes = "??"
 
             # Get basic disassembly
@@ -2022,7 +2025,7 @@ class BinaryOperations:
                     disasm = self._current_view.get_disassembly(addr)
                     if disasm:
                         disasm_text = disasm
-            except:
+            except Exception:
                 disasm_text = hex_bytes + " ; [Raw bytes]"
 
             if not disasm_text:
@@ -2045,7 +2048,7 @@ class BinaryOperations:
                         if sym and hasattr(sym, "name"):
                             # Replace the address with the function name
                             disasm_text = disasm_text.replace(call_addr_str, sym.name)
-                except:
+                except Exception:
                     pass
 
             # Try to annotate memory references with variable names
@@ -2063,7 +2066,7 @@ class BinaryOperations:
                     offset_match = re.search(offset_pattern, mem_ref)
                     if offset_match:
                         # Extract base register and offset
-                        base_reg = offset_match.group(1)
+                        offset_match.group(1)
                         offset_str = offset_match.group(2)
 
                         # Convert offset to integer
@@ -2082,16 +2085,16 @@ class BinaryOperations:
                                 old_ref = f"[{mem_ref}]"
                                 new_ref = f"[{mem_ref} {{{var_name}}}]"
                                 disasm_text = disasm_text.replace(old_ref, new_ref)
-                        except:
+                        except Exception:
                             pass
-            except:
+            except Exception:
                 pass
 
             # Get comment if any
             comment = None
             try:
                 comment = self._current_view.get_comment_at(addr)
-            except:
+            except Exception:
                 pass
 
             # Format the final line

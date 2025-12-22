@@ -207,19 +207,6 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             return '""'
 
-        # Try all formats as fallback
-        try:
-            return json.loads(post_data)
-        except json.JSONDecodeError:
-            try:
-                parsed = dict(urllib.parse.parse_qsl(post_data))
-                if parsed:
-                    return parsed
-            except (ValueError, TypeError):
-                pass
-
-            return {"name": post_data.strip()}
-
     def _check_binary_loaded(self):
         """Check if a binary is loaded and return appropriate error response if not"""
         if not self.binary_ops or not self.binary_ops.current_view:

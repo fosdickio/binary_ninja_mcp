@@ -147,7 +147,7 @@ def convert_number(text: str, size_param) -> dict:
 
     # Numeric forms
     signed = False
-    neg = text.startswith("-")
+    text.startswith("-")
     try:
         if text.lower().startswith("0x") or re.match(r"^[0-9a-fA-F_]+h$", text):
             # Hex (allow trailing h)
