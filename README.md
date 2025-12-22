@@ -243,8 +243,8 @@ ruff format .
 
 A GitHub Action workflow (`.github/workflows/lint-format.yml`) automatically runs Ruff on:
 
-- Every push to `main` branches
-- Every pull request targeting `main` branches
+- Every push to the `main` branch
+- Every pull request targeting the `main` branch
 
 The workflow will fail if there are linting errors or formatting issues, ensuring code quality in CI.
 
