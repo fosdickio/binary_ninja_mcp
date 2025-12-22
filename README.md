@@ -211,6 +211,43 @@ These are the list of HTTP endpoints that can be called:
     - `pairs`: compact string `old1:new1,old2:new2`
           Returns per-item results plus totals. Order is respected; later pairs can refer to earlier new names.
 
+## Development
+
+### Code Quality
+
+This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting. Configuration is in `ruff.toml`.
+
+#### Running Ruff Manually
+
+Check for issues:
+```bash
+ruff check .
+```
+
+Auto-fix issues:
+```bash
+ruff check --fix .
+```
+
+Check formatting issues:
+```bash
+ruff format --check .
+```
+
+Format code:
+```bash
+ruff format .
+```
+
+#### GitHub Actions
+
+A GitHub Action workflow (`.github/workflows/lint-format.yml`) automatically runs Ruff on:
+
+- Every push to the `main` branch
+- Every pull request targeting the `main` branch
+
+The workflow will fail if there are linting errors or formatting issues, ensuring code quality in CI.
+
 ## Contributing
 
 Contributions are welcome. Please feel free to submit a pull request.

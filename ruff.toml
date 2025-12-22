@@ -1,0 +1,19 @@
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "RUF", # Ruff-specific rules
+]
+
+[lint.isort]
+known-first-party = ["plugin", "bridge"]
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py files
+"scripts/*" = ["T201"]    # Allow print statements in scripts
