@@ -752,6 +752,29 @@ def get_xrefs_to_union(union_name: str) -> list:
 
 
 @mcp.tool()
+def get_stack_frame_vars(function_identifier: str) -> list:
+    """
+    Get stack frame variable information for a function by name or address.
+    Returns names, offsets, sizes, and types of local variables.
+    """
+    ident = (function_identifier or "").strip()
+    params = {}
+    # Choose param name based on identifier format
+    if ident.lower().startswith("0x") or ident.isdigit():
+        params["address"] = ident
+    else:
+        params["name"] = ident
+    data = get_json("getStackFrameVars", params)
+    if not data:
+        return []
+    if isinstance(data, dict) and data.get("error"):
+        return []
+    if isinstance(data, dict) and data.get("stack_frame_vars"):
+        return data["stack_frame_vars"]
+    return []
+
+
+@mcp.tool()
 def format_value(address: str, text: str, size: int = 0) -> list:
     """
     Convert and annotate a value at an address in Binary Ninja.
@@ -898,6 +921,7 @@ def set_local_variable_type(
         return f"Error: {data['error']}"
     return str(data)
 
+
 @mcp.tool()
 def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
     """
@@ -906,19 +930,19 @@ def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
     - data: Hex string of bytes to write (e.g., "90 90" or "9090" or "0x90 0x90")
     - save_to_file: If True (default), save patched binary to disk and re-sign on macOS.
                     If False, only modify in memory without affecting the original file.
-    
+
     Returns status with original and patched bytes.
     On macOS, automatically re-signs the binary after patching to avoid execution errors.
     """
     # Handle boolean type conversion (MCP may pass as string)
     if isinstance(save_to_file, str):
         save_to_file = save_to_file.lower() not in ("false", "0", "no")
-    
+
     params = {"address": address, "data": data, "save_to_file": save_to_file}
     result = get_json("patch", params)
     if not result:
         return "Error: no response"
-    
+
     status = result.get("status") if isinstance(result, dict) else None
     if status in ("ok", "partial"):
         orig = result.get("original_bytes", "")
@@ -931,7 +955,7 @@ def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
         save_error = result.get("save_error", "")
         codesign = result.get("codesign", {})
         warning = result.get("warning", "")
-        
+
         msg = f"Patched {written}/{requested} bytes at {addr}"
         if status == "partial":
             msg += " (PARTIAL WRITE)"
@@ -945,19 +969,22 @@ def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
             msg += f"\nSaved to file: {saved_path}"
         elif save_error:
             msg += f"\nWarning: File not saved - {save_error}"
-        
+
         # Show codesign status for macOS
         if codesign:
             if codesign.get("success"):
                 msg += f"\nCode signing: {codesign.get('message', 'Re-signed successfully')}"
             elif codesign.get("attempted"):
-                msg += f"\nCode signing: Failed - {codesign.get('error', 'Unknown error')}"
-        
+                msg += (
+                    f"\nCode signing: Failed - {codesign.get('error', 'Unknown error')}"
+                )
+
         return msg
     if isinstance(result, dict) and "error" in result:
         return f"Error: {result['error']}"
     return str(result)
-    
+
+
 if __name__ == "__main__":
     # Important: write any logs to stderr to avoid corrupting MCP stdio JSON-RPC
     print("Starting MCP bridge service...", file=_sys.stderr)
