@@ -1823,11 +1823,11 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/getStackFrameVars":
-                function_identifier = params.get("name")
+                function_identifier = params.get("name") or params.get("address")
                 if not function_identifier:
                     self._send_json_response(
                         {
-                            "error": "Missing required parameter: name",
+                            "error": "Missing required parameter: name or address",
                             "received": params,
                         },
                         400,
@@ -1887,8 +1887,12 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                 if isinstance(save_to_file_param, bool):
                     save_to_file = save_to_file_param
                 else:
-                    save_to_file = str(save_to_file_param).lower() not in ("false", "0", "no")
-                
+                    save_to_file = str(save_to_file_param).lower() not in (
+                        "false",
+                        "0",
+                        "no",
+                    )
+
                 if not address:
                     self._send_json_response(
                         {
@@ -1899,7 +1903,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         400,
                     )
                     return
-                
+
                 if not data:
                     self._send_json_response(
                         {
@@ -1910,7 +1914,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         400,
                     )
                     return
-                
+
                 try:
                     # Parse data if it's a JSON string (for list format)
                     if isinstance(data, str):
@@ -1922,7 +1926,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         except (json.JSONDecodeError, ValueError):
                             # Not JSON, treat as hex string
                             pass
-                    
+
                     result = self.endpoints.patch_bytes(address, data, save_to_file)
                     self._send_json_response(result)
                 except ValueError as ve:
@@ -2393,8 +2397,12 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                 if isinstance(save_to_file_param, bool):
                     save_to_file = save_to_file_param
                 else:
-                    save_to_file = str(save_to_file_param).lower() not in ("false", "0", "no")
-                
+                    save_to_file = str(save_to_file_param).lower() not in (
+                        "false",
+                        "0",
+                        "no",
+                    )
+
                 if not address:
                     self._send_json_response(
                         {
@@ -2405,7 +2413,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         400,
                     )
                     return
-                
+
                 if not data:
                     self._send_json_response(
                         {
@@ -2416,7 +2424,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         400,
                     )
                     return
-                
+
                 try:
                     # Parse data if it's a JSON string (for list format)
                     if isinstance(data, str):
@@ -2428,7 +2436,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         except (json.JSONDecodeError, ValueError):
                             # Not JSON, treat as hex string
                             pass
-                    
+
                     result = self.endpoints.patch_bytes(address, data, save_to_file)
                     self._send_json_response(result)
                 except ValueError as ve:
