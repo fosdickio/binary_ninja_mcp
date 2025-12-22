@@ -22,8 +22,8 @@ jobs:
       
       - name: Run Ruff linter
         run: ruff check .
-        continue-on-error: true
+        continue-on-error: false
       
       - name: Run Ruff formatter check
         run: ruff format --check .
-        continue-on-error: true
+        continue-on-error: false
