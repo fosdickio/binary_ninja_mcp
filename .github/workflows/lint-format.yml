@@ -1,0 +1,29 @@
+name: Ruff
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      
+      - name: Install Ruff
+        run: pip install ruff>=0.8.4
+      
+      - name: Run Ruff linter
+        run: ruff check .
+        continue-on-error: false
+      
+      - name: Run Ruff formatter check
+        run: ruff format --check .
+        continue-on-error: false
