@@ -1,6 +1,8 @@
-from typing import Dict, Any, List, Optional
 import os
+from typing import Any
+
 import binaryninja as bn
+
 from ..core.binary_operations import BinaryOperations
 
 
@@ -8,7 +10,7 @@ class BinaryNinjaEndpoints:
     def __init__(self, binary_ops: BinaryOperations):
         self.binary_ops = binary_ops
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get the current status of the binary view"""
         return {
             "loaded": self.binary_ops.current_view is not None,
@@ -17,26 +19,26 @@ class BinaryNinjaEndpoints:
             else None,
         }
 
-    def get_entry_points(self) -> List[Dict[str, Any]]:
+    def get_entry_points(self) -> list[dict[str, Any]]:
         """Get entry point(s) for the current binary"""
         return self.binary_ops.get_entry_points()
 
     # -------- Multi-binary helpers --------
-    def _format_binary_listing(self, raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _format_binary_listing(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Normalize binary listing entries with ordinal, view id, basename, and selectors."""
-        formatted: List[Dict[str, Any]] = []
+        formatted: list[dict[str, Any]] = []
         for ordinal, item in enumerate(raw, start=1):
             filename = item.get("filename")
             view_id = str(item.get("id") or "")
             basename = os.path.basename(filename) if filename else None
-            entry: Dict[str, Any] = {
+            entry: dict[str, Any] = {
                 "id": str(ordinal),
                 "view_id": view_id,
                 "filename": filename,
                 "basename": basename,
                 "active": bool(item.get("active")),
             }
-            selectors: List[str] = []
+            selectors: list[str] = []
             for candidate in (
                 entry["id"],
                 view_id,
@@ -49,7 +51,7 @@ class BinaryNinjaEndpoints:
             formatted.append(entry)
         return formatted
 
-    def list_binaries(self) -> Dict[str, Any]:
+    def list_binaries(self) -> dict[str, Any]:
         """List managed/open binaries with sequential ids (1..N) and active flag.
 
         The server maintains internal keys for views; this endpoint presents
@@ -58,7 +60,7 @@ class BinaryNinjaEndpoints:
         raw = self.binary_ops.list_open_binaries()
         return {"binaries": self._format_binary_listing(raw)}
 
-    def select_binary(self, ident: str) -> Dict[str, Any]:
+    def select_binary(self, ident: str) -> dict[str, Any]:
         """Select active binary by id or filename/basename."""
         info = self.binary_ops.select_view(ident)
         if not info:
@@ -69,7 +71,7 @@ class BinaryNinjaEndpoints:
         filename = info.get("filename")
         view_id = info.get("id")
         formatted = self._format_binary_listing(self.binary_ops.list_open_binaries())
-        selected_entry: Optional[Dict[str, Any]] = None
+        selected_entry: dict[str, Any] | None = None
         for entry in formatted:
             if (filename and entry.get("filename") == filename) or (
                 view_id and entry.get("view_id") == view_id
@@ -78,7 +80,7 @@ class BinaryNinjaEndpoints:
                 break
         if not selected_entry:
             basename = os.path.basename(filename) if filename else None
-            selectors: List[str] = []
+            selectors: list[str] = []
             for candidate in (view_id, filename, basename):
                 if candidate and candidate not in selectors:
                     selectors.append(candidate)
@@ -94,7 +96,7 @@ class BinaryNinjaEndpoints:
             selected_entry["active"] = True
         return {"status": "ok", "selected": selected_entry}
 
-    def get_function_info(self, identifier: str) -> Optional[Dict[str, Any]]:
+    def get_function_info(self, identifier: str) -> dict[str, Any] | None:
         """Get detailed information about a function"""
         try:
             return self.binary_ops.get_function_info(identifier)
@@ -102,7 +104,7 @@ class BinaryNinjaEndpoints:
             bn.log_error(f"Error getting function info: {e}")
             return None
 
-    def get_imports(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_imports(self, offset: int = 0, limit: int = 100) -> list[dict[str, Any]]:
         """Get list of imported functions"""
         if not self.binary_ops.current_view:
             raise RuntimeError("No binary loaded")
@@ -116,14 +118,12 @@ class BinaryNinjaEndpoints:
                     "name": sym.name,
                     "address": hex(sym.address),
                     "raw_name": sym.raw_name if hasattr(sym, "raw_name") else sym.name,
-                    "full_name": sym.full_name
-                    if hasattr(sym, "full_name")
-                    else sym.name,
+                    "full_name": sym.full_name if hasattr(sym, "full_name") else sym.name,
                 }
             )
         return imports[offset : offset + limit]
 
-    def get_exports(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_exports(self, offset: int = 0, limit: int = 100) -> list[dict[str, Any]]:
         """Get list of exported symbols"""
         if not self.binary_ops.current_view:
             raise RuntimeError("No binary loaded")
@@ -138,18 +138,14 @@ class BinaryNinjaEndpoints:
                     {
                         "name": sym.name,
                         "address": hex(sym.address),
-                        "raw_name": sym.raw_name
-                        if hasattr(sym, "raw_name")
-                        else sym.name,
-                        "full_name": sym.full_name
-                        if hasattr(sym, "full_name")
-                        else sym.name,
+                        "raw_name": sym.raw_name if hasattr(sym, "raw_name") else sym.name,
+                        "full_name": sym.full_name if hasattr(sym, "full_name") else sym.name,
                         "type": str(sym.type),
                     }
                 )
         return exports[offset : offset + limit]
 
-    def get_namespaces(self, offset: int = 0, limit: int = 100) -> List[str]:
+    def get_namespaces(self, offset: int = 0, limit: int = 100) -> list[str]:
         """Get list of C++ namespaces"""
         if not self.binary_ops.current_view:
             raise RuntimeError("No binary loaded")
@@ -165,9 +161,7 @@ class BinaryNinjaEndpoints:
         sorted_namespaces = sorted(list(namespaces))
         return sorted_namespaces[offset : offset + limit]
 
-    def get_defined_data(
-        self, offset: int = 0, limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    def get_defined_data(self, offset: int = 0, limit: int = 100) -> list[dict[str, Any]]:
         """Get list of defined data variables"""
         if not self.binary_ops.current_view:
             raise RuntimeError("No binary loaded")
@@ -179,9 +173,7 @@ class BinaryNinjaEndpoints:
 
             try:
                 if data_type and data_type.width <= 8:
-                    value = str(
-                        self.binary_ops.current_view.read_int(var, data_type.width)
-                    )
+                    value = str(self.binary_ops.current_view.read_int(var, data_type.width))
                 else:
                     value = "(complex data)"
             except (ValueError, TypeError):
@@ -192,9 +184,7 @@ class BinaryNinjaEndpoints:
                 {
                     "address": hex(var),
                     "name": sym.name if sym else "(unnamed)",
-                    "raw_name": sym.raw_name
-                    if sym and hasattr(sym, "raw_name")
-                    else None,
+                    "raw_name": sym.raw_name if sym and hasattr(sym, "raw_name") else None,
                     "value": value,
                     "type": str(data_type) if data_type else None,
                 }
@@ -204,7 +194,7 @@ class BinaryNinjaEndpoints:
 
     def search_functions(
         self, search_term: str, offset: int = 0, limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Search functions by name"""
         if not self.binary_ops.current_view:
             raise RuntimeError("No binary loaded")
@@ -219,9 +209,7 @@ class BinaryNinjaEndpoints:
                     {
                         "name": func.name,
                         "address": hex(func.start),
-                        "raw_name": func.raw_name
-                        if hasattr(func, "raw_name")
-                        else func.name,
+                        "raw_name": func.raw_name if hasattr(func, "raw_name") else func.name,
                         "symbol": {
                             "type": str(func.symbol.type) if func.symbol else None,
                             "full_name": func.symbol.full_name if func.symbol else None,
@@ -234,7 +222,7 @@ class BinaryNinjaEndpoints:
         matches.sort(key=lambda x: x["name"])
         return matches[offset : offset + limit]
 
-    def decompile_function(self, identifier: str) -> Optional[str]:
+    def decompile_function(self, identifier: str) -> str | None:
         """Decompile a function by name or address"""
         try:
             return self.binary_ops.decompile_function(identifier)
@@ -242,7 +230,7 @@ class BinaryNinjaEndpoints:
             bn.log_error(f"Error decompiling function: {e}")
             return None
 
-    def get_assembly_function(self, identifier: str) -> Optional[str]:
+    def get_assembly_function(self, identifier: str) -> str | None:
         """Get the assembly representation of a function by name or address"""
         try:
             return self.binary_ops.get_assembly_function(identifier)
@@ -252,7 +240,7 @@ class BinaryNinjaEndpoints:
 
     def make_function_at(
         self, address: str | int, architecture: str | None = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a function at an address (no-op if already exists).
 
         On invalid/unknown platform (non-default arch parameter), returns an error object with
@@ -267,9 +255,7 @@ class BinaryNinjaEndpoints:
                 plats_obj = getattr(bn, "Platform", None)
                 if plats_obj is not None:
                     try:
-                        platforms = [
-                            str(getattr(p, "name", str(p))) for p in list(plats_obj)
-                        ]
+                        platforms = [str(getattr(p, "name", str(p))) for p in list(plats_obj)]
                     except Exception:
                         platforms = []
             except Exception:
@@ -340,7 +326,7 @@ class BinaryNinjaEndpoints:
                 ]
             return {"error": str(e), "available_platforms": platforms}
 
-    def define_types(self, c_code: str) -> Dict[str, str]:
+    def define_types(self, c_code: str) -> dict[str, str]:
         """Define types from C code string
 
         Args:
@@ -368,11 +354,9 @@ class BinaryNinjaEndpoints:
 
             return defined_types
         except Exception as e:
-            raise ValueError(f"Failed to define types: {str(e)}")
+            raise ValueError(f"Failed to define types: {e!s}")
 
-    def rename_variable(
-        self, function_name: str, old_name: str, new_name: str
-    ) -> Dict[str, str]:
+    def rename_variable(self, function_name: str, old_name: str, new_name: str) -> dict[str, str]:
         """Rename a variable inside a function
 
         Args:
@@ -400,22 +384,20 @@ class BinaryNinjaEndpoints:
             # Get the variable by name and rename it
             variable = function.get_variable_by_name(old_name)
             if not variable:
-                raise ValueError(
-                    f"Variable '{old_name}' not found in function '{function_name}'"
-                )
+                raise ValueError(f"Variable '{old_name}' not found in function '{function_name}'")
 
             variable.name = new_name
             return {
                 "status": f"Successfully renamed variable '{old_name}' to '{new_name}' in function '{function_name}'"
             }
         except Exception as e:
-            raise ValueError(f"Failed to rename variable: {str(e)}")
+            raise ValueError(f"Failed to rename variable: {e!s}")
 
     def rename_variables(
         self,
         function_identifier: str | int,
-        renames: List[Dict[str, str]] | Dict[str, str],
-    ) -> Dict[str, Any]:
+        renames: list[dict[str, str]] | dict[str, str],
+    ) -> dict[str, Any]:
         """Rename multiple local variables in a function.
 
         Args:
@@ -438,7 +420,7 @@ class BinaryNinjaEndpoints:
             raise ValueError(f"Function '{function_identifier}' not found")
 
         # Normalize renames into ordered list of {old, new}
-        pairs: List[Dict[str, str]] = []
+        pairs: list[dict[str, str]] = []
         if isinstance(renames, dict):
             for k, v in renames.items():
                 if k is None or v is None:
@@ -473,7 +455,7 @@ class BinaryNinjaEndpoints:
         if not pairs:
             raise ValueError("No valid rename pairs provided")
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         success_count = 0
 
         # Apply in order; later entries can refer to names produced by earlier renames
@@ -572,9 +554,7 @@ class BinaryNinjaEndpoints:
             "results": results,
         }
 
-    def retype_variable(
-        self, function_name: str, name: str, type_str: str
-    ) -> Dict[str, str]:
+    def retype_variable(self, function_name: str, name: str, type_str: str) -> dict[str, str]:
         """Retype a variable inside a function
 
         Args:
@@ -602,20 +582,16 @@ class BinaryNinjaEndpoints:
             # Get the variable by name and rename it
             variable = function.get_variable_by_name(name)
             if not variable:
-                raise ValueError(
-                    f"Variable '{name}' not found in function '{function_name}'"
-                )
+                raise ValueError(f"Variable '{name}' not found in function '{function_name}'")
 
             variable.type = type_str
             return {
                 "status": f"Successfully retyped variable '{name}' to '{type_str}' in function '{function_name}'"
             }
         except Exception as e:
-            raise ValueError(f"Failed to rename variable: {str(e)}")
+            raise ValueError(f"Failed to rename variable: {e!s}")
 
-    def set_function_prototype(
-        self, function_address: str | int, prototype: str
-    ) -> Dict[str, str]:
+    def set_function_prototype(self, function_address: str | int, prototype: str) -> dict[str, str]:
         """Set a function's prototype by address.
 
         Args:
@@ -665,9 +641,7 @@ class BinaryNinjaEndpoints:
                         for name, tobj in pr.types.items():
                             try:
                                 if hasattr(tobj, "type_class") and int(
-                                    getattr(
-                                        bn.enums, "TypeClass", object
-                                    ).FunctionTypeClass
+                                    getattr(bn.enums, "TypeClass", object).FunctionTypeClass
                                 ) == int(getattr(tobj, "type_class")):
                                     chosen = tobj
                                     break
@@ -703,7 +677,7 @@ class BinaryNinjaEndpoints:
             func.type = t
             func.reanalyze(bn.FunctionUpdateType.UserFunctionUpdate)
         except Exception as e:
-            raise ValueError(f"Failed applying type: {str(e)}")
+            raise ValueError(f"Failed applying type: {e!s}")
 
         return {
             "status": "ok",
@@ -712,7 +686,7 @@ class BinaryNinjaEndpoints:
             "applied_type": str(t),
         }
 
-    def declare_c_type(self, c_declaration: str) -> Dict[str, Any]:
+    def declare_c_type(self, c_declaration: str) -> dict[str, Any]:
         """Create or update a local type from a single C declaration.
 
         Accepts any C type declaration (struct/union/enum/typedef/function type) and defines
@@ -741,24 +715,24 @@ class BinaryNinjaEndpoints:
         try:
             result = self.binary_ops.current_view.parse_types_from_string(decl)
         except Exception as e:
-            raise ValueError(f"Failed to parse declaration: {str(e)}")
+            raise ValueError(f"Failed to parse declaration: {e!s}")
 
         if not result or not getattr(result, "types", {}):
             raise ValueError("No named types found in declaration")
 
-        defined: Dict[str, str] = {}
+        defined: dict[str, str] = {}
         for name, type_obj in result.types.items():
             try:
                 self.binary_ops.current_view.define_user_type(name, type_obj)
                 defined[str(name)] = str(type_obj)
             except Exception as e:
-                raise ValueError(f"Failed to define type '{name}': {str(e)}")
+                raise ValueError(f"Failed to define type '{name}': {e!s}")
 
         return {"defined_types": defined, "count": len(defined)}
 
     def set_local_variable_type(
         self, function_address: str | int, variable_name: str, new_type: str
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Set a local variable's type in a function.
 
         Args:
@@ -792,15 +766,11 @@ class BinaryNinjaEndpoints:
             var = None
 
         if not var:
-            raise ValueError(
-                f"Variable '{variable_name}' not found in function '{func.name}'"
-            )
+            raise ValueError(f"Variable '{variable_name}' not found in function '{func.name}'")
 
         # Parse type string
         try:
-            t, _ = self.binary_ops.current_view.parse_type_string(
-                (new_type or "").strip()
-            )
+            t, _ = self.binary_ops.current_view.parse_type_string((new_type or "").strip())
         except Exception:
             t = None
         if t is None:
@@ -821,11 +791,9 @@ class BinaryNinjaEndpoints:
                     if hasattr(func, "create_user_var") and hasattr(var, "storage"):
                         func.create_user_var(var, t, variable_name)
                     else:
-                        raise ValueError(
-                            "Retyping not supported by this Binary Ninja API version"
-                        )
+                        raise ValueError("Retyping not supported by this Binary Ninja API version")
                 except Exception as e:
-                    raise ValueError(f"Failed to set variable type: {str(e)}")
+                    raise ValueError(f"Failed to set variable type: {e!s}")
 
         # Trigger reanalysis for consistency
         try:
@@ -841,9 +809,7 @@ class BinaryNinjaEndpoints:
             "applied_type": applied,
         }
 
-    def get_stack_frame_vars(
-        self, function_identifier: str | int
-    ) -> List[Dict[str, Any]]:
+    def get_stack_frame_vars(self, function_identifier: str | int) -> list[dict[str, Any]]:
         """Get stack frame variable information for a function.
 
         Returns information about local variables in the function's stack frame,
@@ -935,9 +901,7 @@ class BinaryNinjaEndpoints:
                 vars_list.append(var_info)
 
             except Exception as e:
-                bn.log_error(
-                    f"Error processing variable {getattr(var, 'name', '<unknown>')}: {e}"
-                )
+                bn.log_error(f"Error processing variable {getattr(var, 'name', '<unknown>')}: {e}")
                 continue
 
         result.append({"addr": hex(func.start), "vars": vars_list})
@@ -946,9 +910,11 @@ class BinaryNinjaEndpoints:
 
     # display_as removed per request
 
-    def patch_bytes(self, address: str | int, data: str | bytes | List[int], save_to_file: bool = True) -> Dict[str, Any]:
+    def patch_bytes(
+        self, address: str | int, data: str | bytes | list[int], save_to_file: bool = True
+    ) -> dict[str, Any]:
         """Patch bytes at a given address in the binary.
-        
+
         Args:
             address: Address to patch (hex string like "0x401000" or integer)
             data: Bytes to write. Can be:
@@ -957,19 +923,19 @@ class BinaryNinjaEndpoints:
                 - Bytes object: b"\x90\x90"
             save_to_file: If True (default), save the patched binary to disk and re-sign on macOS.
                 If False, only modify the BinaryView in memory without affecting the original file.
-                
+
         Returns:
             Dictionary with status, address, original bytes, and patched bytes
-            
+
         Raises:
             RuntimeError: If no binary is loaded
             ValueError: If address or data format is invalid
         """
         if not self.binary_ops.current_view:
             raise RuntimeError("No binary loaded")
-        
+
         try:
             return self.binary_ops.patch_bytes(address, data, save_to_file)
         except Exception as e:
             bn.log_error(f"Error patching bytes: {e}")
-            raise ValueError(f"Failed to patch bytes: {str(e)}")
+            raise ValueError(f"Failed to patch bytes: {e!s}")

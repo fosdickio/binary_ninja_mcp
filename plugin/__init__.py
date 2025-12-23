@@ -1,8 +1,8 @@
 import binaryninja as bn
 from binaryninja import Settings
+
 from .core.config import Config
 from .server.http_server import MCPServer
-
 
 # When true, suppress auto-start while a BinaryView is open until the user
 # explicitly starts the server again. This prevents immediate re-start after stop.
@@ -18,9 +18,7 @@ class BinaryNinjaMCP:
         try:
             # Require an active BinaryView (match menu behavior)
             if bv is None:
-                bn.log_debug(
-                    "MCP Max start requested but no BinaryView is active; deferring"
-                )
+                bn.log_debug("MCP Max start requested but no BinaryView is active; deferring")
                 _show_no_bv_popup()
                 return
             # Avoid duplicate starts
@@ -54,7 +52,7 @@ class BinaryNinjaMCP:
                 f"Running at http://{self.config.server.host}:{self.config.server.port}",
             )
         except Exception as e:
-            bn.log_error(f"Failed to start MCP server: {str(e)}")
+            bn.log_error(f"Failed to start MCP server: {e!s}")
             _show_popup("MCP Server Error", f"Failed to start: {e}")
 
     def stop_server(self, bv):
@@ -72,7 +70,7 @@ class BinaryNinjaMCP:
             _set_status_indicator(False)
             _show_popup("MCP Server Stopped", "Server has been stopped.")
         except Exception as e:
-            bn.log_error(f"Failed to stop server: {str(e)}")
+            bn.log_error(f"Failed to stop server: {e!s}")
             _show_popup("MCP Server Error", f"Failed to stop: {e}")
 
 
@@ -130,9 +128,9 @@ def _show_no_bv_popup():
     msg = "No BinaryView is active, please open a binary first"
     try:
         from binaryninja.interaction import (
-            show_message_box,
             MessageBoxButtonSet,
             MessageBoxIcon,
+            show_message_box,
         )
 
         show_message_box(
@@ -183,8 +181,8 @@ def _ensure_status_indicator():
     global _status_button
     try:
         import binaryninjaui as ui
-        from PySide6.QtWidgets import QPushButton, QWidget, QHBoxLayout
         from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QHBoxLayout, QPushButton, QWidget
 
         # Check if status button is disabled in settings
         settings = Settings()
@@ -224,18 +222,14 @@ def _ensure_status_indicator():
             _status_button.setCursor(Qt.PointingHandCursor)
             _status_button.setToolTip("Click to start/stop MCP server")
             _status_button.setContentsMargins(0, 0, 0, 0)
-            _status_button.setStyleSheet(
-                "margin:0; padding:0 6px; border:0; border-radius:1px;"
-            )
+            _status_button.setStyleSheet("margin:0; padding:0 6px; border:0; border-radius:1px;")
 
             # Wrap the button in a container with side margins so the margin area is unclickable
             m = _sidebar_icon_margin_default()
             container = QWidget()
             container.setObjectName("mcpStatusContainer")
             lay = QHBoxLayout(container)
-            lay.setContentsMargins(
-                m, 0, 3, 0
-            )  # left margin = icon size + 1; right margin = 3px
+            lay.setContentsMargins(m, 0, 3, 0)  # left margin = icon size + 1; right margin = 3px
             lay.setSpacing(0)
             lay.addWidget(_status_button)
             global _status_container
@@ -399,9 +393,7 @@ def _schedule_status_init():
 
         for delay in (200, 500, 1000, 1500, 2000):
             try:
-                ui.execute_on_main_thread(
-                    lambda d=delay: QTimer.singleShot(d, _init_once)
-                )
+                ui.execute_on_main_thread(lambda d=delay: QTimer.singleShot(d, _init_once))
             except Exception:
                 pass
     except Exception:
@@ -515,15 +507,15 @@ def _start_bv_monitor():
 
                 # First, prune internal weakrefs and get a snapshot of tracked views
                 try:
-                    current_list = ops.list_open_binaries()
+                    ops.list_open_binaries()
                 except Exception:
-                    current_list = []
+                    pass
 
                 # Discover all open BVs from UI and sync registry (returns filenames)
                 try:
-                    ui_fns = _discover_all_open_bvs(ops) or set()
+                    _discover_all_open_bvs(ops) or set()
                 except Exception:
-                    ui_fns = set()
+                    pass
 
                 # Do not prune solely based on UI heuristics; UI enumeration may miss open tabs.
                 # Rely on explicit close notifications and weakref pruning in ops.
@@ -698,9 +690,7 @@ try:
                 bn.log_debug(f"MCP Max auto-start retry error: {_e}")
 
         for delay in (200, 500, 1000, 1500, 2000):
-            ui.execute_on_main_thread(
-                lambda d=delay: QTimer.singleShot(d, _kick_autostart)
-            )
+            ui.execute_on_main_thread(lambda d=delay: QTimer.singleShot(d, _kick_autostart))
     except Exception:
         pass
 except Exception:
@@ -760,12 +750,8 @@ try:
             pass
 
     try:
-        BinaryViewType.add_binaryview_initial_analysis_completion_event(
-            _on_bv_initial_analysis
-        )
-        bn.log_info(
-            "Registered BinaryView initial analysis completion event for MCP Max"
-        )
+        BinaryViewType.add_binaryview_initial_analysis_completion_event(_on_bv_initial_analysis)
+        bn.log_info("Registered BinaryView initial analysis completion event for MCP Max")
     except Exception as e:
         bn.log_debug(f"Unable to register BV analysis completion event: {e}")
     # Also register finalized event to catch newly created/opened views early

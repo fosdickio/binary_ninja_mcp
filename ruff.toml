@@ -10,6 +10,9 @@ select = [
     "UP",  # pyupgrade
     "RUF", # Ruff-specific rules
 ]
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+]
 
 [lint.isort]
 known-first-party = ["plugin", "bridge"]
@@ -17,3 +20,4 @@ known-first-party = ["plugin", "bridge"]
 [lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Allow unused imports in __init__.py files
 "scripts/*" = ["T201"]    # Allow print statements in scripts
+"bridge/binja_mcp_bridge.py" = ["E402"]  # Imports after exception hook setup (intentional)
