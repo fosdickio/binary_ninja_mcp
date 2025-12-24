@@ -350,6 +350,204 @@ class BinaryOperations:
         bn.log_error(f"Could not find function: {identifier}")
         return None
 
+    def _normalize_identifier_list(self, identifiers: Any) -> list[Any]:
+        """Normalize comma-delimited strings or iterables into a list of identifiers."""
+        if identifiers is None:
+            return []
+        if isinstance(identifiers, (list, tuple, set)):
+            raw_items = list(identifiers)
+        else:
+            raw_items = [identifiers]
+        normalized: list[Any] = []
+        for item in raw_items:
+            if item is None:
+                continue
+            if isinstance(item, str):
+                # Allow comma or semicolon separation for convenience
+                tokens = [tok.strip() for tok in item.replace(";", ",").split(",")]
+                normalized.extend([tok for tok in tokens if tok])
+            else:
+                normalized.append(item)
+        return normalized
+
+    def _format_function_reference(self, func: bn.Function | None) -> dict[str, Any] | None:
+        if not func:
+            return None
+        try:
+            return {
+                "name": getattr(func, "name", None),
+                "address": hex(int(func.start)) if hasattr(func, "start") else None,
+            }
+        except Exception:
+            return {
+                "name": getattr(func, "name", None),
+                "address": None,
+            }
+
+    def _collect_related_functions(
+        self, func: bn.Function, relation_attr: str
+    ) -> list[dict[str, Any]]:
+        related: list[dict[str, Any]] = []
+        seen: set[int] = set()
+        try:
+            rel_iter = getattr(func, relation_attr, None)
+        except Exception:
+            rel_iter = None
+        if rel_iter is None:
+            return related
+        try:
+            for rel_func in list(rel_iter):
+                if not rel_func:
+                    continue
+                addr = None
+                try:
+                    addr = int(rel_func.start)
+                except Exception:
+                    addr = None
+                if addr is not None and addr in seen:
+                    continue
+                if addr is not None:
+                    seen.add(addr)
+                ref = self._format_function_reference(rel_func)
+                if ref:
+                    related.append(ref)
+        except Exception:
+            pass
+        return related
+
+    def _summarize_call_sites(self, func: bn.Function, relation: str) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        attr = "caller_sites" if relation == "callers" else "call_sites"
+        try:
+            sites = getattr(func, attr, None)
+        except Exception:
+            sites = None
+        if not sites:
+            return entries
+
+        def _extract_function(site: Any, names: tuple[str, ...]) -> bn.Function | None:
+            for name in names:
+                try:
+                    value = getattr(site, name, None)
+                except Exception:
+                    value = None
+                if value:
+                    return value
+            return None
+
+        for site in list(sites):
+            try:
+                entry: dict[str, Any] = {}
+                addr = getattr(site, "address", None)
+                if isinstance(addr, int):
+                    entry["address"] = hex(addr)
+                elif isinstance(addr, str) and addr:
+                    entry["address"] = addr
+
+                if relation == "callers":
+                    caller_func = _extract_function(site, ("function", "source_function", "caller"))
+                    ref = self._format_function_reference(caller_func)
+                    if ref:
+                        entry["caller"] = ref
+                else:
+                    callee_func = _extract_function(
+                        site, ("callee", "dest_function", "target_function")
+                    )
+                    ref = self._format_function_reference(callee_func)
+                    if ref:
+                        entry["callee"] = ref
+                    else:
+                        # Fall back to raw destination address when available
+                        dest = None
+                        for attr_name in ("dest", "target", "constant"):
+                            try:
+                                dest = getattr(site, attr_name)
+                            except Exception:
+                                dest = None
+                            if dest is not None:
+                                break
+                        if isinstance(dest, int):
+                            entry["callee"] = {"name": None, "address": hex(dest)}
+
+                # Attach textual representation for quick context
+                summary_text = None
+                for attr_name in ("hlil", "il"):
+                    try:
+                        val = getattr(site, attr_name, None)
+                    except Exception:
+                        val = None
+                    if val is not None:
+                        summary_text = str(val)
+                        break
+                if summary_text is None:
+                    summary_text = str(site)
+                entry["il"] = summary_text
+
+                entries.append(entry)
+            except Exception:
+                continue
+        return entries
+
+    def get_callers(self, identifiers: Any) -> dict[str, Any]:
+        """Collect caller information for the given function identifiers."""
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+
+        items = self._normalize_identifier_list(identifiers)
+        if not items:
+            raise ValueError("No function identifiers provided")
+
+        results: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for ident in items:
+            try:
+                func = self.get_function_by_name_or_address(ident)
+            except Exception as exc:
+                func = None
+                errors.append(f"{ident}: {exc}")
+            if not func:
+                errors.append(f"Function not found: {ident}")
+                continue
+            entry = {
+                "identifier": str(ident),
+                "function": self._format_function_reference(func),
+                "callers": self._collect_related_functions(func, "callers"),
+                "caller_sites": self._summarize_call_sites(func, "callers"),
+            }
+            results.append(entry)
+
+        return {"results": results, "errors": errors}
+
+    def get_callees(self, identifiers: Any) -> dict[str, Any]:
+        """Collect callee information for the given function identifiers."""
+        if not self._current_view:
+            raise RuntimeError("No binary loaded")
+
+        items = self._normalize_identifier_list(identifiers)
+        if not items:
+            raise ValueError("No function identifiers provided")
+
+        results: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for ident in items:
+            try:
+                func = self.get_function_by_name_or_address(ident)
+            except Exception as exc:
+                func = None
+                errors.append(f"{ident}: {exc}")
+            if not func:
+                errors.append(f"Function not found: {ident}")
+                continue
+            entry = {
+                "identifier": str(ident),
+                "function": self._format_function_reference(func),
+                "callees": self._collect_related_functions(func, "callees"),
+                "call_sites": self._summarize_call_sites(func, "callees"),
+            }
+            results.append(entry)
+
+        return {"results": results, "errors": errors}
+
     def get_function_names(self, offset: int = 0, limit: int = 100) -> list[dict[str, str]]:
         """Get list of function names with addresses"""
         if not self._current_view:

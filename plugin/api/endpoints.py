@@ -104,6 +104,14 @@ class BinaryNinjaEndpoints:
             bn.log_error(f"Error getting function info: {e}")
             return None
 
+    def get_callers(self, identifiers: list[str]) -> dict[str, Any]:
+        """Proxy BinaryOperations.get_callers for endpoint reuse."""
+        return self.binary_ops.get_callers(identifiers)
+
+    def get_callees(self, identifiers: list[str]) -> dict[str, Any]:
+        """Proxy BinaryOperations.get_callees for endpoint reuse."""
+        return self.binary_ops.get_callees(identifiers)
+
     def get_imports(self, offset: int = 0, limit: int = 100) -> list[dict[str, Any]]:
         """Get list of imported functions"""
         if not self.binary_ops.current_view:
