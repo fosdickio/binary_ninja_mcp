@@ -153,6 +153,8 @@ The following table lists the available MCP functions for use:
 | `get_xrefs_to_union(union_name)`                                     | Get xrefs/usages related to a union (members, globals, code refs).                                           |
 | `get_stack_frame_vars(function_identifier)`                          | Get stack frame variable information for a function (names, offsets, sizes, types).                           |
 | `get_type_info(type_name)`                                           | Resolve a type and return declaration, kind, and members.                                                    |
+| `get_callers(identifiers)`                                           | List callers plus call sites for one or more function identifiers.                                           |
+| `get_callees(identifiers)`                                           | List callees plus call sites for one or more function identifiers.                                           |
 | `make_function_at(address, platform)`                                | Create a function at an address. `platform` optional; use `default` to pick the BinaryView/platform default. |
 | `list_platforms()`                                                   | List all available platform names.                                                                           |
 | `list_binaries()`                                                    | List managed/open binaries with ids and active flag.                                                         |
@@ -200,6 +202,8 @@ These are the list of HTTP endpoints that can be called:
 - `/getTypeInfo?name=<type>`: Resolve a type and return declaration and details.
 - `/getXrefsToUnion?name=<union>`: Union xrefs/usages (members, globals, refs).
 - `/getStackFrameVars?name=<function>|address=<addr>`: Get stack frame variable information for a function.
+- `/getCallers?identifiers=<name|addr>[,...]`: Return caller summaries (functions, call sites, HLIL/IL snippets) for one or more identifiers. Accepts `identifiers`, `identifier`, `names`, or `addresses` query params.
+- `/getCallees?identifiers=<name|addr>[,...]`: Return callee summaries with the same schema as `/getCallers`, detailing every outgoing call target per request identifier.
 - `/localTypes?offset=<n>&limit=<m>`: List local types.
 - `/strings?offset=<n>&limit=<m>`: Paginated strings.
 - `/strings/filter?offset=<n>&limit=<m>&filter=<substr>`: Filtered strings.

@@ -78,6 +78,28 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         parsed_path = urllib.parse.urlparse(self.path)
         return dict(urllib.parse.parse_qsl(parsed_path.query))
 
+    def _extract_identifiers(self, params: dict[str, str]) -> list[str]:
+        """Normalize identifier-bearing query params into a list."""
+        candidates: list[str] = []
+        for key in (
+            "identifiers",
+            "identifier",
+            "functions",
+            "function",
+            "names",
+            "name",
+            "addresses",
+            "address",
+        ):
+            value = params.get(key)
+            if value:
+                candidates.append(value)
+        identifiers: list[str] = []
+        for raw in candidates:
+            tokens = [tok.strip() for tok in raw.replace(";", ",").split(",")]
+            identifiers.extend([tok for tok in tokens if tok])
+        return identifiers
+
     def _parse_post_params(self) -> dict[str, Any]:
         """Parse POST request parameters from various formats.
 
@@ -744,6 +766,44 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                 search_term = params.get("query", "")
                 matches = self.endpoints.search_functions(search_term, offset, limit)
                 self._send_json_response({"matches": matches})
+
+            elif path == "/getCallers":
+                identifiers = self._extract_identifiers(params)
+                if not identifiers:
+                    self._send_json_response(
+                        {
+                            "error": "Missing identifier parameter",
+                            "help": "Provide ?identifier=<name|address> or comma-separated ?identifiers=a,b",
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    payload = self.binary_ops.get_callers(identifiers)
+                except Exception as e:
+                    bn.log_error(f"Error handling getCallers: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+                else:
+                    self._send_json_response(payload)
+
+            elif path == "/getCallees":
+                identifiers = self._extract_identifiers(params)
+                if not identifiers:
+                    self._send_json_response(
+                        {
+                            "error": "Missing identifier parameter",
+                            "help": "Provide ?identifier=<name|address> or comma-separated ?identifiers=a,b",
+                        },
+                        400,
+                    )
+                    return
+                try:
+                    payload = self.binary_ops.get_callees(identifiers)
+                except Exception as e:
+                    bn.log_error(f"Error handling getCallees: {e}")
+                    self._send_json_response({"error": str(e)}, 500)
+                else:
+                    self._send_json_response(payload)
 
             elif path == "/decompile":
                 function_name = params.get("name") or params.get("functionName")

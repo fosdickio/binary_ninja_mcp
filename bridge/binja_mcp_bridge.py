@@ -805,6 +805,53 @@ def get_type_info(type_name: str) -> str:
     return _json.dumps(data, indent=2, ensure_ascii=False)
 
 
+def _normalize_identifier_input(value: str | list[str]) -> list[str]:
+    tokens: list[str] = []
+    if isinstance(value, str):
+        raw = value.replace(";", ",").split(",")
+        tokens.extend([tok.strip() for tok in raw if tok.strip()])
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            if item is None:
+                continue
+            tokens.extend(_normalize_identifier_input(str(item)))
+    return tokens
+
+
+@mcp.tool()
+def get_callers(identifiers: str) -> str:
+    """
+    List callers and caller sites for one or more function identifiers (name or address).
+    Provide comma-separated identifiers like "sub_401000,main".
+    """
+    items = _normalize_identifier_input(identifiers)
+    if not items:
+        return "Error: provide at least one identifier"
+    data = get_json("getCallers", {"identifiers": ",".join(items)}, timeout=None)
+    if not data:
+        return "Error: no response"
+    import json as _json
+
+    return _json.dumps(data, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+def get_callees(identifiers: str) -> str:
+    """
+    List callees and call sites for one or more function identifiers (name or address).
+    Provide comma-separated identifiers like "sub_401000,main".
+    """
+    items = _normalize_identifier_input(identifiers)
+    if not items:
+        return "Error: provide at least one identifier"
+    data = get_json("getCallees", {"identifiers": ",".join(items)}, timeout=None)
+    if not data:
+        return "Error: no response"
+    import json as _json
+
+    return _json.dumps(data, indent=2, ensure_ascii=False)
+
+
 @mcp.tool()
 def set_function_prototype(name_or_address: str, prototype: str) -> str:
     """
