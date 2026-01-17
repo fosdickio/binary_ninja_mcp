@@ -1,20 +1,20 @@
-import platform
-import re
-import subprocess
-import weakref
-from typing import Any
-
 import binaryninja as bn
-from binaryninja.enums import StructureVariant, TypeClass
-
-from ..utils.string_utils import escape_non_ascii
+from typing import Optional, List, Dict, Any, Union
+import weakref
+import subprocess
+import platform
 from .config import BinaryNinjaConfig
+from binaryninja.enums import TypeClass, StructureVariant
+from ..utils.string_utils import escape_non_ascii
+from ..utils.number_utils import convert_number as util_convert_number
+import re
+
 
 
 class BinaryOperations:
     def __init__(self, config: BinaryNinjaConfig):
         self.config = config
-        self._current_view: bn.BinaryView | None = None
+        self._current_view: Optional[bn.BinaryView] = None
         # Multi-binary support
         # Store weak references so closed views are auto-pruned
         self._views_by_id: dict[str, weakref.ReferenceType] = {}
@@ -22,11 +22,11 @@ class BinaryOperations:
         self._id_by_filename: dict[str, str] = {}
 
     @property
-    def current_view(self) -> bn.BinaryView | None:
+    def current_view(self) -> Optional[bn.BinaryView]:
         return self._current_view
 
     @current_view.setter
-    def current_view(self, bv: bn.BinaryView | None):
+    def current_view(self, bv: Optional[bn.BinaryView]):
         self._current_view = bv
         if bv:
             bn.log_info(f"Set current binary view: {bv.file.filename}")
@@ -43,7 +43,9 @@ class BinaryOperations:
             if hasattr(bn, "open_view"):
                 bn.log_info("Using bn.open_view method")
                 self._current_view = bn.open_view(filepath)
-            elif hasattr(bn, "BinaryViewType") and hasattr(bn.BinaryViewType, "get_view_of_file"):
+            elif hasattr(bn, "BinaryViewType") and hasattr(
+                bn.BinaryViewType, "get_view_of_file"
+            ):
                 bn.log_info("Using BinaryViewType.get_view_of_file method")
                 file_metadata = bn.FileMetadata()
                 try:
@@ -95,21 +97,46 @@ class BinaryOperations:
             alive[vid] = w
             alive_objs.append(vb)
             try:
-                fn = str(getattr(vb.file, "filename", None)) if getattr(vb, "file", None) else None
+                fn = str(getattr(vb.file, 'filename', None)) if getattr(vb, 'file', None) else None
             except Exception:
                 fn = None
             if fn and fn not in new_fn_map:
                 new_fn_map[fn] = vid
         self._views_by_id = alive
         self._id_by_filename = new_fn_map
+        
         # If current_view no longer exists among alive views, clear it
+        # BUT: only do this if alive_objs is non-empty - if all weakrefs are dead,
+        # we should NOT clear current_view since it holds a strong reference and
+        # might be the only valid view left.
+        # Also, if current_view is valid, we should re-add it to the registry.
         try:
-            if self._current_view is not None and all(
-                obj is not self._current_view for obj in alive_objs
-            ):
-                self._current_view = None
+            if self._current_view is not None:
+                # Check if current_view is still valid (can access its filename)
+                try:
+                    _ = self._current_view.file.filename
+                    cv_valid = True
+                except Exception:
+                    cv_valid = False
+                
+                if cv_valid:
+                    # current_view is valid - if it's not in alive_objs, re-register it
+                    if not any(obj is self._current_view for obj in alive_objs):
+                        # Re-register the current view since it holds a strong reference
+                        vid = str(self._next_view_id)
+                        self._next_view_id += 1
+                        self._views_by_id[vid] = weakref.ref(self._current_view)
+                        try:
+                            fn = self._current_view.file.filename
+                            if fn:
+                                self._id_by_filename[fn] = vid
+                        except Exception:
+                            pass
+                else:
+                    # current_view is invalid - clear it
+                    self._current_view = None
         except Exception:
-            self._current_view = None
+            pass  # Don't clear current_view on exception - leave it as is
 
     def _register_view(self, bv: bn.BinaryView) -> str:
         """Add a view to the managed list if not present, return its id."""
@@ -125,7 +152,7 @@ class BinaryOperations:
         # Prefer deduplication by canonical filename
         fn = None
         try:
-            fn = str(getattr(bv.file, "filename", None)) if getattr(bv, "file", None) else None
+            fn = str(getattr(bv.file, 'filename', None)) if getattr(bv, 'file', None) else None
         except Exception:
             fn = None
         if fn:
@@ -164,7 +191,7 @@ class BinaryOperations:
             if vb is None:
                 continue
             try:
-                fn = getattr(vb.file, "filename", None)
+                fn = getattr(vb.file, 'filename', None)
             except Exception:
                 fn = None
             if fn == filename:
@@ -174,8 +201,8 @@ class BinaryOperations:
         # Rebuild filename map and clear current_view if it matched
         try:
             cur_fn = None
-            if self._current_view and getattr(self._current_view, "file", None):
-                cur_fn = getattr(self._current_view.file, "filename", None)
+            if self._current_view and getattr(self._current_view, 'file', None):
+                cur_fn = getattr(self._current_view.file, 'filename', None)
             if cur_fn == filename:
                 self._current_view = None
         except Exception:
@@ -189,10 +216,11 @@ class BinaryOperations:
         Note: Tracks binaries opened via this plugin or explicitly registered as current_view.
         """
         items: list[dict[str, str]] = []
-        # Cleanup first
+        
+        # Cleanup and ensure current_view is registered
+        # _prune_views now handles re-registering current_view if it's valid
         self._prune_views()
-        # Do NOT auto-register current_view here; UI monitor handles discovery.
-        # This avoids re-introducing closed views via a stale strong reference.
+        
         # Deduplicate by canonical filename; prefer the id mapped in _id_by_filename
         entries: list[tuple[str, str, bool]] = []  # (id, filename, active)
         seen: set[str] = set()
@@ -283,7 +311,6 @@ class BinaryOperations:
                 if not fn:
                     continue
                 import os as _os
-
                 if s == fn or s == _os.path.basename(fn):
                     vb = v
                     break
@@ -299,9 +326,11 @@ class BinaryOperations:
             if vv is vb:
                 vid = k
                 break
-        return {"id": vid or "", "filename": getattr(vb.file, "filename", "(unknown)")}
+        return {"id": vid or "", "filename": getattr(vb.file, 'filename', '(unknown)')}
 
-    def get_function_by_name_or_address(self, identifier: str | int) -> bn.Function | None:
+    def get_function_by_name_or_address(
+        self, identifier: Union[str, int]
+    ) -> Optional[bn.Function]:
         """Get a function by either its name or address.
 
         Args:
@@ -350,7 +379,9 @@ class BinaryOperations:
         bn.log_error(f"Could not find function: {identifier}")
         return None
 
-    def get_function_names(self, offset: int = 0, limit: int = 100) -> list[dict[str, str]]:
+    def get_function_names(
+        self, offset: int = 0, limit: int = 100
+    ) -> List[Dict[str, str]]:
         """Get list of function names with addresses"""
         if not self._current_view:
             raise RuntimeError("No binary loaded")
@@ -361,13 +392,15 @@ class BinaryOperations:
                 {
                     "name": func.name,
                     "address": hex(func.start),
-                    "raw_name": func.raw_name if hasattr(func, "raw_name") else func.name,
+                    "raw_name": func.raw_name
+                    if hasattr(func, "raw_name")
+                    else func.name,
                 }
             )
 
         return functions[offset : offset + limit]
 
-    def get_class_names(self, offset: int = 0, limit: int = 100) -> list[str]:
+    def get_class_names(self, offset: int = 0, limit: int = 100) -> List[str]:
         """Get list of class names with pagination"""
         if not self._current_view:
             raise RuntimeError("No binary loaded")
@@ -425,7 +458,7 @@ class BinaryOperations:
             bn.log_error(f"Error getting class names: {e}")
             return []
 
-    def get_segments(self, offset: int = 0, limit: int = 100) -> list[dict[str, Any]]:
+    def get_segments(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """Get list of segments with pagination"""
         if not self._current_view:
             raise RuntimeError("No binary loaded")
@@ -467,7 +500,7 @@ class BinaryOperations:
 
         return segments[offset : offset + limit]
 
-    def get_sections(self, offset: int = 0, limit: int = 100) -> list[dict[str, Any]]:
+    def get_sections(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """Get list of sections with pagination.
 
         Returns per-section fields when available:
@@ -482,7 +515,7 @@ class BinaryOperations:
         if not self._current_view:
             raise RuntimeError("No binary loaded")
 
-        results: list[dict[str, Any]] = []
+        results: List[Dict[str, Any]] = []
 
         # Binary Ninja has exposed sections across versions either as an
         # iterable of Section objects or a dict-like object. Handle both.
@@ -525,7 +558,7 @@ class BinaryOperations:
                 except Exception:
                     size = None
 
-                entry: dict[str, Any] = {
+                entry: Dict[str, Any] = {
                     "name": name or "",
                     "start": hex(int(start)),
                     "end": hex(int(end)),
@@ -588,7 +621,9 @@ class BinaryOperations:
                 func.name = new_name
 
                 if func.name == new_name:
-                    bn.log_info(f"Successfully renamed function from {old_name} to {new_name}")
+                    bn.log_info(
+                        f"Successfully renamed function from {old_name} to {new_name}"
+                    )
                     return True
 
                 # Try symbol-based renaming if direct assignment fails
@@ -619,7 +654,9 @@ class BinaryOperations:
                     except Exception as e:
                         bn.log_error(f"Function update rename failed: {e}")
 
-                bn.log_error(f"All rename methods failed - function name unchanged: {func.name}")
+                bn.log_error(
+                    f"All rename methods failed - function name unchanged: {func.name}"
+                )
                 return False
 
             except Exception as e:
@@ -630,7 +667,9 @@ class BinaryOperations:
             bn.log_error(f"Error in rename_function: {e}")
             return False
 
-    def get_function_info(self, identifier: str | int) -> dict[str, Any] | None:
+    def get_function_info(
+        self, identifier: Union[str, int]
+    ) -> Optional[Dict[str, Any]]:
         """Get detailed information about a function"""
         if not self._current_view:
             raise RuntimeError("No binary loaded")
@@ -658,7 +697,7 @@ class BinaryOperations:
 
         return info
 
-    def decompile_function(self, identifier: str | int) -> str | None:
+    def decompile_function(self, identifier: Union[str, int]) -> Optional[str]:
         """Decompile a function and include addresses per statement.
 
         Args:
@@ -682,7 +721,7 @@ class BinaryOperations:
             il = getattr(func, "hlil", None)
             if il and hasattr(il, "instructions"):
                 lines: list[str] = []
-                last_addr: int | None = None
+                last_addr: Optional[int] = None
                 for ins in il.instructions:
                     try:
                         addr = getattr(ins, "address", None)
@@ -699,7 +738,7 @@ class BinaryOperations:
             mil = getattr(func, "mlil", None)
             if mil and hasattr(mil, "instructions"):
                 lines: list[str] = []
-                last_addr: int | None = None
+                last_addr: Optional[int] = None
                 for ins in mil.instructions:
                     try:
                         addr = getattr(ins, "address", None)
@@ -715,12 +754,10 @@ class BinaryOperations:
             # Last resort
             return str(func)
         except Exception as e:
-            bn.log_error(f"Error decompiling function: {e!s}")
+            bn.log_error(f"Error decompiling function: {str(e)}")
             return None
 
-    def get_function_il(
-        self, identifier: str | int, view: str = "hlil", ssa: bool = False
-    ) -> str | None:
+    def get_function_il(self, identifier: Union[str, int], view: str = "hlil", ssa: bool = False) -> Optional[str]:
         """Return IL for a function with selectable view and optional SSA form.
 
         Args:
@@ -768,7 +805,7 @@ class BinaryOperations:
                 return str(il_func)
 
             lines: list[str] = []
-            last_addr: int | None = None
+            last_addr: Optional[int] = None
             for ins in il_func.instructions:
                 try:
                     addr = getattr(ins, "address", None)
@@ -782,9 +819,7 @@ class BinaryOperations:
                 lines.append(f"{addr_str}        {text}")
             return "\n".join(lines)
         except Exception as e:
-            bn.log_error(
-                f"Error getting {prop}{' SSA' if ssa else ''} for function {identifier}: {e!s}"
-            )
+            bn.log_error(f"Error getting {prop}{' SSA' if ssa else ''} for function {identifier}: {str(e)}")
             return None
 
     def rename_data(self, address: int, new_name: str) -> bool:
@@ -802,9 +837,7 @@ class BinaryOperations:
             bn.log_error(f"Failed to rename data: {e}")
         return False
 
-    def make_function_at(
-        self, address: str | int, architecture: str | None = None
-    ) -> dict[str, Any]:
+    def make_function_at(self, address: str | int, architecture: str | None = None) -> Dict[str, Any]:
         """Create a function at the given address (no-op if it already exists).
 
         Args:
@@ -853,7 +886,7 @@ class BinaryOperations:
             arch_token = architecture.strip().lower()
         if architecture and arch_token not in (None, "", "default", "auto", "platform"):
             try:
-                P = getattr(__import__("binaryninja", fromlist=["Platform"]), "Platform", None)
+                P = getattr(__import__('binaryninja', fromlist=['Platform']), 'Platform', None)
             except Exception:
                 P = None
             if P is not None:
@@ -861,7 +894,7 @@ class BinaryOperations:
                     plat_obj = P[architecture]
                 except Exception:
                     try:
-                        getp = getattr(P, "get_by_name", None)
+                        getp = getattr(P, 'get_by_name', None)
                         if callable(getp):
                             plat_obj = getp(architecture)
                     except Exception:
@@ -871,16 +904,13 @@ class BinaryOperations:
             if plat_obj is None:
                 import re as _re
                 from difflib import get_close_matches as _gcm
-
+                suggestions: list[str] = []
                 names: list[str] = []
                 # Prefer dynamic enumeration via binaryninja.Platform
                 try:
                     import binaryninja as _bn  # type: ignore
-
                     try:
-                        names = [
-                            str(getattr(p, "name", str(p))) for p in list(getattr(_bn, "Platform"))
-                        ]
+                        names = [str(getattr(p, 'name', str(p))) for p in list(getattr(_bn, 'Platform'))]
                     except Exception:
                         names = []
                 except Exception:
@@ -888,76 +918,23 @@ class BinaryOperations:
                 # Fallback: try iterating via imported P if available
                 if not names and P is not None:
                     try:
-                        names = [str(getattr(p, "name", str(p))) for p in list(P)]
+                        names = [str(getattr(p, 'name', str(p))) for p in list(P)]
                     except Exception:
                         names = []
                 # Last resort: static catalog (kept up-to-date best-effort)
                 if not names:
                     names = [
-                        "decree-x86",
-                        "efi-x86",
-                        "efi-windows-x86",
-                        "efi-x86_64",
-                        "efi-windows-x86_64",
-                        "efi-aarch64",
-                        "efi-windows-aarch64",
-                        "efi-armv7",
-                        "efi-thumb2",
-                        "freebsd-x86",
-                        "freebsd-x86_64",
-                        "freebsd-aarch64",
-                        "freebsd-armv7",
-                        "freebsd-thumb2",
-                        "ios-aarch64",
-                        "ios-armv7",
-                        "ios-thumb2",
-                        "ios-kernel-aarch64",
-                        "ios-kernel-armv7",
-                        "ios-kernel-thumb2",
-                        "linux-ppc32",
-                        "linux-ppcvle32",
-                        "linux-ppc64",
-                        "linux-ppc32_le",
-                        "linux-ppc64_le",
-                        "linux-rv32gc",
-                        "linux-rv64gc",
-                        "linux-x86",
-                        "linux-x86_64",
-                        "linux-x32",
-                        "linux-aarch64",
-                        "linux-armv7",
-                        "linux-thumb2",
-                        "linux-armv7eb",
-                        "linux-thumb2eb",
-                        "linux-mipsel",
-                        "linux-mips",
-                        "linux-mips3",
-                        "linux-mipsel3",
-                        "linux-mips64",
-                        "linux-cnmips64",
-                        "linux-mipsel64",
-                        "mac-x86",
-                        "mac-x86_64",
-                        "mac-aarch64",
-                        "mac-armv7",
-                        "mac-thumb2",
-                        "mac-kernel-x86",
-                        "mac-kernel-x86_64",
-                        "mac-kernel-aarch64",
-                        "mac-kernel-armv7",
-                        "mac-kernel-thumb2",
-                        "windows-x86",
-                        "windows-x86_64",
-                        "windows-aarch64",
-                        "windows-armv7",
-                        "windows-thumb2",
-                        "windows-kernel-x86",
-                        "windows-kernel-x86_64",
-                        "windows-kernel-windows-aarch64",
+                        'decree-x86','efi-x86','efi-windows-x86','efi-x86_64','efi-windows-x86_64','efi-aarch64','efi-windows-aarch64','efi-armv7','efi-thumb2',
+                        'freebsd-x86','freebsd-x86_64','freebsd-aarch64','freebsd-armv7','freebsd-thumb2',
+                        'ios-aarch64','ios-armv7','ios-thumb2','ios-kernel-aarch64','ios-kernel-armv7','ios-kernel-thumb2',
+                        'linux-ppc32','linux-ppcvle32','linux-ppc64','linux-ppc32_le','linux-ppc64_le','linux-rv32gc','linux-rv64gc',
+                        'linux-x86','linux-x86_64','linux-x32','linux-aarch64','linux-armv7','linux-thumb2','linux-armv7eb','linux-thumb2eb',
+                        'linux-mipsel','linux-mips','linux-mips3','linux-mipsel3','linux-mips64','linux-cnmips64','linux-mipsel64',
+                        'mac-x86','mac-x86_64','mac-aarch64','mac-armv7','mac-thumb2','mac-kernel-x86','mac-kernel-x86_64','mac-kernel-aarch64','mac-kernel-armv7','mac-kernel-thumb2',
+                        'windows-x86','windows-x86_64','windows-aarch64','windows-armv7','windows-thumb2','windows-kernel-x86','windows-kernel-x86_64','windows-kernel-windows-aarch64',
                     ]
                 # Build ranked suggestions
                 tl = (arch_token or "").lower()
-
                 def _score(n: str) -> float:
                     nl = n.lower()
                     s = 0.0
@@ -969,7 +946,6 @@ class BinaryOperations:
                     if tlr and tlr in nlr:
                         s += 1.0
                     return s
-
                 base = sorted(names)
                 # Start with substring matches, then extend with close matches
                 substr = [n for n in base if tl in n.lower()]
@@ -982,31 +958,31 @@ class BinaryOperations:
                         seen.add(n)
                         cand.append(n)
                 cand.sort(key=_score, reverse=True)
-                cand[:10]
+                suggestions = cand[:10]
                 raise ValueError(f"Unknown platform/architecture '{architecture}'")
         # Default/platform fallback when no explicit architecture provided
         if plat_obj is None:
             try:
-                plat_obj = getattr(bv, "platform", None)
+                plat_obj = getattr(bv, 'platform', None)
             except Exception:
                 plat_obj = None
 
         # Create the function
         try:
-            if hasattr(bv, "create_user_function"):
+            if hasattr(bv, 'create_user_function'):
                 if plat_obj is not None:
                     bv.create_user_function(addr, plat_obj)
                 else:
                     bv.create_user_function(addr)
-            elif hasattr(bv, "add_function"):
+            elif hasattr(bv, 'add_function'):
                 if plat_obj is not None:
                     bv.add_function(addr, plat_obj)
                 else:
                     bv.add_function(addr)
             else:
-                raise ValueError("BinaryView does not support function creation")
+                raise ValueError('BinaryView does not support function creation')
         except Exception as e:
-            raise ValueError(f"Failed to create function: {e!s}")
+            raise ValueError(f"Failed to create function: {str(e)}")
 
         # Fetch created function info
         try:
@@ -1018,16 +994,12 @@ class BinaryOperations:
             "address": hex(addr),
             "name": fn.name if fn else None,
             "platform": str(plat_obj) if plat_obj is not None else None,
-            "architecture": str(getattr(plat_obj, "arch", None))
-            if plat_obj is not None
-            else (
-                str(getattr(bv, "arch", None)) if getattr(bv, "arch", None) is not None else None
-            ),
+            "architecture": str(getattr(plat_obj, 'arch', None)) if plat_obj is not None else (str(getattr(bv, 'arch', None)) if getattr(bv, 'arch', None) is not None else None),
         }
 
     def get_defined_data(
         self, offset: int = 0, limit: int = 100, read_len: int = 32
-    ) -> list[dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:
         """Get list of defined data variables with lightweight previews and sizes.
 
         Returns per-item fields:
@@ -1134,7 +1106,7 @@ class BinaryOperations:
             if value is not None:
                 short_repr = f"int:{value}"
             elif ascii_preview:
-                short_repr = f'ascii:"{ascii_preview}"'
+                short_repr = f"ascii:\"{ascii_preview}\""
             elif bytes_hex:
                 short_repr = f"hex:{bytes_hex}"
             else:
@@ -1146,24 +1118,20 @@ class BinaryOperations:
                     "name": sym.name if sym else "(unnamed)",
                     "raw_name": sym.raw_name if sym and hasattr(sym, "raw_name") else None,
                     # Prefer clean type string (avoid "<var ...>" envelope when possible)
-                    "type": (
-                        str(typ_obj)
-                        if typ_obj is not None
-                        else (str(data_type) if data_type else None)
-                    ),
+                    "type": (str(typ_obj) if typ_obj is not None else (str(data_type) if data_type else None)),
                     "size": width,
                     "width": width,
                     "value": value,
                     "bytes_hex": bytes_hex,
                     "ascii_preview": ascii_preview,
-                    "bytes_read": len(bytes_hex) // 2 if bytes_hex else 0,
+                    "bytes_read": len(bytes_hex)//2 if bytes_hex else 0,
                     "repr": short_repr,
                 }
             )
 
         return data_items[offset : offset + limit]
 
-    def infer_data_size(self, address: int) -> int | None:
+    def infer_data_size(self, address: int) -> Optional[int]:
         """Infer size for data at address when BN hasn't defined a type width.
 
         Strategy:
@@ -1193,7 +1161,7 @@ class BinaryOperations:
         # 2) HLIL heuristic
         try:
             addr_hex = hex(address)
-            candidates: list[int] = []
+            candidates: List[int] = []
             names = ("memcmp", "strncmp", "memcpy", "strncpy")
             for func in list(self._current_view.functions):
                 try:
@@ -1209,7 +1177,7 @@ class BinaryOperations:
                                 continue
                             # Extract all numeric constants
                             nums = re.findall(r"0x[0-9a-fA-F]+|\b\d+\b", text)
-                            vals: list[int] = []
+                            vals: List[int] = []
                             for n in nums:
                                 try:
                                     v = int(n, 16) if n.startswith("0x") else int(n)
@@ -1232,9 +1200,7 @@ class BinaryOperations:
             pass
         return None
 
-    def list_local_types(
-        self, offset: int = 0, limit: int = 100, include_libraries: bool = False
-    ) -> list[dict[str, Any]]:
+    def list_local_types(self, offset: int = 0, limit: int = 100, include_libraries: bool = False) -> List[Dict[str, Any]]:
         """List local types (Types view) in the current database.
 
         Returns a list of dictionaries with:
@@ -1245,10 +1211,9 @@ class BinaryOperations:
         if not self._current_view:
             raise RuntimeError("No binary loaded")
 
-        results: list[dict[str, Any]] = []
+        results: List[Dict[str, Any]] = []
         seen_keys = set()
         try:
-
             def add_type_entry(name, tobj):
                 # Normalize name to string to avoid BN QualifiedName in JSON
                 try:
@@ -1349,14 +1314,12 @@ class BinaryOperations:
                 key = (name_str, decl or "")
                 if key in seen_keys:
                     return
-                results.append(
-                    {
-                        "name": name_str,
-                        "kind": kind,
-                        "type_class": str(tc) if tc is not None else None,
-                        "decl": decl,
-                    }
-                )
+                results.append({
+                    "name": name_str,
+                    "kind": kind,
+                    "type_class": str(tc) if tc is not None else None,
+                    "decl": decl,
+                })
                 seen_keys.add(key)
 
             # Source 1: user_type_container (explicit local/user types)
@@ -1366,16 +1329,8 @@ class BinaryOperations:
                     for type_id in list(utc.types.keys()):
                         try:
                             entry = utc.types[type_id]
-                            name = (
-                                entry[0]
-                                if isinstance(entry, (tuple, list))
-                                else getattr(entry, "name", None)
-                            )
-                            tobj = (
-                                entry[1]
-                                if isinstance(entry, (tuple, list))
-                                else getattr(entry, "type", entry)
-                            )
+                            name = entry[0] if isinstance(entry, (tuple, list)) else getattr(entry, "name", None)
+                            tobj = entry[1] if isinstance(entry, (tuple, list)) else getattr(entry, "type", entry)
                             add_type_entry(name, tobj)
                         except Exception:
                             continue
@@ -1448,9 +1403,7 @@ class BinaryOperations:
             bn.log_error(f"Error listing local types: {e}")
         return results[offset : offset + limit]
 
-    def search_local_types(
-        self, query: str, offset: int = 0, limit: int = 100, include_libraries: bool = False
-    ) -> list[dict[str, Any]]:
+    def search_local_types(self, query: str, offset: int = 0, limit: int = 100, include_libraries: bool = False) -> List[Dict[str, Any]]:
         """Search local/view types whose name or declaration contains the substring.
 
         Returns entries with {name, kind, type_class, decl}.
@@ -1462,7 +1415,7 @@ class BinaryOperations:
         ql = str(query).lower()
         # Only local types by default (fast). Optionally include libraries.
         all_types = self.list_local_types(0, 1_000_000, include_libraries=include_libraries)
-        matches: list[dict[str, Any]] = []
+        matches: List[Dict[str, Any]] = []
         for t in all_types:
             try:
                 name = t.get("name") or ""
@@ -1475,7 +1428,7 @@ class BinaryOperations:
             return matches[offset:]
         return matches[offset : offset + limit]
 
-    def get_type_info(self, name: str) -> dict[str, Any]:
+    def get_type_info(self, name: str) -> Dict[str, Any]:
         """Resolve a type by name and return detailed information.
 
         Returns a dictionary with:
@@ -1531,8 +1484,8 @@ class BinaryOperations:
         # Prepare defaults
         kind = "unknown"
         decl = None
-        members: list[dict[str, Any]] = []
-        enum_members: list[dict[str, Any]] = []
+        members: List[Dict[str, Any]] = []
+        enum_members: List[Dict[str, Any]] = []
         underlying = None
 
         # Extract details from type object
@@ -1561,21 +1514,13 @@ class BinaryOperations:
 
                 # collect members
                 try:
-                    for m in getattr(
-                        tobj, "members", getattr(getattr(tobj, "structure", None), "members", [])
-                    ):
+                    for m in getattr(tobj, "members", getattr(getattr(tobj, "structure", None), "members", [])):
                         try:
-                            members.append(
-                                {
-                                    "name": getattr(m, "name", None),
-                                    "type": str(getattr(m, "type", ""))
-                                    if hasattr(m, "type")
-                                    else None,
-                                    "offset": int(getattr(m, "offset", 0))
-                                    if hasattr(m, "offset")
-                                    else None,
-                                }
-                            )
+                            members.append({
+                                "name": getattr(m, "name", None),
+                                "type": str(getattr(m, "type", "")) if hasattr(m, "type") else None,
+                                "offset": int(getattr(m, "offset", 0)) if hasattr(m, "offset") else None,
+                            })
                         except Exception:
                             continue
                 except Exception:
@@ -1586,12 +1531,10 @@ class BinaryOperations:
                 try:
                     for em in getattr(tobj, "members", []):
                         try:
-                            enum_members.append(
-                                {
-                                    "name": getattr(em, "name", None),
-                                    "value": getattr(em, "value", None),
-                                }
-                            )
+                            enum_members.append({
+                                "name": getattr(em, "name", None),
+                                "value": getattr(em, "value", None),
+                            })
                         except Exception:
                             continue
                 except Exception:
@@ -1650,7 +1593,7 @@ class BinaryOperations:
             "source": source,
         }
 
-    def get_strings(self, offset: int = 0, limit: int = 100) -> list[dict[str, Any]]:
+    def get_strings(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """Get list of strings in the current binary view with pagination.
 
         Returns a list of dictionaries containing:
@@ -1662,7 +1605,7 @@ class BinaryOperations:
         if not self._current_view:
             raise RuntimeError("No binary loaded")
 
-        results: list[dict[str, Any]] = []
+        results: List[Dict[str, Any]] = []
 
         try:
             # Prefer modern API if available
@@ -1723,12 +1666,8 @@ class BinaryOperations:
 
                     results.append(
                         {
-                            "address": hex(addr)
-                            if isinstance(addr, int)
-                            else (str(addr) if addr is not None else None),
-                            "length": int(length)
-                            if isinstance(length, (int,))
-                            else (None if length is None else int(length)),
+                            "address": hex(addr) if isinstance(addr, int) else (str(addr) if addr is not None else None),
+                            "length": int(length) if isinstance(length, (int,)) else (None if length is None else int(length)),
                             "type": stype,
                             "value": value,
                         }
@@ -1768,7 +1707,7 @@ class BinaryOperations:
             bn.log_error(f"Failed to set comment: {e}")
             return False
 
-    def set_function_comment(self, identifier: str | int, comment: str) -> bool:
+    def set_function_comment(self, identifier: Union[str, int], comment: str) -> bool:
         """Set a comment for a function.
 
         Args:
@@ -1794,7 +1733,7 @@ class BinaryOperations:
             bn.log_error(f"Failed to set function comment: {e}")
             return False
 
-    def get_comment(self, address: int) -> str | None:
+    def get_comment(self, address: int) -> Optional[str]:
         """Get the comment at a specific address.
 
         Args:
@@ -1817,7 +1756,7 @@ class BinaryOperations:
             bn.log_error(f"Failed to get comment: {e}")
             return None
 
-    def get_function_comment(self, identifier: str | int) -> str | None:
+    def get_function_comment(self, identifier: Union[str, int]) -> Optional[str]:
         """Get the comment for a function.
 
         Args:
@@ -1854,7 +1793,7 @@ class BinaryOperations:
             bn.log_error(f"Failed to delete comment: {e}")
         return False
 
-    def delete_function_comment(self, identifier: str | int) -> bool:
+    def delete_function_comment(self, identifier: Union[str, int]) -> bool:
         """Delete a comment for a function"""
         if not self._current_view:
             raise RuntimeError("No binary loaded")
@@ -1863,16 +1802,18 @@ class BinaryOperations:
             func = self.get_function_by_name_or_address(identifier)
             if not func:
                 return False
-
+                
             func.comment = None
             return True
         except Exception as e:
             bn.log_error(f"Failed to delete function comment: {e}")
         return False
+        
 
     # set_integer_display removed per request
 
-    def get_assembly_function(self, identifier: str | int) -> str | None:
+
+    def get_assembly_function(self, identifier: Union[str, int]) -> Optional[str]:
         """Get the assembly representation of a function with practical annotations.
 
         Args:
@@ -1889,12 +1830,12 @@ class BinaryOperations:
             if not func:
                 bn.log_error(f"Function not found: {identifier}")
                 return None
-
+                
             bn.log_info(f"Found function: {func.name} at {hex(func.start)}")
-
-            var_map = {}  # TODO: Implement this functionality (issues with var.storage not returning the correst sp offset)
+            
+            var_map = {}    # TODO: Implement this functionality (issues with var.storage not returning the correst sp offset)
             assembly_blocks = {}
-
+            
             if not hasattr(func, "basic_blocks") or not func.basic_blocks:
                 bn.log_error(f"Function {func.name} has no basic blocks")
                 # Try alternate approach with linear disassembly
@@ -1903,49 +1844,43 @@ class BinaryOperations:
                     func_length = func.total_bytes
                     if func_length <= 0:
                         func_length = 1024  # Use a reasonable default if length not available
-                except Exception:
+                except:
                     func_length = 1024  # Use a reasonable default if error
-
+                    
                 try:
                     # Create one big block for the entire function
                     block_lines = []
                     current_addr = start_addr
                     end_addr = start_addr + func_length
-
+                    
                     while current_addr < end_addr:
                         try:
                             # Get instruction length
                             instr_len = self._current_view.get_instruction_length(current_addr)
                             if instr_len <= 0:
                                 instr_len = 4  # Default to a reasonable instruction length
-
+                                
                             # Get disassembly for this instruction
-                            line = self._get_instruction_with_annotations(
-                                current_addr, instr_len, var_map
-                            )
+                            line = self._get_instruction_with_annotations(current_addr, instr_len, var_map)
                             if line:
                                 block_lines.append(line)
-
+                                
                             current_addr += instr_len
                         except Exception as e:
-                            bn.log_error(f"Error processing address {hex(current_addr)}: {e!s}")
-                            block_lines.append(f"# Error at {hex(current_addr)}: {e!s}")
+                            bn.log_error(f"Error processing address {hex(current_addr)}: {str(e)}")
+                            block_lines.append(f"# Error at {hex(current_addr)}: {str(e)}")
                             current_addr += 1  # Skip to next byte
-
-                    assembly_blocks[start_addr] = [
-                        f"# Block at {hex(start_addr)}",
-                        *block_lines,
-                        "",
-                    ]
-
+                    
+                    assembly_blocks[start_addr] = [f"# Block at {hex(start_addr)}"] + block_lines + [""]
+                    
                 except Exception as e:
-                    bn.log_error(f"Linear disassembly failed: {e!s}")
+                    bn.log_error(f"Linear disassembly failed: {str(e)}")
                     return None
             else:
                 for i, block in enumerate(func.basic_blocks):
                     try:
                         block_lines = []
-
+                        
                         # Process each address in the block
                         addr = block.start
                         while addr < block.end:
@@ -1953,71 +1888,59 @@ class BinaryOperations:
                                 instr_len = self._current_view.get_instruction_length(addr)
                                 if instr_len <= 0:
                                     instr_len = 4  # Default to a reasonable instruction length
-
+                                
                                 # Get disassembly for this instruction
-                                line = self._get_instruction_with_annotations(
-                                    addr, instr_len, var_map
-                                )
+                                line = self._get_instruction_with_annotations(addr, instr_len, var_map)
                                 if line:
                                     block_lines.append(line)
-
+                                    
                                 addr += instr_len
                             except Exception as e:
-                                bn.log_error(f"Error processing address {hex(addr)}: {e!s}")
-                                block_lines.append(f"# Error at {hex(addr)}: {e!s}")
+                                bn.log_error(f"Error processing address {hex(addr)}: {str(e)}")
+                                block_lines.append(f"# Error at {hex(addr)}: {str(e)}")
                                 addr += 1  # Skip to next byte
-
+                        
                         # Store block with its starting address as key
-                        assembly_blocks[block.start] = [
-                            f"# Block {i + 1} at {hex(block.start)}",
-                            *block_lines,
-                            "",
-                        ]
-
+                        assembly_blocks[block.start] = [f"# Block {i+1} at {hex(block.start)}"] + block_lines + [""]
+                        
                     except Exception as e:
-                        bn.log_error(f"Error processing block {i + 1} at {hex(block.start)}: {e!s}")
-                        assembly_blocks[block.start] = [
-                            f"# Error processing block {i + 1} at {hex(block.start)}: {e!s}",
-                            "",
-                        ]
-
+                        bn.log_error(f"Error processing block {i+1} at {hex(block.start)}: {str(e)}")
+                        assembly_blocks[block.start] = [f"# Error processing block {i+1} at {hex(block.start)}: {str(e)}", ""]
+            
             # Sort blocks by address and concatenate them
             sorted_blocks = []
             for addr in sorted(assembly_blocks.keys()):
                 sorted_blocks.extend(assembly_blocks[addr])
-
+            
             return "\n".join(sorted_blocks)
         except Exception as e:
-            bn.log_error(f"Error getting assembly for function {identifier}: {e!s}")
+            bn.log_error(f"Error getting assembly for function {identifier}: {str(e)}")
             import traceback
-
             bn.log_error(traceback.format_exc())
             return None
 
-    def _get_instruction_with_annotations(
-        self, addr: int, instr_len: int, var_map: dict[int, str]
-    ) -> str | None:
+    def _get_instruction_with_annotations(self, addr: int, instr_len: int, var_map: Dict[int, str]) -> Optional[str]:
         """Get a single instruction with practical annotations.
-
+        
         Args:
             addr: Address of the instruction
             instr_len: Length of the instruction
             var_map: Dictionary mapping offsets to variable names
-
+            
         Returns:
             Formatted instruction string with annotations
         """
         if not self._current_view:
             return None
-
+            
         try:
             # Get raw bytes for fallback
             try:
                 raw_bytes = self._current_view.read(addr, instr_len)
-                hex_bytes = " ".join(f"{b:02x}" for b in raw_bytes)
-            except Exception:
+                hex_bytes = ' '.join(f'{b:02x}' for b in raw_bytes)
+            except:
                 hex_bytes = "??"
-
+                
             # Get basic disassembly
             disasm_text = ""
             try:
@@ -2025,105 +1948,99 @@ class BinaryOperations:
                     disasm = self._current_view.get_disassembly(addr)
                     if disasm:
                         disasm_text = disasm
-            except Exception:
+            except:
                 disasm_text = hex_bytes + " ; [Raw bytes]"
-
+                
             if not disasm_text:
                 disasm_text = hex_bytes + " ; [Raw bytes]"
-
+                
             # Check if this is a call instruction and try to get target function name
             if "call" in disasm_text.lower():
                 try:
                     # Extract the address from the call instruction
                     import re
-
-                    addr_pattern = r"0x[0-9a-fA-F]+"
+                    addr_pattern = r'0x[0-9a-fA-F]+'
                     match = re.search(addr_pattern, disasm_text)
                     if match:
                         call_addr_str = match.group(0)
                         call_addr = int(call_addr_str, 16)
-
+                        
                         # Look up the target function name
                         sym = self._current_view.get_symbol_at(call_addr)
                         if sym and hasattr(sym, "name"):
                             # Replace the address with the function name
                             disasm_text = disasm_text.replace(call_addr_str, sym.name)
-                except Exception:
+                except:
                     pass
-
+                    
             # Try to annotate memory references with variable names
             try:
                 # Look for memory references like [reg+offset]
                 import re
-
-                mem_ref_pattern = r"\[([^\]]+)\]"
+                mem_ref_pattern = r'\[([^\]]+)\]'
                 mem_refs = re.findall(mem_ref_pattern, disasm_text)
-
+                
                 # For each memory reference, check if it's a known variable
                 for mem_ref in mem_refs:
                     # Parse for ebp relative references
-                    offset_pattern = r"(ebp|rbp)(([+-]0x[0-9a-fA-F]+)|([+-]\d+))"
+                    offset_pattern = r'(ebp|rbp)(([+-]0x[0-9a-fA-F]+)|([+-]\d+))'
                     offset_match = re.search(offset_pattern, mem_ref)
                     if offset_match:
                         # Extract base register and offset
-                        offset_match.group(1)
+                        base_reg = offset_match.group(1)
                         offset_str = offset_match.group(2)
-
+                        
                         # Convert offset to integer
                         try:
-                            offset = (
-                                int(offset_str, 16)
-                                if offset_str.startswith("0x") or offset_str.startswith("-0x")
-                                else int(offset_str)
-                            )
-
+                            offset = int(offset_str, 16) if offset_str.startswith('0x') or offset_str.startswith('-0x') else int(offset_str)      
+                            
                             # Try to find variable name
                             var_name = var_map.get(offset)
-
+                            
                             # If found, add it to the memory reference
                             if var_name:
                                 old_ref = f"[{mem_ref}]"
                                 new_ref = f"[{mem_ref} {{{var_name}}}]"
                                 disasm_text = disasm_text.replace(old_ref, new_ref)
-                        except Exception:
+                        except:
                             pass
-            except Exception:
+            except:
                 pass
-
+                
             # Get comment if any
             comment = None
             try:
                 comment = self._current_view.get_comment_at(addr)
-            except Exception:
+            except:
                 pass
-
+                
             # Format the final line
             addr_str = f"{addr:08x}"
             # Include hex bytes column padded for readability
             bytes_col = f"{hex_bytes}".ljust(16)
             line = f"{addr_str}  {bytes_col} {disasm_text}"
-
+            
             # Add comment at the end if any
             if comment:
                 line += f"  ; {comment}"
-
+                
             return line
         except Exception as e:
-            bn.log_error(f"Error annotating instruction at {hex(addr)}: {e!s}")
-            return f"{addr:08x}  {hex_bytes} ; [Error: {e!s}]"
-
+            bn.log_error(f"Error annotating instruction at {hex(addr)}: {str(e)}")
+            return f"{addr:08x}  {hex_bytes} ; [Error: {str(e)}]"
+            
     def get_functions_containing_address(self, address: int) -> list:
         """Get functions containing a specific address.
-
+        
         Args:
             address: The instruction address to find containing functions for
-
+            
         Returns:
             List of function names containing the address
         """
         if not self.current_view:
             raise RuntimeError("No binary loaded")
-
+            
         try:
             functions = list(self.current_view.get_functions_containing(address))
             return [func.name for func in functions]
@@ -2131,7 +2048,7 @@ class BinaryOperations:
             bn.log_error(f"Error getting functions containing address {hex(address)}: {e}")
             return []
 
-    def get_entry_points(self) -> list[dict[str, Any]]:
+    def get_entry_points(self) -> List[Dict[str, Any]]:
         """Return entry point(s) for the current binary view.
 
         Primarily uses `bv.entry_point`. Also includes common startup symbols like
@@ -2141,7 +2058,7 @@ class BinaryOperations:
             raise RuntimeError("No binary loaded")
 
         bv = self._current_view
-        results: list[dict[str, Any]] = []
+        results: List[Dict[str, Any]] = []
 
         def _append(addr: int):
             try:
@@ -2161,12 +2078,10 @@ class BinaryOperations:
                             name = func.name
                     except Exception:
                         pass
-                results.append(
-                    {
-                        "address": hex(int(addr)),
-                        "name": name,
-                    }
-                )
+                results.append({
+                    "address": hex(int(addr)),
+                    "name": name,
+                })
             except Exception:
                 pass
 
@@ -2190,51 +2105,48 @@ class BinaryOperations:
                 continue
 
         return results
-
+            
     # Removed: get_function_code_references() in favor of address-based get_xrefs_to_* helpers
-
-    def get_user_defined_type(self, type_name: str) -> dict[str, Any] | None:
+            
+    def get_user_defined_type(self, type_name: str) -> Optional[Dict[str, Any]]:
         """Get the definition of a user-defined type (struct, enum, etc.)
-
+        
         Args:
             type_name: Name of the user-defined type to retrieve
-
+            
         Returns:
             Dictionary with type information and definition, or None if not found
         """
         if not self._current_view:
             raise RuntimeError("No binary loaded")
-
+            
         try:
             # Check if we have a user type container
-            if (
-                not hasattr(self._current_view, "user_type_container")
-                or not self._current_view.user_type_container
-            ):
-                bn.log_info("No user type container available")
+            if not hasattr(self._current_view, "user_type_container") or not self._current_view.user_type_container:
+                bn.log_info(f"No user type container available")
                 return None
-
+                
             # Search for the requested type by name
             found_type = None
             found_type_id = None
-
+            
             for type_id in self._current_view.user_type_container.types.keys():
                 current_type = self._current_view.user_type_container.types[type_id]
                 type_name_from_container = current_type[0]
-
+                
                 if type_name_from_container == type_name:
                     found_type = current_type
                     found_type_id = type_id
                     break
-
+                    
             if not found_type or not found_type_id:
                 bn.log_info(f"Type not found: {type_name}")
                 return None
-
+                
             # Determine the type category (struct, enum, etc.)
             type_category = "unknown"
             type_object = found_type[1]
-            bn.log_info("Stage1")
+            bn.log_info(f"Stage1")
             bn.log_info(f"Stage1.5 {type_object.type_class} {StructureVariant.StructStructureType}")
             if type_object.type_class == TypeClass.EnumerationTypeClass:
                 type_category = "enum"
@@ -2250,13 +2162,9 @@ class BinaryOperations:
 
             # Generate the C++ style definition
             definition_lines = []
-
+            
             try:
-                if (
-                    type_category == "struct"
-                    or type_category == "class"
-                    or type_category == "union"
-                ):
+                if type_category == "struct" or type_category == "class" or type_category == "union":
                     definition_lines.append(f"{type_category} {type_name} {{")
                     for member in type_object.members:
                         if hasattr(member, "name") and hasattr(member, "type"):
@@ -2276,13 +2184,17 @@ class BinaryOperations:
 
             # Construct the final definition string
             definition = "\n".join(definition_lines)
-
-            return {"name": type_name, "type": type_category, "definition": definition}
+            
+            return {
+                "name": type_name,
+                "type": type_category,
+                "definition": definition
+            }
         except Exception as e:
             bn.log_error(f"Error getting user-defined type {type_name}: {e}")
             return None
 
-    def get_xrefs_to_address(self, address: int | str) -> dict[str, Any]:
+    def get_xrefs_to_address(self, address: Union[int, str]) -> Dict[str, Any]:
         """Get all cross references (code and data) to a given address.
 
         Args:
@@ -2303,7 +2215,7 @@ class BinaryOperations:
         except (TypeError, ValueError):
             raise ValueError("Invalid address format; use hex (0x...) or decimal")
 
-        result: dict[str, Any] = {
+        result: Dict[str, Any] = {
             "address": hex(addr),
             "code_references": [],
             "data_references": [],
@@ -2320,86 +2232,54 @@ class BinaryOperations:
                         # Heuristic: only attach a following call if the referenced data
                         # is carried in a parameter register up to that call (likely passed as an arg)
                         try:
-                            func = (
-                                ref.function
-                                if getattr(ref, "function", None)
-                                else self._current_view.get_function_at(ref.address)
-                            )
+                            func = ref.function if getattr(ref, "function", None) else self._current_view.get_function_at(ref.address)
                             if func is not None:
                                 import re as _re
-
                                 # identify destination register at xref instruction
                                 def _canon_reg(r: str) -> str:
                                     r = (r or "").strip().lower()
                                     mp = {
-                                        "rcx": "rcx",
-                                        "ecx": "rcx",
-                                        "cx": "rcx",
-                                        "cl": "rcx",
-                                        "ch": "rcx",
-                                        "rdx": "rdx",
-                                        "edx": "rdx",
-                                        "dx": "rdx",
-                                        "dl": "rdx",
-                                        "dh": "rdx",
-                                        "r8": "r8",
-                                        "r8d": "r8",
-                                        "r8w": "r8",
-                                        "r8b": "r8",
-                                        "r9": "r9",
-                                        "r9d": "r9",
-                                        "r9w": "r9",
-                                        "r9b": "r9",
-                                        "rdi": "rdi",
-                                        "edi": "rdi",
-                                        "di": "rdi",
-                                        "dil": "rdi",
-                                        "rsi": "rsi",
-                                        "esi": "rsi",
-                                        "si": "rsi",
-                                        "sil": "rsi",
+                                        'rcx':'rcx','ecx':'rcx','cx':'rcx','cl':'rcx','ch':'rcx',
+                                        'rdx':'rdx','edx':'rdx','dx':'rdx','dl':'rdx','dh':'rdx',
+                                        'r8':'r8','r8d':'r8','r8w':'r8','r8b':'r8',
+                                        'r9':'r9','r9d':'r9','r9w':'r9','r9b':'r9',
+                                        'rdi':'rdi','edi':'rdi','di':'rdi','dil':'rdi',
+                                        'rsi':'rsi','esi':'rsi','si':'rsi','sil':'rsi',
                                     }
                                     return mp.get(r, r)
-
                                 def _first_op_reg(d: str) -> str:
                                     try:
                                         parts = d.strip().split(None, 1)
                                         if len(parts) < 2:
                                             return ""
-                                        ops = parts[1].split(";", 1)[0]
-                                        first = ops.split(",", 1)[0].strip()
-                                        if "[" in first:
+                                        ops = parts[1].split(';',1)[0]
+                                        first = ops.split(',',1)[0].strip()
+                                        if '[' in first:
                                             return ""
-                                        for kw in ("byte", "word", "dword", "qword", "ptr"):
+                                        for kw in ("byte","word","dword","qword","ptr"):
                                             if first.startswith(kw):
-                                                first = first[len(kw) :].strip()
+                                                first = first[len(kw):].strip()
                                         return first.split()[0]
                                     except Exception:
                                         return ""
-
                                 try:
                                     xdis = self._current_view.get_disassembly(ref.address) or ""
                                 except Exception:
                                     xdis = ""
                                 dest = _canon_reg(_first_op_reg(xdis))
-                                arg_regs = {"rcx", "rdx", "r8", "r9", "rdi", "rsi"}
+                                arg_regs = {"rcx","rdx","r8","r9","rdi","rsi"}
                                 if dest in arg_regs:
                                     steps = 16
                                     curr = ref.address
                                     overwritten = False
-                                    while steps > 0 and curr < getattr(
-                                        func, "highest_address", curr + 1024
-                                    ):
+                                    while steps > 0 and curr < getattr(func, 'highest_address', curr + 1024):
                                         ilen = self._current_view.get_instruction_length(curr) or 1
                                         try:
                                             dis = self._current_view.get_disassembly(curr) or ""
                                         except Exception:
                                             dis = ""
                                         # detect clobber of the arg register
-                                        if (
-                                            curr != ref.address
-                                            and _canon_reg(_first_op_reg(dis)) == dest
-                                        ):
+                                        if curr != ref.address and _canon_reg(_first_op_reg(dis)) == dest:
                                             overwritten = True
                                         if ("call" in dis.lower()) and not overwritten:
                                             entry["following_call_address"] = hex(curr)
@@ -2412,15 +2292,11 @@ class BinaryOperations:
                                                     tgt = None
                                             if tgt is not None:
                                                 sym = self._current_view.get_symbol_at(tgt)
-                                                if sym and hasattr(sym, "name"):
+                                                if sym and hasattr(sym,'name'):
                                                     entry["following_call_target"] = sym.name
                                                 else:
                                                     tfn = self._current_view.get_function_at(tgt)
-                                                    entry["following_call_target"] = (
-                                                        tfn.name
-                                                        if (tfn and hasattr(tfn, "name"))
-                                                        else hex(tgt)
-                                                    )
+                                                    entry["following_call_target"] = tfn.name if (tfn and hasattr(tfn,'name')) else hex(tgt)
                                             break
                                         curr += max(1, ilen)
                                         steps -= 1
@@ -2450,7 +2326,7 @@ class BinaryOperations:
 
         return result
 
-    def get_xrefs_to_field(self, struct_name: str, field_name: str) -> list[dict[str, Any]]:
+    def get_xrefs_to_field(self, struct_name: str, field_name: str) -> List[Dict[str, Any]]:
         """Get all cross references to a named struct field (member).
 
         This uses a best-effort heuristic:
@@ -2463,7 +2339,7 @@ class BinaryOperations:
 
         struct_name = str(struct_name).strip()
         field_name = str(field_name).strip()
-        results: list[dict[str, Any]] = []
+        results: List[Dict[str, Any]] = []
 
         # Try to resolve struct member offset
         member_offset = None
@@ -2471,11 +2347,7 @@ class BinaryOperations:
             if hasattr(self._current_view, "types") and self._current_view.types:
                 for t in self._current_view.types.values():
                     try:
-                        if (
-                            getattr(t, "name", None) == struct_name
-                            and hasattr(t, "structure")
-                            and t.structure
-                        ):
+                        if getattr(t, "name", None) == struct_name and hasattr(t, "structure") and t.structure:
                             for m in getattr(t, "members", getattr(t.structure, "members", [])):
                                 if getattr(m, "name", None) == field_name and hasattr(m, "offset"):
                                     member_offset = int(m.offset)
@@ -2489,7 +2361,6 @@ class BinaryOperations:
 
         # HLIL scan for textual member access
         import re
-
         pattern = re.compile(rf"(\.|->)\s*{re.escape(field_name)}(\b|\W)")
         for func in list(self._current_view.functions):
             try:
@@ -2499,14 +2370,12 @@ class BinaryOperations:
                     try:
                         text = str(ins)
                         if pattern.search(text):
-                            results.append(
-                                {
-                                    "kind": "hlil-match",
-                                    "function": func.name,
-                                    "address": hex(getattr(ins, "address", func.start)),
-                                    "text": text,
-                                }
-                            )
+                            results.append({
+                                "kind": "hlil-match",
+                                "function": func.name,
+                                "address": hex(getattr(ins, "address", func.start)),
+                                "text": text
+                            })
                     except Exception:
                         continue
             except Exception:
@@ -2522,28 +2391,18 @@ class BinaryOperations:
                             t = self._current_view.get_type_at(var_addr)
                         t_str = str(t) if t is not None else ""
                         # crude match for exact or pointer to struct
-                        if (
-                            t_str == struct_name
-                            or t_str.endswith(f"* {struct_name}")
-                            or struct_name in t_str
-                        ):
+                        if t_str == struct_name or t_str.endswith(f"* {struct_name}") or struct_name in t_str:
                             field_addr = var_addr + member_offset
                             # code refs to this absolute address
                             try:
                                 for ref in list(self._current_view.get_code_refs(field_addr)):
-                                    fn_name = (
-                                        ref.function.name
-                                        if getattr(ref, "function", None)
-                                        else None
-                                    )
-                                    results.append(
-                                        {
-                                            "kind": "global-field-ref",
-                                            "function": fn_name,
-                                            "address": hex(ref.address),
-                                            "field_address": hex(field_addr),
-                                        }
-                                    )
+                                    fn_name = ref.function.name if getattr(ref, "function", None) else None
+                                    results.append({
+                                        "kind": "global-field-ref",
+                                        "function": fn_name,
+                                        "address": hex(ref.address),
+                                        "field_address": hex(field_addr),
+                                    })
                             except Exception:
                                 pass
                     except Exception:
@@ -2553,7 +2412,7 @@ class BinaryOperations:
 
         return results
 
-    def get_xrefs_to_type(self, type_name: str) -> dict[str, Any]:
+    def get_xrefs_to_type(self, type_name: str) -> Dict[str, Any]:
         """Get cross references/usages related to a struct/type name.
 
         Best-effort heuristics:
@@ -2567,9 +2426,9 @@ class BinaryOperations:
         type_name = str(type_name).strip()
         tnl = type_name.lower()
 
-        result: dict[str, Any] = {
+        result: Dict[str, Any] = {
             "type": type_name,
-            "data_instances": [],  # [{address, type, name?}]
+            "data_instances": [],   # [{address, type, name?}]
             "data_code_references": [],  # [{function, address, target}]
             "code_references": [],  # HLIL matches [{function, address, text}]
             "functions_with_type": [],  # function names
@@ -2596,11 +2455,7 @@ class BinaryOperations:
                         try:
                             if hasattr(self._current_view, "get_code_refs"):
                                 for ref in list(self._current_view.get_code_refs(var_addr)):
-                                    fn_name = (
-                                        ref.function.name
-                                        if getattr(ref, "function", None)
-                                        else None
-                                    )
+                                    fn_name = ref.function.name if getattr(ref, "function", None) else None
                                     result["data_code_references"].append(
                                         {
                                             "function": fn_name,
@@ -2618,7 +2473,6 @@ class BinaryOperations:
         # 2) HLIL textual matches for the type (casts/annotations)
         try:
             import re
-
             # Look for the type name as a word or part of a cast/annotation
             pat = re.compile(re.escape(type_name), re.IGNORECASE)
             for func in list(self._current_view.functions):
@@ -2651,13 +2505,13 @@ class BinaryOperations:
 
         # Deduplicate function list
         try:
-            result["functions_with_type"] = sorted(list(set(result["functions_with_type"])))
+            result["functions_with_type"] = sorted(list(set(result["functions_with_type"])) )
         except Exception:
             pass
 
         return result
 
-    def get_xrefs_to_enum(self, enum_name: str) -> dict[str, Any]:
+    def get_xrefs_to_enum(self, enum_name: str) -> Dict[str, Any]:
         """Find usages of an enum by matching its member values in code and variables.
 
         Notes:
@@ -2670,10 +2524,10 @@ class BinaryOperations:
         enum_name_str = str(enum_name).strip()
         en_lower = enum_name_str.lower()
 
-        result: dict[str, Any] = {
+        result: Dict[str, Any] = {
             "enum": enum_name_str,
             "members": [],  # [{name, value}]
-            "usages": [],  # [{function, address, text, member, value}]
+            "usages": [],   # [{function, address, text, member, value}]
         }
 
         # Locate the enum type and collect members
@@ -2707,8 +2561,8 @@ class BinaryOperations:
             except Exception:
                 pass
 
-        members: list[dict[str, Any]] = []
-        values: list[int] = []
+        members: List[Dict[str, Any]] = []
+        values: List[int] = []
         if enum_type is not None:
             try:
                 for m in getattr(enum_type, "members", []):
@@ -2727,16 +2581,13 @@ class BinaryOperations:
 
         # Build simple patterns for HLIL text matching of constants (hex)
         import re
-
         hex_patterns = []
         for v in values:
             hex_patterns.append(re.compile(rf"0x{v:x}\b", re.IGNORECASE))
         # Also a single combined pattern to speed up
         combined_hex = None
         if values:
-            combined_hex = re.compile(
-                r"(" + "|".join([rf"0x{v:x}\b" for v in values]) + ")", re.IGNORECASE
-            )
+            combined_hex = re.compile(r"(" + "|".join([rf"0x{v:x}\b" for v in values]) + ")", re.IGNORECASE)
 
         # Scan functions for matches
         for func in list(self._current_view.functions):
@@ -2776,7 +2627,7 @@ class BinaryOperations:
 
         return result
 
-    def get_xrefs_to_struct(self, struct_name: str) -> dict[str, Any]:
+    def get_xrefs_to_struct(self, struct_name: str) -> Dict[str, Any]:
         """Get cross references/usages related specifically to a struct name.
 
         Includes:
@@ -2805,15 +2656,13 @@ class BinaryOperations:
             candidate_names.update({"IMAGE_FILE_HEADER", "_IMAGE_FILE_HEADER"})
         if ("pe64" in nl or "optional_header64" in nl or "optional" in nl) and "header" in nl:
             candidate_names.update({"IMAGE_OPTIONAL_HEADER64", "_IMAGE_OPTIONAL_HEADER64"})
-        if (
-            "pe32" in nl or "optional_header32" in nl or ("optional" in nl and "64" not in nl)
-        ) and "header" in nl:
+        if ("pe32" in nl or "optional_header32" in nl or ("optional" in nl and "64" not in nl)) and "header" in nl:
             candidate_names.update({"IMAGE_OPTIONAL_HEADER32", "_IMAGE_OPTIONAL_HEADER32"})
         if "dos" in nl and "header" in nl:
             candidate_names.update({"IMAGE_DOS_HEADER", "_IMAGE_DOS_HEADER"})
         candidate_names_l = {c.lower() for c in candidate_names}
 
-        out: dict[str, Any] = {
+        out: Dict[str, Any] = {
             "struct": name,
             "members": [],
             "data_instances": [],
@@ -2836,9 +2685,7 @@ class BinaryOperations:
                             continue
                         tl = tname.lower()
                         if tl == name_l or name_l in tl or tl in candidate_names_l:
-                            for m in getattr(
-                                t, "members", getattr(getattr(t, "structure", None), "members", [])
-                            ):
+                            for m in getattr(t, "members", getattr(getattr(t, "structure", None), "members", [])):
                                 try:
                                     members.append(
                                         {
@@ -2861,7 +2708,7 @@ class BinaryOperations:
         out["members"] = members
 
         # Gather globals with this struct in their type string
-        global_instances: list[int] = []
+        global_instances: List[int] = []
         try:
             for var_addr in list(self._current_view.data_vars):
                 try:
@@ -2905,7 +2752,7 @@ class BinaryOperations:
             pass
 
         # Also gather symbol-based instances whose name mentions the struct alias
-        symbol_instances: list[int] = []
+        symbol_instances: List[int] = []
         try:
             for sym in list(self._current_view.get_symbols()):
                 try:
@@ -2979,7 +2826,7 @@ class BinaryOperations:
 
         # If the struct is contained as a field of another struct, try deriving field addresses from parent instances
         try:
-            parent_offsets: list[dict[str, Any]] = []
+            parent_offsets: List[Dict[str, Any]] = []
             for t in self._current_view.types.values():
                 try:
                     if getattr(t, "type_class", None) == TypeClass.StructureTypeClass:
@@ -2988,22 +2835,16 @@ class BinaryOperations:
                             continue
                         tl = tname.lower()
                         # scan members for types that mention our struct aliases
-                        for mem in getattr(
-                            t, "members", getattr(getattr(t, "structure", None), "members", [])
-                        ):
+                        for mem in getattr(t, "members", getattr(getattr(t, "structure", None), "members", [])):
                             try:
                                 mtype = getattr(mem, "type", None)
                                 mtype_str = str(mtype) if mtype is not None else ""
                                 ml = mtype_str.lower()
-                                if ml and (
-                                    name_l in ml or any(cn in ml for cn in candidate_names_l)
-                                ):
+                                if ml and (name_l in ml or any(cn in ml for cn in candidate_names_l)):
                                     parent_offsets.append(
                                         {
                                             "parent": tname,
-                                            "offset": int(getattr(mem, "offset", 0))
-                                            if hasattr(mem, "offset")
-                                            else None,
+                                            "offset": int(getattr(mem, "offset", 0)) if hasattr(mem, "offset") else None,
                                             "member": getattr(mem, "name", None),
                                         }
                                     )
@@ -3056,9 +2897,7 @@ class BinaryOperations:
                                 if isinstance(addr, int):
                                     field_addr = addr + poff
                                     if hasattr(self._current_view, "get_code_refs"):
-                                        for ref in list(
-                                            self._current_view.get_code_refs(field_addr)
-                                        ):
+                                        for ref in list(self._current_view.get_code_refs(field_addr)):
                                             fn_name = (
                                                 ref.function.name
                                                 if getattr(ref, "function", None)
@@ -3080,18 +2919,15 @@ class BinaryOperations:
             pass
 
         # HLIL matches for member access text
-
+        
         try:
             import re
-
             patterns = []
             for m in members:
                 nm = m.get("name")
                 if not nm:
                     continue
-                patterns.append(
-                    re.compile(rf"(\.|->)\s*{re.escape(str(nm))}(\b|\W)", re.IGNORECASE)
-                )
+                patterns.append(re.compile(rf"(\.|->)\s*{re.escape(str(nm))}(\b|\W)", re.IGNORECASE))
 
             for func in list(self._current_view.functions):
                 try:
@@ -3103,13 +2939,11 @@ class BinaryOperations:
                                 vname = getattr(v, "name", None)
                                 vtype_str = str(vtype) if vtype is not None else ""
                                 if vtype_str and name_l in vtype_str.lower():
-                                    out["vars_with_type"].append(
-                                        {
-                                            "function": func.name,
-                                            "var": vname,
-                                            "type": vtype_str,
-                                        }
-                                    )
+                                    out["vars_with_type"].append({
+                                        "function": func.name,
+                                        "var": vname,
+                                        "type": vtype_str,
+                                    })
                             except Exception:
                                 continue
                     except Exception:
@@ -3131,11 +2965,7 @@ class BinaryOperations:
                                 tl = text.lower()
                                 if name_l in tl or any(cn in tl for cn in candidate_names_l):
                                     # Heuristic: detect patterns like '(COFF_Header*)' or '(struct COFF_Header*)'
-                                    cast_pat = (
-                                        r"\(.*("
-                                        + "|".join(re.escape(c) for c in candidate_names)
-                                        + r").*\)"
-                                    )
+                                    cast_pat = r"\(.*(" + "|".join(re.escape(c) for c in candidate_names) + r").*\)"
                                     if re.search(cast_pat, text, re.IGNORECASE):
                                         out["code_references_by_cast"].append(
                                             {
@@ -3162,13 +2992,13 @@ class BinaryOperations:
 
         # Dedup functions list
         try:
-            out["functions_with_type"] = sorted(list(set(out["functions_with_type"])))
+            out["functions_with_type"] = sorted(list(set(out["functions_with_type"])) )
         except Exception:
             pass
 
         return out
 
-    def get_xrefs_to_union(self, union_name: str) -> dict[str, Any]:
+    def get_xrefs_to_union(self, union_name: str) -> Dict[str, Any]:
         """Get cross references/usages related to a union type by name.
 
         Includes:
@@ -3186,7 +3016,7 @@ class BinaryOperations:
         name = str(union_name).strip()
         name_l = name.lower()
 
-        out: dict[str, Any] = {
+        out: Dict[str, Any] = {
             "union": name,
             "members": [],
             "data_instances": [],
@@ -3198,7 +3028,7 @@ class BinaryOperations:
         }
 
         # Resolve union members
-        members: list[dict[str, Any]] = []
+        members: List[Dict[str, Any]] = []
         try:
             for t in self._current_view.types.values():
                 try:
@@ -3215,19 +3045,13 @@ class BinaryOperations:
                                     pass
                             except Exception:
                                 pass
-                            for m in getattr(
-                                t, "members", getattr(getattr(t, "structure", None), "members", [])
-                            ):
+                            for m in getattr(t, "members", getattr(getattr(t, "structure", None), "members", [])):
                                 try:
                                     members.append(
                                         {
                                             "name": getattr(m, "name", None),
-                                            "offset": int(getattr(m, "offset", 0))
-                                            if hasattr(m, "offset")
-                                            else None,
-                                            "type": str(getattr(m, "type", ""))
-                                            if hasattr(m, "type")
-                                            else None,
+                                            "offset": int(getattr(m, "offset", 0)) if hasattr(m, "offset") else None,
+                                            "type": str(getattr(m, "type", "")) if hasattr(m, "type") else None,
                                         }
                                     )
                                 except Exception:
@@ -3260,11 +3084,7 @@ class BinaryOperations:
                         try:
                             if hasattr(self._current_view, "get_code_refs"):
                                 for ref in list(self._current_view.get_code_refs(var_addr)):
-                                    fn_name = (
-                                        ref.function.name
-                                        if getattr(ref, "function", None)
-                                        else None
-                                    )
+                                    fn_name = ref.function.name if getattr(ref, "function", None) else None
                                     out["data_code_references"].append(
                                         {
                                             "function": fn_name,
@@ -3282,15 +3102,12 @@ class BinaryOperations:
         # HLIL member access and casts; function variables/signatures
         try:
             import re
-
             patterns = []
             for m in members:
                 nm = m.get("name")
                 if not nm:
                     continue
-                patterns.append(
-                    re.compile(rf"(\.|->)\s*{re.escape(str(nm))}(\b|\W)", re.IGNORECASE)
-                )
+                patterns.append(re.compile(rf"(\.|->)\s*{re.escape(str(nm))}(\b|\W)", re.IGNORECASE))
 
             for func in list(self._current_view.functions):
                 try:
@@ -3319,9 +3136,7 @@ class BinaryOperations:
                             try:
                                 text = str(ins)
                                 tl = text.lower()
-                                matched_member = (
-                                    any(p.search(text) for p in patterns) if patterns else False
-                                )
+                                matched_member = any(p.search(text) for p in patterns) if patterns else False
                                 if matched_member:
                                     out["code_references"].append(
                                         {
@@ -3333,9 +3148,7 @@ class BinaryOperations:
                                 # Capture casts mentioning the union
                                 cast_matched = False
                                 if name_l in tl:
-                                    if re.search(
-                                        rf"\(.*{re.escape(name)}.*\)", text, re.IGNORECASE
-                                    ):
+                                    if re.search(rf"\(.*{re.escape(name)}.*\)", text, re.IGNORECASE):
                                         out["code_references_by_cast"].append(
                                             {
                                                 "function": func.name,
@@ -3369,17 +3182,15 @@ class BinaryOperations:
 
         # Dedup functions list
         try:
-            out["functions_with_type"] = sorted(list(set(out["functions_with_type"])))
+            out["functions_with_type"] = sorted(list(set(out["functions_with_type"])) )
         except Exception:
             pass
 
         return out
 
-    def patch_bytes(
-        self, address: str | int, data: str | bytes | list[int], save_to_file: bool = True
-    ) -> dict[str, Any]:
+    def patch_bytes(self, address: Union[str, int], data: Union[str, bytes, List[int]], save_to_file: bool = True) -> Dict[str, Any]:
         """Patch bytes at a given address in the binary.
-
+        
         Args:
             address: Address to patch (hex string like "0x401000" or integer)
             data: Bytes to write. Can be:
@@ -3387,17 +3198,17 @@ class BinaryOperations:
                 - List of integers: [0x90, 0x90]
                 - Bytes object: b"\x90\x90"
             save_to_file: If True (default), save the patched binary to disk
-
+                
         Returns:
             Dictionary with status, address, original bytes, and patched bytes
-
+            
         Raises:
             RuntimeError: If no binary is loaded
             ValueError: If address or data format is invalid
         """
         if not self._current_view:
             raise RuntimeError("No binary loaded")
-
+        
         # Parse address
         # Only treat as hex if it has "0x" prefix or contains a-f/A-F characters
         # This avoids ambiguity where "123" would be treated as hex instead of decimal
@@ -3413,7 +3224,7 @@ class BinaryOperations:
                 addr = int(address, 10)
         else:
             addr = int(address)
-
+        
         # Parse data into bytes
         patch_bytes = None
         if isinstance(data, bytes):
@@ -3439,10 +3250,10 @@ class BinaryOperations:
                 raise ValueError(f"Invalid byte list: {e}")
         else:
             raise ValueError(f"Unsupported data type: {type(data)}")
-
+        
         if not patch_bytes:
             raise ValueError("Empty patch data")
-
+        
         # Read original bytes for comparison
         try:
             original_bytes = self._current_view.read(addr, len(patch_bytes))
@@ -3451,18 +3262,18 @@ class BinaryOperations:
         except Exception as e:
             bn.log_warn(f"Could not read original bytes at {hex(addr)}: {e}")
             original_bytes = b""
-
+        
         # Write the patch
         try:
             written = self._current_view.write(addr, patch_bytes)
-
+            
             # Determine status based on whether all bytes were written
             if written != len(patch_bytes):
                 bn.log_warn(f"Only wrote {written} of {len(patch_bytes)} bytes at {hex(addr)}")
                 status = "partial"
             else:
                 status = "ok"
-
+            
             result = {
                 "status": status,
                 "address": hex(addr),
@@ -3472,11 +3283,11 @@ class BinaryOperations:
                 "bytes_requested": len(patch_bytes),
                 "saved_to_file": False,
             }
-
+            
             # Add warning message if partial write
             if status == "partial":
                 result["warning"] = f"Only wrote {written} of {len(patch_bytes)} bytes"
-
+            
             # Save to file if requested
             if save_to_file:
                 try:
@@ -3488,7 +3299,7 @@ class BinaryOperations:
                             result["saved_to_file"] = True
                             result["saved_path"] = original_file
                             bn.log_info(f"Patched binary saved to: {original_file}")
-
+                            
                             # On macOS, re-sign the binary to avoid "killed" error
                             if platform.system() == "Darwin":
                                 result["codesign"] = self._codesign_binary(original_file)
@@ -3501,21 +3312,21 @@ class BinaryOperations:
                 except Exception as save_e:
                     bn.log_warn(f"Failed to save patched binary: {save_e}")
                     result["save_error"] = str(save_e)
-
+            
             return result
         except Exception as e:
-            raise ValueError(f"Failed to patch bytes at {hex(addr)}: {e!s}")
+            raise ValueError(f"Failed to patch bytes at {hex(addr)}: {str(e)}")
 
-    def _codesign_binary(self, file_path: str) -> dict[str, Any]:
+    def _codesign_binary(self, file_path: str) -> Dict[str, Any]:
         """Re-sign a binary on macOS after patching.
-
+        
         On macOS, modifying a binary invalidates its code signature, causing the
         system to kill the process when executed. This method removes the old
         signature and applies an ad-hoc signature to make the binary executable.
-
+        
         Args:
             file_path: Path to the binary file to sign
-
+            
         Returns:
             Dictionary with codesign status and any error messages
         """
@@ -3524,37 +3335,36 @@ class BinaryOperations:
             "success": False,
             "platform": "macOS",
         }
-
+        
         try:
             # Step 1: Remove existing signature (optional, codesign -f will overwrite anyway)
             remove_result = subprocess.run(
                 ["codesign", "--remove-signature", file_path],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=30
             )
-
+            
             if remove_result.returncode != 0:
                 # It's okay if removal fails (binary might not have been signed)
-                bn.log_info(
-                    f"codesign --remove-signature returned {remove_result.returncode}: {remove_result.stderr}"
-                )
-
+                bn.log_info(f"codesign --remove-signature returned {remove_result.returncode}: {remove_result.stderr}")
+            
             # Step 2: Apply ad-hoc signature with force flag
             sign_result = subprocess.run(
-                ["codesign", "-f", "-s", "-", file_path], capture_output=True, text=True, timeout=30
+                ["codesign", "-f", "-s", "-", file_path],
+                capture_output=True,
+                text=True,
+                timeout=30
             )
-
+            
             if sign_result.returncode == 0:
                 result["success"] = True
                 result["message"] = "Binary re-signed with ad-hoc signature"
                 bn.log_info(f"Successfully re-signed binary: {file_path}")
             else:
-                result["error"] = (
-                    sign_result.stderr or f"codesign failed with code {sign_result.returncode}"
-                )
+                result["error"] = sign_result.stderr or f"codesign failed with code {sign_result.returncode}"
                 bn.log_warn(f"Failed to re-sign binary: {result['error']}")
-
+                
         except FileNotFoundError:
             result["error"] = "codesign command not found"
             bn.log_warn("codesign command not found - is Xcode Command Line Tools installed?")
@@ -3564,5 +3374,6 @@ class BinaryOperations:
         except Exception as e:
             result["error"] = str(e)
             bn.log_warn(f"Error during codesign: {e}")
-
+        
         return result
+    

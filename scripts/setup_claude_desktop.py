@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import json
-import os
-import platform
-import subprocess
 import sys
-import venv
+import platform
+import os
 from pathlib import Path
+import venv
+import subprocess
 
 
 def check_os():
@@ -20,7 +20,13 @@ def check_os():
 def get_config_path():
     """Get the path to the Claude Desktop config file."""
     home = Path.home()
-    return home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+    return (
+        home
+        / "Library"
+        / "Application Support"
+        / "Claude"
+        / "claude_desktop_config.json"
+    )
 
 
 def _looks_like_binja_embedded(py_path: Path) -> bool:
@@ -43,12 +49,7 @@ def _looks_like_binja_embedded(py_path: Path) -> bool:
 def _select_system_python() -> str | None:
     def ok(p: str) -> bool:
         try:
-            r = subprocess.run(
-                [p, "-c", "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            r = subprocess.run([p, "-c", "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')"], capture_output=True, text=True, check=False)
             if r.returncode == 0:
                 s = (r.stdout or "").strip()
                 parts = s.split(".")
@@ -83,20 +84,13 @@ def _ensure_plugin_venv(plugin_root: Path) -> str:
     vdir = plugin_root / ".venv"
     py = vdir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python3")
     try:
-        needs_build = not py.exists() or (
-            sys.platform == "darwin" and _looks_like_binja_embedded(py)
-        )
+        needs_build = not py.exists() or (sys.platform == "darwin" and _looks_like_binja_embedded(py))
         if needs_build:
             vdir.mkdir(parents=True, exist_ok=True)
             created = False
             if sys.platform == "win32":
                 try:
-                    subprocess.run(
-                        ["py", "-3", "-m", "venv", str(vdir)],
-                        check=False,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
+                    subprocess.run(["py", "-3", "-m", "venv", str(vdir)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     created = True
                 except Exception:
                     created = False
@@ -104,12 +98,7 @@ def _ensure_plugin_venv(plugin_root: Path) -> str:
                 cand = _select_system_python()
                 if cand:
                     try:
-                        subprocess.run(
-                            [cand, "-m", "venv", str(vdir)],
-                            check=False,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
+                        subprocess.run([cand, "-m", "venv", str(vdir)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         created = True
                     except Exception:
                         created = False
@@ -122,12 +111,7 @@ def _ensure_plugin_venv(plugin_root: Path) -> str:
             req = plugin_root / "bridge" / "requirements.txt"
             if req.exists():
                 try:
-                    subprocess.run(
-                        [str(py), "-m", "pip", "install", "-r", str(req)],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        check=False,
-                    )
+                    subprocess.run([str(py), "-m", "pip", "install", "-r", str(req)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
                 except Exception:
                     pass
     except Exception:
@@ -147,7 +131,7 @@ def setup_claude_desktop():
         sys.exit(1)
 
     try:
-        with open(config_path) as f:
+        with open(config_path, "r") as f:
             config = json.load(f)
 
         # Use the installed plugin path (works for Plugin Manager installs):

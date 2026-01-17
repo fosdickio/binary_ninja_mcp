@@ -405,6 +405,9 @@ def _start_bv_monitor():
 
     - Registers any newly opened views discovered via UI contexts
     - Prunes closed views so /binaries reflects current state without user interaction
+    
+    PATCHED: Removed the logic that constantly resets current_view based on UI focus.
+    The current_view should only change via explicit select_binary MCP calls.
     """
     global _bv_monitor_timer
     try:
@@ -418,6 +421,7 @@ def _start_bv_monitor():
             """Heuristically discover all open BinaryViews from UI and sync registry.
 
             Attempts multiple UI paths defensively; safe if some APIs are unavailable.
+            Also tries bn.BinaryViewType APIs as a fallback for non-UI discovery.
             """
             try:
                 from binaryninjaui import UIContext
@@ -427,11 +431,15 @@ def _start_bv_monitor():
             found_fns: set[str] = set()
             found_bvs: list = []
             contexts = []
+            
+            # Method 1: Try UIContext.allContexts()
             try:
                 if UIContext and hasattr(UIContext, "allContexts"):
                     contexts = list(UIContext.allContexts())
             except Exception:
                 contexts = []
+            
+            # Method 2: Try activeContext() if no contexts found
             if not contexts and UIContext:
                 try:
                     ctx = UIContext.activeContext()
@@ -478,10 +486,45 @@ def _start_bv_monitor():
                                 _collect_from_frame(vf2)
                     except Exception:
                         continue
+                
+                # Method 3: Try context's openFileContainers or similar
+                try:
+                    if hasattr(ctx, "openFileContainers"):
+                        containers = ctx.openFileContainers()
+                        if containers:
+                            for fc in list(containers):
+                                try:
+                                    if hasattr(fc, "getAllDataViews"):
+                                        for dv in list(fc.getAllDataViews()):
+                                            if dv:
+                                                found_bvs.append(dv)
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
+
+            # Method 4: Try FileContext/FileMetadata API
+            try:
+                if hasattr(bn, "FileMetadata") and hasattr(bn.FileMetadata, "__iter__"):
+                    for fm in bn.FileMetadata:
+                        try:
+                            if hasattr(fm, "view") and fm.view:
+                                found_bvs.append(fm.view)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
             # Register discovered BVs and build set of filenames
+            seen_ids = set()
             for bv in found_bvs:
                 try:
+                    # Deduplicate by object id
+                    bv_id = id(bv)
+                    if bv_id in seen_ids:
+                        continue
+                    seen_ids.add(bv_id)
+                    
                     ops.register_view(bv)
                     fn = None
                     try:
@@ -520,29 +563,30 @@ def _start_bv_monitor():
                 # Do not prune solely based on UI heuristics; UI enumeration may miss open tabs.
                 # Rely on explicit close notifications and weakref pruning in ops.
 
-                # Keep MCP-selected active view independent of UI focus.
-                # Only adopt a UI-active view if there is no current selection
-                # (e.g., after the previously selected view was actually closed
-                # and pruned by weakrefs).
-                try:
-                    if ops.current_view is None:
-                        try:
-                            from binaryninjaui import UIContext
-
-                            act_ctx = UIContext.activeContext()
-                            act_bv = None
-                            if act_ctx:
-                                vf = act_ctx.getCurrentViewFrame()
-                                if vf and hasattr(vf, "getCurrentBinaryView"):
-                                    act_bv = vf.getCurrentBinaryView()
-                            ops.current_view = act_bv
-                            if act_bv:
-                                ops.register_view(act_bv)
-                        except Exception:
-                            # If UI is unavailable or no active view, leave as None
-                            pass
-                except Exception:
-                    pass
+                # PATCHED: Removed the block that was resetting ops.current_view based on UI focus.
+                # The MCP-selected active view should remain stable and only change via
+                # explicit select_binary calls from the MCP client.
+                # This prevents the constant "Cleared current binary view" / "Set current binary view" spam.
+                
+                # OLD CODE (REMOVED):
+                # try:
+                #     if ops.current_view is None:
+                #         try:
+                #             from binaryninjaui import UIContext
+                #             act_ctx = UIContext.activeContext()
+                #             act_bv = None
+                #             if act_ctx:
+                #                 vf = act_ctx.getCurrentViewFrame()
+                #                 if vf and hasattr(vf, "getCurrentBinaryView"):
+                #                     act_bv = vf.getCurrentBinaryView()
+                #             ops.current_view = act_bv
+                #             if act_bv:
+                #                 ops.register_view(act_bv)
+                #         except Exception:
+                #             pass
+                # except Exception:
+                #     pass
+                
             except Exception:
                 # Never raise out of the timer
                 pass
@@ -583,6 +627,9 @@ try:
             return None
 
         def OnViewChange(self, *args):  # signature varies across versions
+            # PATCHED: Removed _try_autostart_for_bv call that was causing view resets
+            # on every UI interaction. The server should only auto-start once on initial
+            # file open, not on every view change.
             try:
                 bv = self._get_active_bv()
                 # Ensure the status indicator exists and reflects current state
@@ -596,7 +643,8 @@ try:
                         plugin.server.binary_ops.register_view(bv)
                     except Exception:
                         pass
-                    _try_autostart_for_bv(bv)
+                    # PATCHED: Removed _try_autostart_for_bv(bv) call
+                    # This was causing the server to constantly reset the view
             except Exception as e:
                 bn.log_error(f"MCP Max UI notification error: {e}")
 
@@ -614,6 +662,7 @@ try:
                         plugin.server.binary_ops.register_view(bv)
                     except Exception:
                         pass
+                    # Keep autostart here - this is the RIGHT place for it (new file opened)
                     _try_autostart_for_bv(bv)
             except Exception as e:
                 bn.log_error(f"MCP Max OnAfterOpenFile error: {e}")

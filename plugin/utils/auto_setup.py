@@ -1,8 +1,8 @@
 import json
 import os
 import sys
-
-from .python_detection import copy_python_env, create_venv_with_system_python, get_python_executable
+from typing import Optional
+from .python_detection import get_python_executable, create_venv_with_system_python, copy_python_env
 
 
 def _repo_root() -> str:
@@ -40,7 +40,7 @@ def _ensure_local_venv() -> str:
     """
     vdir = _venv_dir()
     req = os.path.join(_repo_root(), "bridge", "requirements.txt")
-
+    
     try:
         py = create_venv_with_system_python(vdir, req if os.path.exists(req) else None)
         return py if os.path.exists(py) else get_python_executable()
@@ -53,23 +53,8 @@ def _targets() -> dict:
     if sys.platform == "win32":
         appdata = os.getenv("APPDATA") or os.path.join(home, "AppData", "Roaming")
         return {
-            "Cline": (
-                os.path.join(
-                    appdata, "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings"
-                ),
-                "cline_mcp_settings.json",
-            ),
-            "Roo Code": (
-                os.path.join(
-                    appdata,
-                    "Code",
-                    "User",
-                    "globalStorage",
-                    "rooveterinaryinc.roo-cline",
-                    "settings",
-                ),
-                "mcp_settings.json",
-            ),
+            "Cline": (os.path.join(appdata, "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings"), "cline_mcp_settings.json"),
+            "Roo Code": (os.path.join(appdata, "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings"), "mcp_settings.json"),
             "Claude": (os.path.join(appdata, "Claude"), "claude_desktop_config.json"),
             "Cursor": (os.path.join(home, ".cursor"), "mcp.json"),
             "Windsurf": (os.path.join(home, ".codeium", "windsurf"), "mcp_config.json"),
@@ -78,36 +63,9 @@ def _targets() -> dict:
         }
     elif sys.platform == "darwin":
         return {
-            "Cline": (
-                os.path.join(
-                    home,
-                    "Library",
-                    "Application Support",
-                    "Code",
-                    "User",
-                    "globalStorage",
-                    "saoudrizwan.claude-dev",
-                    "settings",
-                ),
-                "cline_mcp_settings.json",
-            ),
-            "Roo Code": (
-                os.path.join(
-                    home,
-                    "Library",
-                    "Application Support",
-                    "Code",
-                    "User",
-                    "globalStorage",
-                    "rooveterinaryinc.roo-cline",
-                    "settings",
-                ),
-                "mcp_settings.json",
-            ),
-            "Claude": (
-                os.path.join(home, "Library", "Application Support", "Claude"),
-                "claude_desktop_config.json",
-            ),
+            "Cline": (os.path.join(home, "Library", "Application Support", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings"), "cline_mcp_settings.json"),
+            "Roo Code": (os.path.join(home, "Library", "Application Support", "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings"), "mcp_settings.json"),
+            "Claude": (os.path.join(home, "Library", "Application Support", "Claude"), "claude_desktop_config.json"),
             "Cursor": (os.path.join(home, ".cursor"), "mcp.json"),
             "Windsurf": (os.path.join(home, ".codeium", "windsurf"), "mcp_config.json"),
             "Claude Code": (home, ".claude.json"),
@@ -115,30 +73,8 @@ def _targets() -> dict:
         }
     elif sys.platform == "linux":
         return {
-            "Cline": (
-                os.path.join(
-                    home,
-                    ".config",
-                    "Code",
-                    "User",
-                    "globalStorage",
-                    "saoudrizwan.claude-dev",
-                    "settings",
-                ),
-                "cline_mcp_settings.json",
-            ),
-            "Roo Code": (
-                os.path.join(
-                    home,
-                    ".config",
-                    "Code",
-                    "User",
-                    "globalStorage",
-                    "rooveterinaryinc.roo-cline",
-                    "settings",
-                ),
-                "mcp_settings.json",
-            ),
+            "Cline": (os.path.join(home, ".config", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings"), "cline_mcp_settings.json"),
+            "Roo Code": (os.path.join(home, ".config", "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings"), "mcp_settings.json"),
             # Claude not supported on Linux
             "Cursor": (os.path.join(home, ".cursor"), "mcp.json"),
             "Windsurf": (os.path.join(home, ".codeium", "windsurf"), "mcp_config.json"),
@@ -165,7 +101,7 @@ def install_mcp_clients(quiet: bool = True) -> int:
                 config_path = os.path.join(config_dir, config_file)
                 if not os.path.exists(config_path):
                     continue
-                with open(config_path, encoding="utf-8") as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     data = f.read().strip()
                     if not data:
                         continue
@@ -196,7 +132,7 @@ def install_mcp_clients(quiet: bool = True) -> int:
             config = {}
         else:
             try:
-                with open(config_path, encoding="utf-8") as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     data = f.read().strip()
                     config = json.loads(data) if data else {}
             except Exception:

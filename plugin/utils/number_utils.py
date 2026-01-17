@@ -21,7 +21,7 @@ def _decode_escaped_string(s: str) -> bytes:
     # Handle \xNN
     def repl_hex(m):
         try:
-            return bytes([int(m.group(1), 16)]).decode("latin1")
+            return bytes([int(m.group(1), 16)]).decode('latin1')
         except Exception:
             return m.group(0)
 
@@ -147,6 +147,7 @@ def convert_number(text: str, size_param) -> dict:
 
     # Numeric forms
     signed = False
+    neg = text.startswith("-")
     try:
         if text.lower().startswith("0x") or re.match(r"^[0-9a-fA-F_]+h$", text):
             # Hex (allow trailing h)
@@ -241,8 +242,8 @@ def _to_c_char(b: int) -> str:
         0x0B: r"\v",
         0x0C: r"\f",
         0x0D: r"\r",
-        0x22: r"\"",  # double quote
-        0x27: r"\'",  # single quote
+        0x22: r'\"',  # double quote
+        0x27: r"\'",   # single quote
         0x5C: r"\\",  # backslash
     }
     if b in escapes:
@@ -257,18 +258,18 @@ def _to_c_char(b: int) -> str:
 
 def _to_c_string(raw: bytes) -> str:
     r"""Return a C string literal representing the raw bytes (may be truncated by caller)."""
-    out = ""
+    out = ''
     for ch in raw:
         if ch == 0x22:  # '"'
-            out += r"\""
+            out += r'\"'
         elif ch == 0x5C:  # '\\'
-            out += r"\\"
+            out += r'\\'
         elif ch == 0x0A:
-            out += r"\n"
+            out += r'\n'
         elif ch == 0x0D:
-            out += r"\r"
+            out += r'\r'
         elif ch == 0x09:
-            out += r"\t"
+            out += r'\t'
         elif 0x20 <= ch <= 0x7E:
             out += chr(ch)
         else:

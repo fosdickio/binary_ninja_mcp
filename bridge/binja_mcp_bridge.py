@@ -1,21 +1,20 @@
+import os as _os
 import sys as _sys
 import traceback as _tb
-
 
 # Install a very-early excepthook so any ImportError at module import time is captured.
 def _bridge_excepthook(exc_type, exc, tb):
     # Print to stderr for interactive runs
     _tb.print_exception(exc_type, exc, tb, file=_sys.stderr)
 
-
 _sys.excepthook = _bridge_excepthook
 
-import requests
 from mcp.server.fastmcp import FastMCP
+import requests
+
 
 binja_server_url = "http://localhost:9009"
 mcp = FastMCP("binja-mcp")
-
 
 def _active_filename() -> str:
     """Return the currently active filename as known by the server."""
@@ -28,7 +27,7 @@ def _active_filename() -> str:
     return "(none)"
 
 
-def safe_get(endpoint: str, params: dict | None = None, timeout: float | None = 5) -> list:
+def safe_get(endpoint: str, params: dict = None, timeout: float | None = 5) -> list:
     """
     Perform a GET request. If 'params' is given, we convert it to a query string.
     """
@@ -51,10 +50,10 @@ def safe_get(endpoint: str, params: dict | None = None, timeout: float | None = 
         else:
             return [f"Error {response.status_code}: {response.text.strip()}"]
     except Exception as e:
-        return [f"Request failed: {e!s}"]
+        return [f"Request failed: {str(e)}"]
 
 
-def get_json(endpoint: str, params: dict | None = None, timeout: float | None = 5):
+def get_json(endpoint: str, params: dict = None, timeout: float | None = 5):
     """
     Perform a GET and return parsed JSON.
     - On 2xx: returns parsed JSON.
@@ -91,10 +90,10 @@ def get_json(endpoint: str, params: dict | None = None, timeout: float | None = 
         text = (response.text or "").strip()
         return {"error": f"Error {response.status_code}: {text}"}
     except Exception as e:
-        return {"error": f"Request failed: {e!s}"}
+        return {"error": f"Request failed: {str(e)}"}
 
 
-def get_text(endpoint: str, params: dict | None = None, timeout: float | None = 5) -> str:
+def get_text(endpoint: str, params: dict = None, timeout: float | None = 5) -> str:
     """Perform a GET and return raw text (or an error string)."""
     if params is None:
         params = {}
@@ -114,13 +113,15 @@ def get_text(endpoint: str, params: dict | None = None, timeout: float | None = 
         else:
             return f"Error {response.status_code}: {response.text.strip()}"
     except Exception as e:
-        return f"Request failed: {e!s}"
+        return f"Request failed: {str(e)}"
 
 
 def safe_post(endpoint: str, data: dict | str) -> str:
     try:
         if isinstance(data, dict):
-            response = requests.post(f"{binja_server_url}/{endpoint}", data=data, timeout=5)
+            response = requests.post(
+                f"{binja_server_url}/{endpoint}", data=data, timeout=5
+            )
         else:
             response = requests.post(
                 f"{binja_server_url}/{endpoint}", data=data.encode("utf-8"), timeout=5
@@ -131,7 +132,7 @@ def safe_post(endpoint: str, data: dict | str) -> str:
         else:
             return f"Error {response.status_code}: {response.text.strip()}"
     except Exception as e:
-        return f"Request failed: {e!s}"
+        return f"Request failed: {str(e)}"
 
 
 @mcp.tool()
@@ -142,7 +143,6 @@ def list_methods(offset: int = 0, limit: int = 100) -> list:
     header = f"File: {_active_filename()}"
     body = safe_get("methods", {"offset": offset, "limit": limit})
     return [header] + (body or [])
-
 
 @mcp.tool()
 def get_entry_points() -> list:
@@ -159,20 +159,12 @@ def get_entry_points() -> list:
         out.append(f"{addr}\t{name}")
     return out
 
-
 @mcp.tool()
 def retype_variable(function_name: str, variable_name: str, type_str: str) -> str:
     """
     Retype a variable in a function.
     """
-    data = get_json(
-        "retypeVariable",
-        {
-            "functionName": function_name,
-            "variableName": variable_name,
-            "type": type_str,
-        },
-    )
+    data = get_json("retypeVariable", {"functionName": function_name, "variableName": variable_name, "type": type_str})
     if not data:
         return "Error: no response"
     if isinstance(data, dict) and "status" in data:
@@ -180,21 +172,13 @@ def retype_variable(function_name: str, variable_name: str, type_str: str) -> st
     if isinstance(data, dict) and "error" in data:
         return f"Error: {data['error']}"
     return str(data)
-
 
 @mcp.tool()
 def rename_single_variable(function_name: str, variable_name: str, new_name: str) -> str:
     """
     Rename a variable in a function.
     """
-    data = get_json(
-        "renameVariable",
-        {
-            "functionName": function_name,
-            "variableName": variable_name,
-            "newName": new_name,
-        },
-    )
+    data = get_json("renameVariable", {"functionName": function_name, "variableName": variable_name, "newName": new_name})
     if not data:
         return "Error: no response"
     if isinstance(data, dict) and "status" in data:
@@ -203,14 +187,8 @@ def rename_single_variable(function_name: str, variable_name: str, new_name: str
         return f"Error: {data['error']}"
     return str(data)
 
-
 @mcp.tool()
-def rename_multi_variables(
-    function_identifier: str,
-    mapping_json: str = "",
-    pairs: str = "",
-    renames_json: str = "",
-) -> str:
+def rename_multi_variables(function_identifier: str, mapping_json: str = "", pairs: str = "", renames_json: str = "") -> str:
     """
     Rename multiple local variables in one call.
     - function_identifier: function name or address (hex)
@@ -226,7 +204,6 @@ def rename_multi_variables(
 
     payload = None
     import json as _json
-
     if renames_json:
         try:
             payload = _json.loads(renames_json)
@@ -256,7 +233,6 @@ def rename_multi_variables(
     except Exception:
         return str(data)
 
-
 @mcp.tool()
 def define_types(c_code: str) -> str:
     """
@@ -271,7 +247,6 @@ def define_types(c_code: str) -> str:
     if isinstance(data, (list, tuple)):
         return "Defined types: " + ", ".join(map(str, data))
     return str(data)
-
 
 @mcp.tool()
 def list_classes(offset: int = 0, limit: int = 100) -> list:
@@ -340,7 +315,6 @@ def decompile_function(name: str) -> str:
         return file_line + f"Error: {data.get('error')}"
     return file_line + str(data)
 
-
 @mcp.tool()
 def get_il(name_or_address: str, view: str = "hlil", ssa: bool = False) -> str:
     """
@@ -362,10 +336,8 @@ def get_il(name_or_address: str, view: str = "hlil", ssa: bool = False) -> str:
         return file_line + data["il"]
     if "error" in data:
         import json as _json
-
         return file_line + _json.dumps(data, indent=2, ensure_ascii=False)
     return file_line + str(data)
-
 
 @mcp.tool()
 def fetch_disassembly(name: str) -> str:
@@ -382,12 +354,10 @@ def fetch_disassembly(name: str) -> str:
         return file_line + f"Error: {data.get('error')}"
     return file_line + str(data)
 
-
 @mcp.tool()
 def rename_function(old_name: str, new_name: str) -> str:
     """
     Rename a function by its current name to a new user-defined name.
-    The configured prefix (default "mcp_") will be automatically prepended if not present.
     """
     return safe_post("renameFunction", {"oldName": old_name, "newName": new_name})
 
@@ -467,7 +437,6 @@ def list_sections(offset: int = 0, limit: int = 100) -> list:
             continue
     return out
 
-
 @mcp.tool()
 def list_imports(offset: int = 0, limit: int = 100) -> list:
     """
@@ -483,53 +452,26 @@ def list_strings(offset: int = 0, count: int = 100) -> list:
     """
     return safe_get("strings", {"offset": offset, "limit": count}, timeout=None)
 
-
 @mcp.tool()
 def list_strings_filter(offset: int = 0, count: int = 100, filter: str = "") -> list:
     """
     List matching strings in the database (paginated, filtered).
     """
-    return safe_get(
-        "strings/filter",
-        {"offset": offset, "limit": count, "filter": filter},
-        timeout=None,
-    )
-
+    return safe_get("strings/filter", {"offset": offset, "limit": count, "filter": filter}, timeout=None)
 
 @mcp.tool()
 def list_local_types(offset: int = 0, count: int = 200, include_libraries: bool = False) -> list:
     """
     List all local types in the database (paginated).
     """
-    return safe_get(
-        "localTypes",
-        {
-            "offset": offset,
-            "limit": count,
-            "includeLibraries": int(bool(include_libraries)),
-        },
-        timeout=None,
-    )
-
+    return safe_get("localTypes", {"offset": offset, "limit": count, "includeLibraries": int(bool(include_libraries))}, timeout=None)
 
 @mcp.tool()
-def search_types(
-    query: str, offset: int = 0, count: int = 200, include_libraries: bool = False
-) -> list:
+def search_types(query: str, offset: int = 0, count: int = 200, include_libraries: bool = False) -> list:
     """
     Search local types whose name or declaration contains the substring.
     """
-    return safe_get(
-        "searchTypes",
-        {
-            "query": query,
-            "offset": offset,
-            "limit": count,
-            "includeLibraries": int(bool(include_libraries)),
-        },
-        timeout=None,
-    )
-
+    return safe_get("searchTypes", {"query": query, "offset": offset, "limit": count, "includeLibraries": int(bool(include_libraries))}, timeout=None)
 
 @mcp.tool()
 def list_all_strings(batch_size: int = 500) -> list:
@@ -555,7 +497,6 @@ def list_all_strings(batch_size: int = 500) -> list:
             break
         offset += batch_size
     return results
-
 
 @mcp.tool()
 def list_exports(offset: int = 0, limit: int = 100) -> list:
@@ -588,7 +529,9 @@ def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> l
     """
     if not query:
         return ["Error: query string is required"]
-    return safe_get("searchFunctions", {"query": query, "offset": offset, "limit": limit})
+    return safe_get(
+        "searchFunctions", {"query": query, "offset": offset, "limit": limit}
+    )
 
 
 @mcp.tool()
@@ -623,11 +566,8 @@ def list_binaries() -> list:
         selector_text = ", ".join(str(s) for s in selectors if s)
         mark = " *active*" if active else ""
         view_part = f" view={view_id}" if view_id else ""
-        out.append(
-            f"{vid}. {label}{view_part}{mark}\n    path: {full}\n    selectors: {selector_text}"
-        )
+        out.append(f"{vid}. {label}{view_part}{mark}\n    path: {full}\n    selectors: {selector_text}")
     return out
-
 
 @mcp.tool()
 def select_binary(view: str) -> str:
@@ -640,7 +580,6 @@ def select_binary(view: str) -> str:
         return "Error: no response"
     if isinstance(data, dict) and data.get("error"):
         import json as _json
-
         return _json.dumps(data, indent=2, ensure_ascii=False)
     sel = data.get("selected") if isinstance(data, dict) else None
     if sel:
@@ -653,9 +592,7 @@ def select_binary(view: str) -> str:
         display_name = basename or fn or "(unknown)"
         view_part = f" (view {view_id})" if view_id else ""
         path_part = f"\nFull path: {fn}" if fn else ""
-        return (
-            f"Selected {ordinal}: {display_name}{view_part}{path_part}\nSelectors: {selector_text}"
-        )
+        return f"Selected {ordinal}: {display_name}{view_part}{path_part}\nSelectors: {selector_text}"
     return str(data)
 
 
@@ -674,7 +611,6 @@ def delete_function_comment(function_name: str) -> str:
     """
     return safe_post("comment/function", {"name": function_name, "_method": "DELETE"})
 
-
 @mcp.tool()
 def function_at(address: str) -> str:
     """
@@ -682,15 +618,13 @@ def function_at(address: str) -> str:
     """
     return safe_get("functionAt", {"address": address})
 
-
 @mcp.tool()
 def get_user_defined_type(type_name: str) -> str:
     """
     Retrive definition of a user defined type (struct, enumeration, typedef, union)
     """
     return safe_get("getUserDefinedType", {"name": type_name})
-
-
+    
 @mcp.tool()
 def get_xrefs_to(address: str) -> list:
     """
@@ -699,7 +633,6 @@ def get_xrefs_to(address: str) -> list:
     """
     return safe_get("getXrefsTo", {"address": address})
 
-
 @mcp.tool()
 def get_xrefs_to_field(struct_name: str, field_name: str) -> list:
     """
@@ -707,14 +640,12 @@ def get_xrefs_to_field(struct_name: str, field_name: str) -> list:
     """
     return safe_get("getXrefsToField", {"struct": struct_name, "field": field_name})
 
-
 @mcp.tool()
 def get_xrefs_to_struct(struct_name: str) -> list:
     """
     Get cross references/usages related to a struct name.
     """
     return safe_get("getXrefsToStruct", {"name": struct_name})
-
 
 @mcp.tool()
 def get_xrefs_to_type(type_name: str) -> list:
@@ -724,14 +655,12 @@ def get_xrefs_to_type(type_name: str) -> list:
     """
     return safe_get("getXrefsToType", {"name": type_name})
 
-
 @mcp.tool()
 def get_xrefs_to_enum(enum_name: str) -> list:
     """
     Get usages/xrefs of an enum by scanning for member values and matches.
     """
     return safe_get("getXrefsToEnum", {"name": enum_name})
-
 
 @mcp.tool()
 def get_xrefs_to_union(union_name: str) -> list:
@@ -742,36 +671,12 @@ def get_xrefs_to_union(union_name: str) -> list:
 
 
 @mcp.tool()
-def get_stack_frame_vars(function_identifier: str) -> list:
-    """
-    Get stack frame variable information for a function by name or address.
-    Returns names, offsets, sizes, and types of local variables.
-    """
-    ident = (function_identifier or "").strip()
-    params = {}
-    # Choose param name based on identifier format
-    if ident.lower().startswith("0x") or ident.isdigit():
-        params["address"] = ident
-    else:
-        params["name"] = ident
-    data = get_json("getStackFrameVars", params)
-    if not data:
-        return []
-    if isinstance(data, dict) and data.get("error"):
-        return []
-    if isinstance(data, dict) and data.get("stack_frame_vars"):
-        return data["stack_frame_vars"]
-    return []
-
-
-@mcp.tool()
 def format_value(address: str, text: str, size: int = 0) -> list:
     """
     Convert and annotate a value at an address in Binary Ninja.
     Adds a comment with hex/dec and C literal/string so you can see the change.
     """
     return safe_get("formatValue", {"address": address, "text": text, "size": size}, timeout=None)
-
 
 @mcp.tool()
 def convert_number(text: str, size: int = 0) -> str:
@@ -786,9 +691,7 @@ def convert_number(text: str, size: int = 0) -> str:
     if isinstance(data, dict) and data.get("error"):
         return f"Error: {data['error']}"
     import json as _json
-
     return _json.dumps(data, indent=2, ensure_ascii=False)
-
 
 @mcp.tool()
 def get_type_info(type_name: str) -> str:
@@ -801,9 +704,7 @@ def get_type_info(type_name: str) -> str:
     if "error" in data:
         return f"Error: {data.get('error')}"
     import json as _json
-
     return _json.dumps(data, indent=2, ensure_ascii=False)
-
 
 @mcp.tool()
 def set_function_prototype(name_or_address: str, prototype: str) -> str:
@@ -827,7 +728,6 @@ def set_function_prototype(name_or_address: str, prototype: str) -> str:
         return f"Error: {data['error']}"
     return str(data)
 
-
 @mcp.tool()
 def make_function_at(address: str, platform: str = "") -> str:
     """
@@ -843,14 +743,12 @@ def make_function_at(address: str, platform: str = "") -> str:
         return "Error: no response"
     if isinstance(data, dict) and data.get("error"):
         import json as _json
-
         return _json.dumps(data, indent=2, ensure_ascii=False)
     if isinstance(data, dict) and data.get("status") == "exists":
         return f"Function already exists at {data.get('address')}: {data.get('name')}"
     if isinstance(data, dict) and data.get("status") == "ok":
         return f"Created function at {data.get('address')}: {data.get('name')}"
     return str(data)
-
 
 @mcp.tool()
 def list_platforms() -> str:
@@ -862,13 +760,11 @@ def list_platforms() -> str:
         return "Error: no response"
     if isinstance(data, dict) and data.get("error"):
         import json as _json
-
         return _json.dumps(data, indent=2, ensure_ascii=False)
     plats = data.get("platforms") if isinstance(data, dict) else None
     if not plats:
         return "(no platforms)"
     return "\n".join(plats)
-
 
 @mcp.tool()
 def declare_c_type(c_declaration: str) -> str:
@@ -885,7 +781,6 @@ def declare_c_type(c_declaration: str) -> str:
         return f"Error: {data['error']}"
     return str(data)
 
-
 @mcp.tool()
 def set_local_variable_type(function_address: str, variable_name: str, new_type: str) -> str:
     """
@@ -893,11 +788,7 @@ def set_local_variable_type(function_address: str, variable_name: str, new_type:
     """
     data = get_json(
         "setLocalVariableType",
-        {
-            "functionAddress": function_address,
-            "variableName": variable_name,
-            "newType": new_type,
-        },
+        {"functionAddress": function_address, "variableName": variable_name, "newType": new_type},
     )
     if not data:
         return "Error: no response"
@@ -907,7 +798,6 @@ def set_local_variable_type(function_address: str, variable_name: str, new_type:
         return f"Error: {data['error']}"
     return str(data)
 
-
 @mcp.tool()
 def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
     """
@@ -916,19 +806,19 @@ def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
     - data: Hex string of bytes to write (e.g., "90 90" or "9090" or "0x90 0x90")
     - save_to_file: If True (default), save patched binary to disk and re-sign on macOS.
                     If False, only modify in memory without affecting the original file.
-
+    
     Returns status with original and patched bytes.
     On macOS, automatically re-signs the binary after patching to avoid execution errors.
     """
     # Handle boolean type conversion (MCP may pass as string)
     if isinstance(save_to_file, str):
         save_to_file = save_to_file.lower() not in ("false", "0", "no")
-
+    
     params = {"address": address, "data": data, "save_to_file": save_to_file}
     result = get_json("patch", params)
     if not result:
         return "Error: no response"
-
+    
     status = result.get("status") if isinstance(result, dict) else None
     if status in ("ok", "partial"):
         orig = result.get("original_bytes", "")
@@ -941,7 +831,7 @@ def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
         save_error = result.get("save_error", "")
         codesign = result.get("codesign", {})
         warning = result.get("warning", "")
-
+        
         msg = f"Patched {written}/{requested} bytes at {addr}"
         if status == "partial":
             msg += " (PARTIAL WRITE)"
@@ -955,18 +845,627 @@ def patch_bytes(address: str, data: str, save_to_file: bool = True) -> str:
             msg += f"\nSaved to file: {saved_path}"
         elif save_error:
             msg += f"\nWarning: File not saved - {save_error}"
-
+        
         # Show codesign status for macOS
         if codesign:
             if codesign.get("success"):
                 msg += f"\nCode signing: {codesign.get('message', 'Re-signed successfully')}"
             elif codesign.get("attempted"):
                 msg += f"\nCode signing: Failed - {codesign.get('error', 'Unknown error')}"
-
+        
         return msg
     if isinstance(result, dict) and "error" in result:
         return f"Error: {result['error']}"
     return str(result)
+    
+# ==================== NEW WINDOWS RE TOOLS ====================
+
+@mcp.tool()
+def get_function_callers(name: str) -> str:
+    """
+    Get all functions that call a specific function (callers/incoming references).
+    Useful for understanding how a function is used throughout the binary.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("functionCallers", {"name": name}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    callers = data.get("callers", [])
+    if not callers:
+        return file_line + f"No callers found for function '{name}'"
+    lines = [f"Callers of {name} ({len(callers)} found):"]
+    for c in callers:
+        lines.append(f"  {c.get('address', '?')}  {c.get('caller_name', '?')}  call_site: {c.get('call_site', '?')}")
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_function_callees(name: str) -> str:
+    """
+    Get all functions called by a specific function (callees/outgoing references).
+    Useful for understanding what a function does and its dependencies.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("functionCallees", {"name": name}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    callees = data.get("callees", [])
+    if not callees:
+        return file_line + f"No callees found for function '{name}'"
+    lines = [f"Callees of {name} ({len(callees)} found):"]
+    for c in callees:
+        lines.append(f"  {c.get('call_site', '?')}  -> {c.get('callee_name', '?')} ({c.get('callee_address', '?')})")
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_function_vars(name: str) -> str:
+    """
+    Get all local variables and parameters of a function with their types.
+    Essential for understanding function internals and data flow.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("functionVars", {"name": name}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = [f"Variables in {data.get('function', name)}:"]
+    
+    params = data.get("parameters", [])
+    if params:
+        lines.append("\nParameters:")
+        for p in params:
+            lines.append(f"  {p.get('type', '?'):20} {p.get('name', '?')}")
+    
+    locals_ = data.get("locals", [])
+    if locals_:
+        lines.append("\nLocal Variables:")
+        for v in locals_:
+            storage = v.get('storage', '')
+            lines.append(f"  {v.get('type', '?'):20} {v.get('name', '?'):15} {storage}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_basic_blocks(name: str) -> str:
+    """
+    Get basic block information for a function including addresses and edges.
+    Useful for understanding control flow and identifying loops/branches.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("basicBlocks", {"name": name}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    blocks = data.get("blocks", [])
+    if not blocks:
+        return file_line + f"No basic blocks found for function '{name}'"
+    
+    lines = [f"Basic blocks in {data.get('function', name)} ({len(blocks)} blocks):"]
+    for b in blocks:
+        edges = b.get('outgoing_edges', [])
+        edge_str = ", ".join([f"{e.get('type', '?')}->{e.get('target', '?')}" for e in edges]) if edges else "(no outgoing)"
+        lines.append(f"  {b.get('start', '?')}-{b.get('end', '?')}  edges: {edge_str}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_stack_layout(name: str) -> str:
+    """
+    Get the stack frame layout for a function showing all stack variables and their offsets.
+    Critical for understanding local variable organization and potential buffer overflows.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("stackLayout", {"name": name}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = [f"Stack layout for {data.get('function', name)}:"]
+    lines.append(f"  Frame size: {data.get('frame_size', 'unknown')} bytes")
+    
+    vars_ = data.get("stack_vars", [])
+    if vars_:
+        lines.append("\n  Offset    Size  Type                 Name")
+        lines.append("  " + "-" * 55)
+        for v in vars_:
+            off = v.get('offset', 0)
+            off_str = f"{off:+d}" if isinstance(off, int) else str(off)
+            lines.append(f"  {off_str:8}  {v.get('size', '?'):4}  {v.get('type', '?'):20} {v.get('name', '?')}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def find_strings_containing(pattern: str, offset: int = 0, limit: int = 100) -> str:
+    """
+    Search for strings containing a pattern (case-insensitive substring match).
+    Useful for finding interesting strings like URLs, registry keys, API names, error messages.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("strings/filter", {"filter": pattern, "offset": offset, "limit": limit}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    strings = data.get("strings", [])
+    total = data.get("total", len(strings))
+    
+    if not strings:
+        return file_line + f"No strings found matching '{pattern}'"
+    
+    lines = [f"Strings matching '{pattern}' ({len(strings)} shown, {total} total):"]
+    for s in strings:
+        lines.append(f"  {s.get('address', '?'):12} {s.get('value', '')}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_binary_info() -> str:
+    """
+    Get comprehensive information about the loaded binary including architecture,
+    platform, entry point, sections, and PE-specific metadata.
+    Essential first step when analyzing any binary.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("binaryInfo", timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = ["Binary Information:"]
+    for key in ["filename", "architecture", "platform", "address_size", "endianness", 
+                "entry_point", "image_base", "is_executable", "is_relocatable"]:
+        if key in data:
+            lines.append(f"  {key}: {data[key]}")
+    
+    sections = data.get("sections", [])
+    if sections:
+        lines.append("\nSections:")
+        for s in sections:
+            lines.append(f"  {s.get('name', '?'):15} {s.get('start', '?')}-{s.get('end', '?')}  size: {s.get('size', '?')}")
+    
+    pe_info = data.get("pe_info", {})
+    if pe_info:
+        lines.append("\nPE Information:")
+        for k, v in pe_info.items():
+            lines.append(f"  {k}: {v}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def find_functions_by_pattern(pattern: str, offset: int = 0, limit: int = 100) -> str:
+    """
+    Search for functions matching a regex pattern in their name.
+    Useful for finding related functions (e.g., all 'Crypt*' or '*Handler*' functions).
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("searchFunctionsRegex", {"pattern": pattern, "offset": offset, "limit": limit}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    matches = data.get("matches", [])
+    if not matches:
+        return file_line + f"No functions found matching pattern '{pattern}'"
+    
+    lines = [f"Functions matching '{pattern}' ({len(matches)} found):"]
+    for m in matches:
+        lines.append(f"  {m.get('address', '?'):12} {m.get('name', '?')}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_import_by_name(name: str) -> str:
+    """
+    Get detailed information about a specific imported function including
+    all cross-references to it. Essential for tracking Windows API usage.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("importByName", {"name": name}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = [f"Import: {data.get('name', name)}"]
+    lines.append(f"  Address: {data.get('address', '?')}")
+    lines.append(f"  Module: {data.get('module', '?')}")
+    
+    xrefs = data.get("xrefs", [])
+    if xrefs:
+        lines.append(f"\nCross-references ({len(xrefs)}):")
+        for x in xrefs:
+            lines.append(f"  {x.get('address', '?'):12} in {x.get('function', '?')}")
+    else:
+        lines.append("\nNo cross-references found")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_constants_in_function(name: str) -> str:
+    """
+    Get all constant values used in a function (immediate values, addresses, etc.).
+    Useful for identifying magic numbers, flags, sizes, and hardcoded values.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("functionConstants", {"name": name}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    constants = data.get("constants", [])
+    if not constants:
+        return file_line + f"No constants found in function '{name}'"
+    
+    lines = [f"Constants in {data.get('function', name)} ({len(constants)} found):"]
+    for c in constants:
+        val = c.get('value', 0)
+        # Show both hex and decimal for clarity
+        if isinstance(val, int):
+            val_str = f"{val:#x} ({val})"
+        else:
+            val_str = str(val)
+        lines.append(f"  {c.get('address', '?'):12} {val_str:24} {c.get('context', '')}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_high_level_overview(name: str) -> str:
+    """
+    Get a high-level summary of a function including calls made, strings used,
+    and key characteristics. Great for quickly understanding what a function does.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("functionOverview", {"name": name}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = [f"Overview of {data.get('name', name)}:"]
+    lines.append(f"  Address: {data.get('address', '?')}")
+    lines.append(f"  Size: {data.get('size', '?')} bytes")
+    lines.append(f"  Basic blocks: {data.get('block_count', '?')}")
+    lines.append(f"  Cyclomatic complexity: {data.get('complexity', '?')}")
+    
+    # Calls
+    calls = data.get("calls", [])
+    if calls:
+        lines.append(f"\nFunctions called ({len(calls)}):")
+        for c in calls[:20]:  # Limit display
+            lines.append(f"    {c}")
+        if len(calls) > 20:
+            lines.append(f"    ... and {len(calls) - 20} more")
+    
+    # Strings used
+    strings = data.get("strings_used", [])
+    if strings:
+        lines.append(f"\nStrings used ({len(strings)}):")
+        for s in strings[:10]:  # Limit display
+            lines.append(f"    \"{s[:60]}{'...' if len(s) > 60 else ''}\"")
+        if len(strings) > 10:
+            lines.append(f"    ... and {len(strings) - 10} more")
+    
+    # API calls (imports)
+    apis = data.get("api_calls", [])
+    if apis:
+        lines.append(f"\nAPI/Import calls ({len(apis)}):")
+        for a in apis:
+            lines.append(f"    {a}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_possible_values(function_name: str, address: str, variable: str) -> str:
+    """
+    Get possible values for a variable at a specific address using dataflow analysis.
+    Useful for understanding what values a variable can hold at a point in code.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("possibleValues", {
+        "function": function_name,
+        "address": address,
+        "variable": variable
+    }, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = [f"Possible values for '{variable}' at {address} in {function_name}:"]
+    
+    value_type = data.get("value_type", "unknown")
+    lines.append(f"  Type: {value_type}")
+    
+    if "value" in data:
+        lines.append(f"  Value: {data['value']}")
+    if "range" in data:
+        r = data["range"]
+        lines.append(f"  Range: [{r.get('min', '?')}, {r.get('max', '?')}]")
+    if "possible_values" in data:
+        pv = data["possible_values"]
+        lines.append(f"  Possible values: {pv}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def analyze_switch_statement(function_name: str, address: str) -> str:
+    """
+    Analyze a switch/jump table at a specific address.
+    Useful for understanding complex control flow with multiple cases.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("analyzeSwitch", {
+        "function": function_name,
+        "address": address
+    }, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = [f"Switch analysis at {address}:"]
+    
+    cases = data.get("cases", [])
+    if cases:
+        lines.append(f"\nCases ({len(cases)}):")
+        for c in cases:
+            lines.append(f"  case {c.get('value', '?')}: -> {c.get('target', '?')}")
+    
+    default = data.get("default")
+    if default:
+        lines.append(f"  default: -> {default}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def trace_data_flow(function_name: str, from_address: str, variable: str) -> str:
+    """
+    Trace the data flow of a variable from a specific point.
+    Shows where the value comes from and where it flows to.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("traceDataFlow", {
+        "function": function_name,
+        "address": from_address,
+        "variable": variable
+    }, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = [f"Data flow trace for '{variable}' from {from_address}:"]
+    
+    definitions = data.get("definitions", [])
+    if definitions:
+        lines.append("\nDefined at:")
+        for d in definitions:
+            lines.append(f"  {d.get('address', '?')}: {d.get('instruction', '?')}")
+    
+    uses = data.get("uses", [])
+    if uses:
+        lines.append("\nUsed at:")
+        for u in uses:
+            lines.append(f"  {u.get('address', '?')}: {u.get('instruction', '?')}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def find_interesting_functions() -> str:
+    """
+    Find potentially interesting functions based on heuristics:
+    - Functions with 'crypt', 'password', 'key', 'auth', 'license' in name
+    - Functions that call crypto APIs
+    - Functions with high complexity
+    - Entry points and exports
+    Great starting point for security analysis.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("interestingFunctions", timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = ["Interesting Functions Found:"]
+    
+    categories = [
+        ("crypto_related", "Crypto-related functions"),
+        ("auth_related", "Authentication-related"),
+        ("network_related", "Network-related"),
+        ("file_related", "File operations"),
+        ("registry_related", "Registry operations"),
+        ("high_complexity", "High complexity functions"),
+        ("exports", "Exported functions"),
+    ]
+    
+    for key, label in categories:
+        funcs = data.get(key, [])
+        if funcs:
+            lines.append(f"\n{label} ({len(funcs)}):")
+            for f in funcs[:15]:
+                if isinstance(f, dict):
+                    lines.append(f"  {f.get('address', '?'):12} {f.get('name', '?')}")
+                else:
+                    lines.append(f"  {f}")
+            if len(funcs) > 15:
+                lines.append(f"  ... and {len(funcs) - 15} more")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def get_call_graph(name: str, depth: int = 2, direction: str = "both") -> str:
+    """
+    Get the call graph centered on a function.
+    - depth: How many levels of calls to include (default 2)
+    - direction: 'callers', 'callees', or 'both'
+    Useful for understanding function relationships.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("callGraph", {
+        "name": name,
+        "depth": depth,
+        "direction": direction
+    }, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = [f"Call graph for {name} (depth={depth}, direction={direction}):"]
+    
+    def format_tree(node, indent=0):
+        result = []
+        prefix = "  " * indent + ("└─ " if indent > 0 else "")
+        result.append(f"{prefix}{node.get('name', '?')} ({node.get('address', '?')})")
+        for child in node.get("children", []):
+            result.extend(format_tree(child, indent + 1))
+        return result
+    
+    if "callers" in data and data["callers"]:
+        lines.append("\nCallers (who calls this):")
+        for c in data["callers"]:
+            lines.extend(format_tree(c, 1))
+    
+    if "center" in data:
+        lines.append(f"\n→ {data['center'].get('name', name)} ←")
+    
+    if "callees" in data and data["callees"]:
+        lines.append("\nCallees (what this calls):")
+        for c in data["callees"]:
+            lines.extend(format_tree(c, 1))
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def tag_function(name: str, tag_type: str, comment: str = "") -> str:
+    """
+    Add a tag/bookmark to a function for later reference.
+    tag_type examples: 'interesting', 'vulnerable', 'needs-review', 'crypto', 'auth'
+    """
+    data = get_json("tagFunction", {
+        "name": name,
+        "tag_type": tag_type,
+        "comment": comment
+    })
+    if not data:
+        return "Error: no response"
+    if "error" in data:
+        return f"Error: {data.get('error')}"
+    return f"Tagged function '{name}' with '{tag_type}'"
+
+
+@mcp.tool()
+def list_tags(tag_type: str = "") -> str:
+    """
+    List all tagged functions, optionally filtered by tag type.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    params = {"tag_type": tag_type} if tag_type else {}
+    data = get_json("listTags", params)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    tags = data.get("tags", [])
+    if not tags:
+        return file_line + "No tags found"
+    
+    lines = ["Tagged items:"]
+    for t in tags:
+        lines.append(f"  [{t.get('tag_type', '?')}] {t.get('address', '?')} {t.get('name', '?')}")
+        if t.get('comment'):
+            lines.append(f"      Comment: {t.get('comment')}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def compare_functions(func1: str, func2: str) -> str:
+    """
+    Compare two functions and show similarities/differences.
+    Useful for identifying code reuse, variations, or copied code.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("compareFunctions", {"func1": func1, "func2": func2}, timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    lines = [f"Comparison: {func1} vs {func2}"]
+    lines.append(f"\nSimilarity: {data.get('similarity', '?')}%")
+    
+    lines.append(f"\n{'Metric':<25} {func1:<20} {func2:<20}")
+    lines.append("-" * 65)
+    
+    for metric in ["size", "block_count", "instruction_count", "callee_count", "complexity"]:
+        v1 = data.get(f"{metric}_1", "?")
+        v2 = data.get(f"{metric}_2", "?")
+        lines.append(f"{metric:<25} {str(v1):<20} {str(v2):<20}")
+    
+    common_calls = data.get("common_calls", [])
+    if common_calls:
+        lines.append(f"\nCommon function calls ({len(common_calls)}):")
+        for c in common_calls[:10]:
+            lines.append(f"  {c}")
+    
+    return file_line + "\n".join(lines)
+
+
+@mcp.tool()
+def find_crypto_constants() -> str:
+    """
+    Search for known cryptographic constants in the binary.
+    Identifies potential use of AES, DES, MD5, SHA, RSA, and other crypto algorithms.
+    """
+    file_line = f"File: {_active_filename()}\n\n"
+    data = get_json("findCryptoConstants", timeout=None)
+    if not data:
+        return file_line + "Error: no response"
+    if "error" in data:
+        return file_line + f"Error: {data.get('error')}"
+    
+    findings = data.get("findings", [])
+    if not findings:
+        return file_line + "No known cryptographic constants found"
+    
+    lines = [f"Cryptographic constants found ({len(findings)}):"]
+    for f in findings:
+        lines.append(f"  {f.get('address', '?'):12} {f.get('algorithm', '?'):15} {f.get('description', '')}")
+        if f.get('function'):
+            lines.append(f"      In function: {f.get('function')}")
+    
+    return file_line + "\n".join(lines)
 
 
 if __name__ == "__main__":

@@ -115,7 +115,7 @@ Your task is to analyze an unknown file which is currently open in Binary Ninja.
 - Add a comment to each function with a brief summary of what it does
 - Rename variables and function parameters to more sensible names
 - Change the variable and argument types if necessary (especially pointer and array types)
-- Change function names to be more descriptive, using mcp_ as prefix.
+- Change function names to be more descriptive, using vibe_ as prefix.
 - NEVER convert number bases yourself. Use the convert_number MCP tool if needed!
 - When you finish your analysis, report how long the analysis took
 - At the end, create a report with your findings.
@@ -151,7 +151,6 @@ The following table lists the available MCP functions for use:
 | `get_xrefs_to_struct(struct_name)`                                   | Get xrefs/usages related to a struct (members, globals, code refs).                                          |
 | `get_xrefs_to_type(type_name)`                                       | Get xrefs/usages related to a struct/type (globals, refs, HLIL matches).                                     |
 | `get_xrefs_to_union(union_name)`                                     | Get xrefs/usages related to a union (members, globals, code refs).                                           |
-| `get_stack_frame_vars(function_identifier)`                          | Get stack frame variable information for a function (names, offsets, sizes, types).                           |
 | `get_type_info(type_name)`                                           | Resolve a type and return declaration, kind, and members.                                                    |
 | `make_function_at(address, platform)`                                | Create a function at an address. `platform` optional; use `default` to pick the BinaryView/platform default. |
 | `list_platforms()`                                                   | List all available platform names.                                                                           |
@@ -199,7 +198,6 @@ These are the list of HTTP endpoints that can be called:
 - `/getXrefsToType?name=<type>`: Xrefs/usages related to a struct/type name.
 - `/getTypeInfo?name=<type>`: Resolve a type and return declaration and details.
 - `/getXrefsToUnion?name=<union>`: Union xrefs/usages (members, globals, refs).
-- `/getStackFrameVars?name=<function>|address=<addr>`: Get stack frame variable information for a function.
 - `/localTypes?offset=<n>&limit=<m>`: List local types.
 - `/strings?offset=<n>&limit=<m>`: Paginated strings.
 - `/strings/filter?offset=<n>&limit=<m>&filter=<substr>`: Filtered strings.
@@ -212,43 +210,6 @@ These are the list of HTTP endpoints that can be called:
     - `mapping`: JSON object of `old->new`
     - `pairs`: compact string `old1:new1,old2:new2`
           Returns per-item results plus totals. Order is respected; later pairs can refer to earlier new names.
-
-## Development
-
-### Code Quality
-
-This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting. Configuration is in `ruff.toml`.
-
-#### Running Ruff Manually
-
-Check for issues:
-```bash
-ruff check .
-```
-
-Auto-fix issues:
-```bash
-ruff check --fix .
-```
-
-Check formatting issues:
-```bash
-ruff format --check .
-```
-
-Format code:
-```bash
-ruff format .
-```
-
-#### GitHub Actions
-
-A GitHub Action workflow (`.github/workflows/lint-format.yml`) automatically runs Ruff on:
-
-- Every push to the `main` branch
-- Every pull request targeting the `main` branch
-
-The workflow will fail if there are linting errors or formatting issues, ensuring code quality in CI.
 
 ## Contributing
 
