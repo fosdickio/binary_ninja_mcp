@@ -594,15 +594,25 @@ def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> l
 @mcp.tool()
 def get_binary_status() -> str:
     """
-    Get the current status of the loaded binary.
+    Get the current status of the loaded binary, including the original binary name.
     """
-    return safe_get("status")[0]
+    data = get_json("status")
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and data.get("error"):
+        return data.get("error")
+    loaded = data.get("loaded", False)
+    if not loaded:
+        return "No binary loaded"
+    binary_name = data.get("binary_name") or "(unknown)"
+    filename = data.get("filename") or "(unknown)"
+    return f"Binary: {binary_name}\nPath: {filename}"
 
 
 @mcp.tool()
 def list_binaries() -> list:
     """
-    List managed/open binaries known to the server with ids and active flag.
+    List managed/open binaries known to the server with ids, binary names, and active flag.
     """
     data = get_json("binaries")
     if not data:
@@ -616,9 +626,11 @@ def list_binaries() -> list:
         view_id = it.get("view_id")
         fn = it.get("filename")
         basename = it.get("basename") or ""
+        binary_name = it.get("binary_name") or ""
         selectors = it.get("selectors") or []
         active = it.get("active")
-        label = basename or fn or "(unknown)"
+        # Use binary_name as primary label, fallback to basename or filename
+        label = binary_name or basename or fn or "(unknown)"
         full = fn or "(no filename)"
         selector_text = ", ".join(str(s) for s in selectors if s)
         mark = " *active*" if active else ""

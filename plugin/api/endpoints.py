@@ -12,11 +12,12 @@ class BinaryNinjaEndpoints:
 
     def get_status(self) -> dict[str, Any]:
         """Get the current status of the binary view"""
+        bv = self.binary_ops.current_view
+        binary_name = self.binary_ops._get_binary_name(bv) if bv else None
         return {
-            "loaded": self.binary_ops.current_view is not None,
-            "filename": self.binary_ops.current_view.file.filename
-            if self.binary_ops.current_view
-            else None,
+            "loaded": bv is not None,
+            "filename": bv.file.filename if bv else None,
+            "binary_name": binary_name,
         }
 
     def get_entry_points(self) -> list[dict[str, Any]]:
@@ -31,11 +32,13 @@ class BinaryNinjaEndpoints:
             filename = item.get("filename")
             view_id = str(item.get("id") or "")
             basename = os.path.basename(filename) if filename else None
+            binary_name = item.get("binary_name")
             entry: dict[str, Any] = {
                 "id": str(ordinal),
                 "view_id": view_id,
                 "filename": filename,
                 "basename": basename,
+                "binary_name": binary_name,
                 "active": bool(item.get("active")),
             }
             selectors: list[str] = []
@@ -44,6 +47,7 @@ class BinaryNinjaEndpoints:
                 view_id,
                 filename,
                 basename,
+                binary_name,
             ):
                 if candidate and candidate not in selectors:
                     selectors.append(candidate)
