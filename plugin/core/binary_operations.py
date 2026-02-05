@@ -126,8 +126,11 @@ class BinaryOperations:
                 if name and name.endswith(".bndb"):
                     return name[:-5]  # Strip .bndb
                 return name
-            # Fallback to basename of filename
-            return os.path.basename(bv.file.filename)
+            # Fallback to basename of filename, handling missing filename safely
+            filename = getattr(bv.file, "filename", None)
+            if not filename:
+                return None
+            return os.path.basename(filename)
         return None
 
     def _register_view(self, bv: bn.BinaryView) -> str:
