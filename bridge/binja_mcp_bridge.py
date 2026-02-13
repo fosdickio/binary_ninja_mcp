@@ -135,7 +135,7 @@ def safe_post(endpoint: str, data: dict | str) -> str:
 
 
 @mcp.tool()
-def list_methods(offset: int = 0, limit: int = 100) -> list:
+def list_methods(offset: int = 0, limit: int = 100) -> list[str]:
     """
     List all function names in the program with pagination.
     """
@@ -145,7 +145,7 @@ def list_methods(offset: int = 0, limit: int = 100) -> list:
 
 
 @mcp.tool()
-def get_entry_points() -> list:
+def get_entry_points() -> list[str]:
     """
     List entry point(s) of the loaded binary.
     """
@@ -176,7 +176,7 @@ def retype_variable(function_name: str, variable_name: str, type_str: str) -> st
     if not data:
         return "Error: no response"
     if isinstance(data, dict) and "status" in data:
-        return data["status"]
+        return str(data["status"])
     if isinstance(data, dict) and "error" in data:
         return f"Error: {data['error']}"
     return str(data)
@@ -198,7 +198,7 @@ def rename_single_variable(function_name: str, variable_name: str, new_name: str
     if not data:
         return "Error: no response"
     if isinstance(data, dict) and "status" in data:
-        return data["status"]
+        return str(data["status"])
     if isinstance(data, dict) and "error" in data:
         return f"Error: {data['error']}"
     return str(data)
@@ -274,7 +274,7 @@ def define_types(c_code: str) -> str:
 
 
 @mcp.tool()
-def list_classes(offset: int = 0, limit: int = 100) -> list:
+def list_classes(offset: int = 0, limit: int = 100) -> list[str]:
     """
     List all namespace/class names in the program with pagination.
     """
@@ -433,7 +433,7 @@ def get_function_comment(function_name: str) -> str:
 
 
 @mcp.tool()
-def list_segments(offset: int = 0, limit: int = 100) -> list:
+def list_segments(offset: int = 0, limit: int = 100) -> list[str]:
     """
     List all memory segments in the program with pagination.
     """
@@ -441,7 +441,7 @@ def list_segments(offset: int = 0, limit: int = 100) -> list:
 
 
 @mcp.tool()
-def list_sections(offset: int = 0, limit: int = 100) -> list:
+def list_sections(offset: int = 0, limit: int = 100) -> list[str]:
     """
     List sections in the program with pagination.
 
@@ -469,7 +469,7 @@ def list_sections(offset: int = 0, limit: int = 100) -> list:
 
 
 @mcp.tool()
-def list_imports(offset: int = 0, limit: int = 100) -> list:
+def list_imports(offset: int = 0, limit: int = 100) -> list[str]:
     """
     List imported symbols in the program with pagination.
     """
@@ -477,7 +477,7 @@ def list_imports(offset: int = 0, limit: int = 100) -> list:
 
 
 @mcp.tool()
-def list_strings(offset: int = 0, count: int = 100) -> list:
+def list_strings(offset: int = 0, count: int = 100) -> list[str]:
     """
     List all strings in the database (paginated).
     """
@@ -485,7 +485,7 @@ def list_strings(offset: int = 0, count: int = 100) -> list:
 
 
 @mcp.tool()
-def list_strings_filter(offset: int = 0, count: int = 100, filter: str = "") -> list:
+def list_strings_filter(offset: int = 0, count: int = 100, filter: str = "") -> list[str]:
     """
     List matching strings in the database (paginated, filtered).
     """
@@ -497,7 +497,7 @@ def list_strings_filter(offset: int = 0, count: int = 100, filter: str = "") -> 
 
 
 @mcp.tool()
-def list_local_types(offset: int = 0, count: int = 200, include_libraries: bool = False) -> list:
+def list_local_types(offset: int = 0, count: int = 200, include_libraries: bool = False) -> list[str]:
     """
     List all local types in the database (paginated).
     """
@@ -515,7 +515,7 @@ def list_local_types(offset: int = 0, count: int = 200, include_libraries: bool 
 @mcp.tool()
 def search_types(
     query: str, offset: int = 0, count: int = 200, include_libraries: bool = False
-) -> list:
+) -> list[str]:
     """
     Search local types whose name or declaration contains the substring.
     """
@@ -532,7 +532,7 @@ def search_types(
 
 
 @mcp.tool()
-def list_all_strings(batch_size: int = 500) -> list:
+def list_all_strings(batch_size: int = 500) -> list[str]:
     """
     List all strings in the database (aggregated across pages).
     """
@@ -558,7 +558,7 @@ def list_all_strings(batch_size: int = 500) -> list:
 
 
 @mcp.tool()
-def list_exports(offset: int = 0, limit: int = 100) -> list:
+def list_exports(offset: int = 0, limit: int = 100) -> list[str]:
     """
     List exported functions/symbols with pagination.
     """
@@ -566,7 +566,7 @@ def list_exports(offset: int = 0, limit: int = 100) -> list:
 
 
 @mcp.tool()
-def list_namespaces(offset: int = 0, limit: int = 100) -> list:
+def list_namespaces(offset: int = 0, limit: int = 100) -> list[str]:
     """
     List all non-global namespaces in the program with pagination.
     """
@@ -574,7 +574,7 @@ def list_namespaces(offset: int = 0, limit: int = 100) -> list:
 
 
 @mcp.tool()
-def list_data_items(offset: int = 0, limit: int = 100) -> list:
+def list_data_items(offset: int = 0, limit: int = 100) -> list[str]:
     """
     List defined data labels and their values with pagination.
     """
@@ -582,7 +582,7 @@ def list_data_items(offset: int = 0, limit: int = 100) -> list:
 
 
 @mcp.tool()
-def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> list:
+def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> list[str]:
     """
     Search for functions whose name contains the given substring.
     """
@@ -600,7 +600,7 @@ def get_binary_status() -> str:
 
 
 @mcp.tool()
-def list_binaries() -> list:
+def list_binaries() -> list[str]:
     """
     List managed/open binaries known to the server with ids and active flag.
     """
@@ -608,7 +608,7 @@ def list_binaries() -> list:
     if not data:
         return ["Error: no response"]
     if isinstance(data, dict) and data.get("error"):
-        return [data.get("error")]
+        return [str(data["error"])]
     items = data.get("binaries", [])
     out = []
     for it in items:
@@ -676,7 +676,7 @@ def delete_function_comment(function_name: str) -> str:
 
 
 @mcp.tool()
-def function_at(address: str) -> str:
+def function_at(address: str) -> list[str]:
     """
     Retrive the name of the function the address belongs to. Address must be in hexadecimal format 0x00001
     """
@@ -684,7 +684,7 @@ def function_at(address: str) -> str:
 
 
 @mcp.tool()
-def get_user_defined_type(type_name: str) -> str:
+def get_user_defined_type(type_name: str) -> list[str]:
     """
     Retrive definition of a user defined type (struct, enumeration, typedef, union)
     """
@@ -692,7 +692,7 @@ def get_user_defined_type(type_name: str) -> str:
 
 
 @mcp.tool()
-def get_xrefs_to(address: str) -> list:
+def get_xrefs_to(address: str) -> list[str]:
     """
     Get all cross references (code and data) to the given address.
     Address can be hex (e.g., 0x401000) or decimal.
@@ -701,7 +701,7 @@ def get_xrefs_to(address: str) -> list:
 
 
 @mcp.tool()
-def get_xrefs_to_field(struct_name: str, field_name: str) -> list:
+def get_xrefs_to_field(struct_name: str, field_name: str) -> list[str]:
     """
     Get all cross references to a named struct field (member).
     """
@@ -709,7 +709,7 @@ def get_xrefs_to_field(struct_name: str, field_name: str) -> list:
 
 
 @mcp.tool()
-def get_xrefs_to_struct(struct_name: str) -> list:
+def get_xrefs_to_struct(struct_name: str) -> list[str]:
     """
     Get cross references/usages related to a struct name.
     """
@@ -717,7 +717,7 @@ def get_xrefs_to_struct(struct_name: str) -> list:
 
 
 @mcp.tool()
-def get_xrefs_to_type(type_name: str) -> list:
+def get_xrefs_to_type(type_name: str) -> list[str]:
     """
     Get xrefs/usages related to a struct or type name.
     Includes global instances, code refs to those, HLIL matches, and functions whose signature mentions the type.
@@ -726,7 +726,7 @@ def get_xrefs_to_type(type_name: str) -> list:
 
 
 @mcp.tool()
-def get_xrefs_to_enum(enum_name: str) -> list:
+def get_xrefs_to_enum(enum_name: str) -> list[str]:
     """
     Get usages/xrefs of an enum by scanning for member values and matches.
     """
@@ -734,7 +734,7 @@ def get_xrefs_to_enum(enum_name: str) -> list:
 
 
 @mcp.tool()
-def get_xrefs_to_union(union_name: str) -> list:
+def get_xrefs_to_union(union_name: str) -> list[str]:
     """
     Get cross references/usages related to a union type by name.
     """
@@ -765,7 +765,7 @@ def get_stack_frame_vars(function_identifier: str) -> list:
 
 
 @mcp.tool()
-def format_value(address: str, text: str, size: int = 0) -> list:
+def format_value(address: str, text: str, size: int = 0) -> list[str]:
     """
     Convert and annotate a value at an address in Binary Ninja.
     Adds a comment with hex/dec and C literal/string so you can see the change.
