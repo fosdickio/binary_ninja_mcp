@@ -571,6 +571,10 @@ try:
     import binaryninjaui as ui
 
     class _MCPMaxUINotification(ui.UIContextNotification):
+        def __init__(self):
+            super().__init__()
+            ui.UIContext.registerNotification(self)
+        
         def _get_active_bv(self):
             try:
                 ctx = ui.UIContext.activeContext()
@@ -649,7 +653,7 @@ try:
             except Exception:
                 pass
 
-    ui.UIContext.registerNotification(_MCPMaxUINotification())
+    notification = _MCPMaxUINotification()
     bn.log_info("MCP Max UI notifications installed")
     # Ensure status control is present at startup with retries
     _schedule_status_init()
