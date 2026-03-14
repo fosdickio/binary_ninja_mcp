@@ -2125,8 +2125,27 @@ class BinaryOperations:
             raise RuntimeError("No binary loaded")
 
         try:
-            functions = list(self.current_view.get_functions_containing(address))
-            return [func.name for func in functions]
+            bv = self.current_view
+            # get_function_at is non-blocking — check exact start address first
+            func = bv.get_function_at(address)
+            if func is not None:
+                return [func.name]
+            # If analysis is idle, safe to use the blocking call
+            if bv.analysis_progress.state == bn.AnalysisState.IdleState:
+                functions = list(bv.get_functions_containing(address))
+                if functions:
+                    return [f.name for f in functions]
+            else:
+                # Analysis still running — scan existing functions without blocking
+                for func in bv.functions:
+                    if func.start <= address < (func.start + func.total_bytes):
+                        return [func.name]
+            # No function found — define one so analysis picks it up
+            bv.create_user_function(address)
+            func = bv.get_function_at(address)
+            if func is not None:
+                return [func.name]
+            return []
         except Exception as e:
             bn.log_error(f"Error getting functions containing address {hex(address)}: {e}")
             return []

@@ -329,6 +329,12 @@ def get_data_decl(name_or_address: str, length: int = -1) -> str:
 def decompile_function(name: str) -> str:
     """
     Decompile a specific function by name and return the decompiled C code.
+
+    WARNING: This blocks until the function's analysis is complete. For large
+    functions or if analysis is still running, this can hang for a long time.
+    Before calling this on an address/function that may not be analyzed yet,
+    call make_function_at to ensure the function is defined, and check
+    get_binary_status to see if analysis is complete.
     """
     file_line = f"File: {_active_filename()}\n\n"
     data = get_json("decompile", {"name": name}, timeout=None)
@@ -347,6 +353,11 @@ def get_il(name_or_address: str, view: str = "hlil", ssa: bool = False) -> str:
     Get IL for a function in the selected view.
     - view: one of hlil, mlil, llil
     - ssa: set True to request SSA form (MLIL/LLIL only)
+
+    WARNING: This blocks until the function's analysis is complete. If the
+    function at the given address has not been defined or analysis is still
+    running, this can hang. Call make_function_at first to ensure the function
+    exists, and check get_binary_status for analysis_complete status.
     """
     file_line = f"File: {_active_filename()}\n\n"
     ident = (name_or_address or "").strip()
@@ -595,6 +606,11 @@ def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> l
 def get_binary_status() -> str:
     """
     Get the current status of the loaded binary.
+
+    Returns analysis_state and analysis_complete fields. Check analysis_complete
+    before calling blocking tools (decompile_function, get_il, function_at) on
+    addresses that may not have been analyzed yet. If analysis is still running,
+    use make_function_at first to define functions before decompiling them.
     """
     return safe_get("status")[0]
 
@@ -679,6 +695,10 @@ def delete_function_comment(function_name: str) -> str:
 def function_at(address: str) -> list[str]:
     """
     Retrive the name of the function the address belongs to. Address must be in hexadecimal format 0x00001
+
+    WARNING: This can hang if analysis is still running and the address is in an
+    unanalyzed region. If analysis is not complete (check get_binary_status),
+    call make_function_at first to define the function, which is non-blocking.
     """
     return safe_get("functionAt", {"address": address})
 
@@ -834,6 +854,14 @@ def make_function_at(address: str, platform: str = "") -> str:
     Create a function at the given address. Platform is optional (e.g., "linux-x86_64").
     Use "default" to explicitly select the BinaryView/platform default.
     Returns status and function info; no-op if the function already exists.
+
+    IMPORTANT: This is non-blocking and safe to call during analysis. Always call
+    this BEFORE decompile_function, get_il, or function_at on addresses that may
+    not have a function defined yet. This prevents those tools from hanging while
+    waiting for analysis to discover the function. Recommended workflow:
+      1. get_binary_status() — check if analysis_complete
+      2. make_function_at(addr) — ensure function is defined (safe, non-blocking)
+      3. decompile_function / get_il — now safe to call
     """
     params = {"address": address}
     if platform:
