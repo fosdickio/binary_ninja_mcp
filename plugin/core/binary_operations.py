@@ -674,9 +674,10 @@ class BinaryOperations:
         if not func:
             return None
 
-        # analyze func in case it was skipped
-        func.analysis_skipped = False
-        self._current_view.update_analysis_and_wait()
+        # analyze func in case it was skipped (non-blocking to avoid lockup on large binaries)
+        if func.analysis_skipped:
+            func.analysis_skipped = False
+            self._current_view.update_analysis()
 
         try:
             il = getattr(func, "hlil", None)
@@ -738,10 +739,11 @@ class BinaryOperations:
         if not func:
             return None
 
-        # Ensure analysis has run for this function
+        # Ensure analysis has run for this function (non-blocking)
         try:
-            func.analysis_skipped = False
-            self._current_view.update_analysis_and_wait()
+            if func.analysis_skipped:
+                func.analysis_skipped = False
+                self._current_view.update_analysis()
         except Exception:
             pass
 
