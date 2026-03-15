@@ -147,11 +147,17 @@ class BinaryOperations:
     def _safe_get_il(self, func, prop: str = "hlil"):
         """Get IL for a function without blocking on background analysis.
 
-        Uses a function-level WorkflowMachine to run analysis for just this
-        function (~0.03s), avoiding contention with BN's background analysis
-        workers.  Background analysis continues undisturbed.
+        First tries the non-blocking _if_available getter.  If that returns
+        None (IL not yet generated), runs a function-level WorkflowMachine
+        to analyze just this function (~0.03s) without disturbing background
+        analysis, then accesses the IL directly.
         """
-        WorkflowMachine(func.handle).run()
+        # Try cached IL first (instant, no side effects)
+        il = getattr(func, f"{prop}_if_available", None)
+        if il is not None:
+            return il
+        # IL not cached — run analysis for this function only
+        WorkflowMachine(func.handle).run(incremental=True)
         return getattr(func, prop, None)
 
     def register_view(self, bv: bn.BinaryView) -> str:
