@@ -6,6 +6,7 @@ from typing import Any
 
 import binaryninja as bn
 from binaryninja.enums import StructureVariant, TypeClass
+from binaryninja.workflow import WorkflowMachine
 
 from ..utils.string_utils import escape_non_ascii
 from .config import BinaryNinjaConfig
@@ -142,6 +143,16 @@ class BinaryOperations:
         if fn:
             self._id_by_filename[fn] = vid
         return vid
+
+    def _safe_get_il(self, func, prop: str = "hlil"):
+        """Get IL for a function without blocking on background analysis.
+
+        Uses a function-level WorkflowMachine to run analysis for just this
+        function (~0.03s), avoiding contention with BN's background analysis
+        workers.  Background analysis continues undisturbed.
+        """
+        WorkflowMachine(func.handle).run()
+        return getattr(func, prop, None)
 
     def register_view(self, bv: bn.BinaryView) -> str:
         """Public wrapper to register a BinaryView and return its id."""
@@ -674,13 +685,8 @@ class BinaryOperations:
         if not func:
             return None
 
-        # analyze func in case it was skipped (non-blocking to avoid lockup on large binaries)
-        if func.analysis_skipped:
-            func.analysis_skipped = False
-            self._current_view.update_analysis()
-
         try:
-            il = getattr(func, "hlil", None)
+            il = self._safe_get_il(func, "hlil")
             if il and hasattr(il, "instructions"):
                 lines: list[str] = []
                 last_addr: int | None = None
@@ -696,8 +702,8 @@ class BinaryOperations:
                     text = str(ins)
                     lines.append(f"{addr_str}        {text}")
                 return "\n".join(lines)
-            # Fall back to MLIL with addresses
-            mil = getattr(func, "mlil", None)
+            # Fall back to MLIL
+            mil = self._safe_get_il(func, "mlil")
             if mil and hasattr(mil, "instructions"):
                 lines: list[str] = []
                 last_addr: int | None = None
@@ -713,7 +719,6 @@ class BinaryOperations:
                     text = str(ins)
                     lines.append(f"{addr_str}        {text}")
                 return "\n".join(lines)
-            # Last resort
             return str(func)
         except Exception as e:
             bn.log_error(f"Error decompiling function: {e!s}")
@@ -739,27 +744,16 @@ class BinaryOperations:
         if not func:
             return None
 
-        # Ensure analysis has run for this function (non-blocking)
-        try:
-            if func.analysis_skipped:
-                func.analysis_skipped = False
-                self._current_view.update_analysis()
-        except Exception:
-            pass
-
         v = (view or "").strip().lower()
         if v in ("il", "llil", "low", "lowlevel", "low-level", "low_level"):
             prop = "llil"
         elif v in ("mlil", "medium", "mediumlevel", "medium-level", "medium_level"):
             prop = "mlil"
         else:
-            # Default to HLIL when unknown
             prop = "hlil"
 
         try:
-            il_func = getattr(func, prop, None)
-            if il_func is None:
-                return None
+            il_func = self._safe_get_il(func, prop)
 
             # Only MLIL/LLIL support SSA form in practice
             if ssa and hasattr(il_func, "ssa_form") and il_func.ssa_form is not None:
