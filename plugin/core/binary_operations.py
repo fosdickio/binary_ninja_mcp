@@ -6,6 +6,7 @@ from typing import Any
 
 import binaryninja as bn
 from binaryninja.enums import StructureVariant, TypeClass
+from binaryninja.workflow import WorkflowMachine
 
 from ..utils.string_utils import escape_non_ascii
 from .config import BinaryNinjaConfig
@@ -142,6 +143,22 @@ class BinaryOperations:
         if fn:
             self._id_by_filename[fn] = vid
         return vid
+
+    def _safe_get_il(self, func, prop: str = "hlil"):
+        """Get IL for a function without blocking on background analysis.
+
+        First tries the non-blocking _if_available getter.  If that returns
+        None (IL not yet generated), runs a function-level WorkflowMachine
+        to analyze just this function (~0.03s) without disturbing background
+        analysis, then accesses the IL directly.
+        """
+        # Try cached IL first (instant, no side effects)
+        il = getattr(func, f"{prop}_if_available", None)
+        if il is not None:
+            return il
+        # IL not cached — run analysis for this function only
+        WorkflowMachine(func.handle).run(incremental=True)
+        return getattr(func, prop, None)
 
     def register_view(self, bv: bn.BinaryView) -> str:
         """Public wrapper to register a BinaryView and return its id."""
@@ -674,12 +691,8 @@ class BinaryOperations:
         if not func:
             return None
 
-        # analyze func in case it was skipped
-        func.analysis_skipped = False
-        self._current_view.update_analysis_and_wait()
-
         try:
-            il = getattr(func, "hlil", None)
+            il = self._safe_get_il(func, "hlil")
             if il and hasattr(il, "instructions"):
                 lines: list[str] = []
                 last_addr: int | None = None
@@ -695,8 +708,8 @@ class BinaryOperations:
                     text = str(ins)
                     lines.append(f"{addr_str}        {text}")
                 return "\n".join(lines)
-            # Fall back to MLIL with addresses
-            mil = getattr(func, "mlil", None)
+            # Fall back to MLIL
+            mil = self._safe_get_il(func, "mlil")
             if mil and hasattr(mil, "instructions"):
                 lines: list[str] = []
                 last_addr: int | None = None
@@ -712,7 +725,6 @@ class BinaryOperations:
                     text = str(ins)
                     lines.append(f"{addr_str}        {text}")
                 return "\n".join(lines)
-            # Last resort
             return str(func)
         except Exception as e:
             bn.log_error(f"Error decompiling function: {e!s}")
@@ -738,26 +750,16 @@ class BinaryOperations:
         if not func:
             return None
 
-        # Ensure analysis has run for this function
-        try:
-            func.analysis_skipped = False
-            self._current_view.update_analysis_and_wait()
-        except Exception:
-            pass
-
         v = (view or "").strip().lower()
         if v in ("il", "llil", "low", "lowlevel", "low-level", "low_level"):
             prop = "llil"
         elif v in ("mlil", "medium", "mediumlevel", "medium-level", "medium_level"):
             prop = "mlil"
         else:
-            # Default to HLIL when unknown
             prop = "hlil"
 
         try:
-            il_func = getattr(func, prop, None)
-            if il_func is None:
-                return None
+            il_func = self._safe_get_il(func, prop)
 
             # Only MLIL/LLIL support SSA form in practice
             if ssa and hasattr(il_func, "ssa_form") and il_func.ssa_form is not None:
@@ -2125,8 +2127,27 @@ class BinaryOperations:
             raise RuntimeError("No binary loaded")
 
         try:
-            functions = list(self.current_view.get_functions_containing(address))
-            return [func.name for func in functions]
+            bv = self.current_view
+            # get_function_at is non-blocking — check exact start address first
+            func = bv.get_function_at(address)
+            if func is not None:
+                return [func.name]
+            # If analysis is idle, safe to use the blocking call
+            if bv.analysis_progress.state == bn.AnalysisState.IdleState:
+                functions = list(bv.get_functions_containing(address))
+                if functions:
+                    return [f.name for f in functions]
+            else:
+                # Analysis still running — scan existing functions without blocking
+                for func in bv.functions:
+                    if func.start <= address < (func.start + func.total_bytes):
+                        return [func.name]
+            # No function found — define one so analysis picks it up
+            bv.create_user_function(address)
+            func = bv.get_function_at(address)
+            if func is not None:
+                return [func.name]
+            return []
         except Exception as e:
             bn.log_error(f"Error getting functions containing address {hex(address)}: {e}")
             return []

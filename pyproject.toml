@@ -1,0 +1,9 @@
+[project]
+name = "binary-ninja-mcp-bridge"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.49.0",
+    "mcp[cli]>=1.6.0",
+    "requests>=2.32.3",
+]

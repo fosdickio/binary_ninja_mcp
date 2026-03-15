@@ -240,12 +240,17 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                 limit = parse_int_or_default(params.get("limit"), 100)
 
             if path == "/status":
+                bv = self.binary_ops.current_view if self.binary_ops else None
                 status = {
-                    "loaded": self.binary_ops and self.binary_ops.current_view is not None,
-                    "filename": self.binary_ops.current_view.file.filename
-                    if self.binary_ops and self.binary_ops.current_view
-                    else None,
+                    "loaded": bv is not None,
+                    "filename": bv.file.filename if bv else None,
                 }
+                if bv is not None:
+                    progress = bv.analysis_progress
+                    state_name = progress.state.name if hasattr(progress.state, "name") else str(progress.state)
+                    status["analysis_state"] = state_name
+                    status["analysis_complete"] = (progress.state == bn.AnalysisState.IdleState)
+                    status["function_count"] = len(bv.functions)
                 self._send_json_response(status)
 
             elif path == "/functions" or path == "/methods":

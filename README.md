@@ -135,10 +135,10 @@ The following table lists the available MCP functions for use:
 | `delete_function_comment`                                            | Delete the comment for a function.                                                                           |
 | `declare_c_type(c_declaration)`                                      | Create/update a local type from a single C declaration.                                                      |
 | `format_value(address, text, size)`                                  | Convert a value and annotate it at an address in BN (adds a comment).                                        |
-| `function_at`                                                        | Retrieve the name of the function the address belongs to.                                                    |
+| `function_at`                                                        | Retrieve the name of the function the address belongs to. Non-blocking during analysis; auto-creates the function if it doesn't exist yet. |
 | `get_assembly_function`                                              | Get the assembly representation of a function by name or address.                                            |
 | `get_entry_points()`                                                 | List entry point(s) of the loaded binary.                                                                    |
-| `get_binary_status`                                                  | Get the current status of the loaded binary.                                                                 |
+| `get_binary_status`                                                  | Get the current status of the loaded binary. Returns `analysis_state`, `analysis_complete`, and `function_count`. |
 | `get_comment`                                                        | Get the comment at a specific address.                                                                       |
 | `get_function_comment`                                               | Get the comment for a function.                                                                              |
 | `get_user_defined_type`                                              | Retrieve definition of a user-defined type (struct, enumeration, typedef, union).                            |
@@ -153,7 +153,7 @@ The following table lists the available MCP functions for use:
 | `get_xrefs_to_union(union_name)`                                     | Get xrefs/usages related to a union (members, globals, code refs).                                           |
 | `get_stack_frame_vars(function_identifier)`                          | Get stack frame variable information for a function (names, offsets, sizes, types).                           |
 | `get_type_info(type_name)`                                           | Resolve a type and return declaration, kind, and members.                                                    |
-| `make_function_at(address, platform)`                                | Create a function at an address. `platform` optional; use `default` to pick the BinaryView/platform default. |
+| `make_function_at(address, platform)`                                | Create a function at an address (no-op if it already exists). Non-blocking, safe to call during analysis. `platform` optional; use `default` to pick the BinaryView/platform default. |
 | `list_platforms()`                                                   | List all available platform names.                                                                           |
 | `list_binaries()`                                                    | List managed/open binaries with ids and active flag.                                                         |
 | `select_binary(view)`                                                | Select active binary by id or filename.                                                                      |
