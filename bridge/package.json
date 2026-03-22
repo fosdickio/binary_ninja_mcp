@@ -1,0 +1,45 @@
+{
+    "name": "binary-ninja-mcp",
+    "version": "1.0.0",
+    "description": "Model Context Protocol server for Binary Ninja - enables seamless integration of Binary Ninja's capabilities with MCP clients",
+    "author": "fosdickio, CX330Blake",
+    "license": "GPL-3.0",
+    "type": "module",
+    "bin": {
+        "binary-ninja-mcp": "./dist/index.js"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist/**/*"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "dev": "tsx src/index.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "keywords": [
+        "binary-ninja",
+        "mcp",
+        "reverse-engineering",
+        "model-context-protocol"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/fosdickio/binary_ninja_mcp"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.0",
+        "axios": "^1.7.0",
+        "zod": "^3.25.76"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "tsx": "^4.0.0",
+        "typescript": "^5.0.0"
+    }
+}

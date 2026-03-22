@@ -4,6 +4,28 @@ from binaryninja import Settings
 from .core.config import Config
 from .server.http_server import MCPServer
 
+
+def _apply_settings_to_config():
+    """Apply Binary Ninja settings to the configuration."""
+    try:
+        settings = Settings()
+
+        # Apply expose to network setting
+        expose_to_network = settings.get_bool("mcp.exposeToNetwork")
+        plugin.config.server.host = "0.0.0.0" if expose_to_network else "localhost"
+
+        # Apply port setting
+        port_str = settings.get_string("mcp.port")
+        if port_str:
+            try:
+                plugin.config.server.port = int(port_str)
+            except ValueError:
+                pass
+
+    except Exception as e:
+        bn.log_error(f"Failed to apply settings to config: {e}")
+
+
 # When true, suppress auto-start while a BinaryView is open until the user
 # explicitly starts the server again. This prevents immediate re-start after stop.
 _mcp_user_stopped = False
@@ -16,6 +38,9 @@ class BinaryNinjaMCP:
 
     def start_server(self, bv):
         try:
+            # Apply latest settings from Binary Ninja configuration
+            _apply_settings_to_config()
+
             # Require an active BinaryView (match menu behavior)
             if bv is None:
                 bn.log_debug("MCP Max start requested but no BinaryView is active; deferring")
@@ -88,13 +113,17 @@ def _register_settings():
         "mcp.showStatusButton",
         '{ "title": "Show Status Button", "type": "boolean", "default": true, "description": "Show MCP server status button in the status bar." }',
     )
+    settings.register_setting(
+        "mcp.exposeToNetwork",
+        '{ "title": "Expose to Network", "type": "boolean", "default": false, "description": "When enabled, the server binds to 0.0.0.0 and is accessible from other machines. When disabled, the server only binds to localhost for local-only access." }',
+    )
+    settings.register_setting(
+        "mcp.port",
+        '{"title": "Server Port", "type": "string", "default": "9009", "description": "Port number for the MCP server."}',
+    )
 
 
 _register_settings()
-
-
-def _apply_settings_to_config():
-    return
 
 
 def _try_autostart_for_bv(bv):

@@ -26,3 +26,5 @@ Desktop.ini
 
 .env
 .mcp_auto_setup_done
+
+bridge/node_modules

@@ -72,7 +72,43 @@ python scripts/mcp_client_installer.py --uninstall  # remove entries and delete 
 python scripts/mcp_client_installer.py --config     # print a generic JSON config snippet
 ```
 
-For other MCP clients, this is an example config:
+#### Using npm package (Recommended)
+
+The recommended way to set up the MCP client is using the official npm package:
+
+```bash
+npx -y binary-ninja-mcp
+```
+
+For MCP clients, use this configuration:
+
+```json
+{
+  "mcpServers": {
+    "binary-ninja-mcp": {
+      "command": "npx",
+      "args": ["-y", "binary-ninja-mcp", "--host", "localhost", "--port", "9009"]
+    }
+  }
+}
+```
+
+Or if installed globally:
+
+```json
+{
+  "mcpServers": {
+    "binary-ninja-mcp": {
+      "command": "binary-ninja-mcp",
+      "args": ["--host", "localhost", "--port", "9009"]
+    }
+  }
+}
+```
+
+#### Using Python Bridge (Legacy)
+
+For other MCP clients, use the Python bridge directly:
 
 ```json
 {
@@ -136,7 +172,7 @@ The following table lists the available MCP functions for use:
 | `declare_c_type(c_declaration)`                                      | Create/update a local type from a single C declaration.                                                      |
 | `format_value(address, text, size)`                                  | Convert a value and annotate it at an address in BN (adds a comment).                                        |
 | `function_at`                                                        | Retrieve the name of the function the address belongs to.                                                    |
-| `get_assembly_function`                                              | Get the assembly representation of a function by name or address.                                            |
+| `fetch_disassembly`                                              | Get the assembly representation of a function by name or address.                                            |
 | `get_entry_points()`                                                 | List entry point(s) of the loaded binary.                                                                    |
 | `get_binary_status`                                                  | Get the current status of the loaded binary.                                                                 |
 | `get_comment`                                                        | Get the comment at a specific address.                                                                       |
