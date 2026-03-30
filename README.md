@@ -11,6 +11,10 @@ This repository contains a Binary Ninja plugin, MCP server, and bridge that enab
 - Support for every MCP client (Cline, Claude desktop, Roo Code, etc.)
 - Open multiple binaries and switch the active target automatically
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/fosdickio-binary-ninja-mcp).
+
 ## Examples
 
 ### Solving a CTF Challenge
