@@ -195,6 +195,7 @@ The following table lists the available MCP functions for use:
 | `list_platforms()`                                                   | List all available platform names.                                                                           |
 | `list_binaries()`                                                    | List managed/open binaries with ids and active flag.                                                         |
 | `select_binary(view)`                                                | Select active binary by id or filename.                                                                      |
+| `add_binary(file_path, wait_for_analysis)`                           | Add a binary to Binary Ninja, creating a new view and triggering automatic analysis.                         |
 | `list_all_strings()`                                                 | List all strings (no pagination; aggregates all pages).                                                      |
 | `list_classes`                                                       | List all namespace/class names in the program.                                                               |
 | `list_data_items`                                                    | List defined data labels and their values.                                                                   |
@@ -231,6 +232,7 @@ These are the list of HTTP endpoints that can be called:
 - `/platforms`: List all available platform names.
 - `/binaries` or `/views`: List managed/open binaries with ids and active flag.
 - `/selectBinary?view=<id|filename>`: Select active binary for subsequent operations.
+- `/addBinary?path=<file_path>&wait=<bool>`: Add a binary to Binary Ninja, creating a new view and triggering automatic analysis. `wait` (default true) controls whether to wait for analysis completion.
 - `/data?offset=<n>&limit=<m>&length=<n>`: Defined data items with previews. `length` controls bytes read per item (capped at defined size). Default behavior reads exact defined size when available; `length=-1` forces exact-size.
 - `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
 - `/getXrefsToField?struct=<name>&field=<name>`: Xrefs to struct field.

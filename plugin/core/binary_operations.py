@@ -79,6 +79,196 @@ class BinaryOperations:
             bn.log_error(f"Failed to load binary: {e}")
             raise
 
+    def _open_in_gui_via_cli(self, file_path: str) -> bool:
+        """Open a file in Binary Ninja GUI by invoking the CLI.
+
+        Uses the Binary Ninja executable to open the file, which correctly
+        handles deduplication and tab management.
+
+        Args:
+            file_path: Path to the file to open
+
+        Returns:
+            True if the command was executed, False otherwise
+        """
+        import os
+        import platform
+        import subprocess
+
+        # Derive executable path from Binary Ninja's module location
+        try:
+            bn_file = bn.__file__
+            if bn_file is None:
+                bn.log_warn("Cannot determine Binary Ninja module path")
+                return False
+            core_module_dir = os.path.dirname(bn_file)
+            system = platform.system()
+
+            if system == "Darwin":
+                base_path = os.path.join(core_module_dir, "..", "..", "..", "MacOS")
+                binja_exe = os.path.join(base_path, "binaryninja")
+            elif system == "Linux":
+                base_path = os.path.join(core_module_dir, "..", "..")
+                binja_exe = os.path.join(base_path, "binaryninja")
+            elif system == "Windows" or system.startswith("CYGWIN_NT"):
+                base_path = os.path.join(core_module_dir, "..", "..")
+                binja_exe = os.path.join(base_path, "binaryninja.exe")
+            else:
+                bn.log_warn(f"Unsupported platform: {system}")
+                return False
+
+            binja_exe = os.path.normpath(binja_exe)
+
+            if not os.path.isfile(binja_exe):
+                bn.log_warn(f"Binary Ninja executable not found: {binja_exe}")
+                return False
+
+        except Exception as e:
+            bn.log_warn(f"Failed to locate Binary Ninja executable: {e}")
+            return False
+
+        try:
+            bn.log_info(f"Opening via CLI: {binja_exe} {file_path}")
+            subprocess.Popen(
+                [binja_exe, file_path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            return True
+        except Exception as e:
+            bn.log_warn(f"Failed to open via CLI: {e}")
+            return False
+
+    def add_binary(self, file_path: str, wait_for_analysis: bool = True) -> dict[str, Any]:
+        """Add a binary to Binary Ninja for analysis.
+
+        Opens the file in the Binary Ninja GUI (if available) and loads it for
+        MCP operations. If the binary is already loaded, it will be selected as
+        the current view and the existing tab will be focused.
+
+        Args:
+            file_path: Path to the binary file to load (absolute or relative)
+            wait_for_analysis: If True, wait for initial analysis to complete
+
+        Returns:
+            Dictionary with binary information:
+            {
+                "status": "ok",
+                "id": "<view_id>",
+                "filename": "<full_path>",
+                "basename": "<filename>",
+                "analysis_complete": bool,
+                "already_loaded": bool  # True if binary was already open
+            }
+
+        Raises:
+            ValueError: If the file does not exist or cannot be loaded
+        """
+        import os
+
+        if not file_path:
+            raise ValueError("File path is required")
+
+        resolved_path = os.path.abspath(os.path.expanduser(file_path))
+        if not os.path.exists(resolved_path):
+            raise ValueError(f"File not found: {resolved_path}")
+        if not os.path.isfile(resolved_path):
+            raise ValueError(f"Path is not a file: {resolved_path}")
+
+        # Check if this binary is already loaded in our tracking
+        self._prune_views()
+        existing_id = self._id_by_filename.get(resolved_path)
+        if existing_id:
+            existing_ref = self._views_by_id.get(existing_id)
+            if existing_ref:
+                try:
+                    existing_bv = existing_ref()
+                    if existing_bv is not None:
+                        # Binary is already loaded - use CLI to ensure tab is open/focused
+                        bn.log_info(f"Binary already loaded: {resolved_path}")
+                        self._open_in_gui_via_cli(resolved_path)
+                        self._current_view = existing_bv
+                        return {
+                            "status": "ok",
+                            "id": existing_id,
+                            "filename": resolved_path,
+                            "basename": os.path.basename(resolved_path),
+                            "analysis_complete": True,
+                            "already_loaded": True,
+                        }
+                except Exception:
+                    pass  # Reference is stale, proceed with loading
+
+        bn.log_info(f"Adding binary: {resolved_path}")
+
+        try:
+            # Open in GUI via CLI (handles deduplication and tab management)
+            self._open_in_gui_via_cli(resolved_path)
+
+            # Load via headless API for MCP access
+            bv = None
+            if hasattr(bn, "load"):
+                bv = bn.load(resolved_path)
+            elif hasattr(bn, "open_view"):
+                bv = bn.open_view(resolved_path)
+            elif hasattr(bn, "BinaryViewType") and hasattr(
+                bn.BinaryViewType, "get_view_of_file"
+            ):
+                file_metadata = bn.FileMetadata()
+                try:
+                    if hasattr(bn.BinaryViewType, "get_default_options"):
+                        options = bn.BinaryViewType.get_default_options()
+                        bv = bn.BinaryViewType.get_view_of_file(
+                            resolved_path, file_metadata, options
+                        )
+                    else:
+                        bv = bn.BinaryViewType.get_view_of_file(resolved_path, file_metadata)
+                except TypeError:
+                    bv = bn.BinaryViewType.get_view_of_file(resolved_path)
+            elif hasattr(bn, "BinaryViewType") and hasattr(
+                bn.BinaryViewType, "get_view_of_file_with_options"
+            ):
+                file_metadata = bn.FileMetadata()
+                binary_view_type = bn.BinaryViewType.get_view_of_file_with_options(
+                    resolved_path, file_metadata
+                )
+                if binary_view_type:
+                    bv = binary_view_type.open()
+            else:
+                raise ValueError(
+                    "Binary Ninja API does not support opening files programmatically"
+                )
+
+            if bv is None:
+                raise ValueError(f"Failed to open binary: {resolved_path}")
+
+            # Register the view and set as current
+            view_id = self._register_view(bv)
+            self._current_view = bv
+
+            analysis_complete = False
+            if wait_for_analysis:
+                try:
+                    # Wait for initial analysis to complete
+                    bv.update_analysis_and_wait()
+                    analysis_complete = True
+                    bn.log_info(f"Analysis complete for: {resolved_path}")
+                except Exception as e:
+                    bn.log_warn(f"Analysis wait failed (continuing anyway): {e}")
+
+            return {
+                "status": "ok",
+                "id": view_id,
+                "filename": resolved_path,
+                "basename": os.path.basename(resolved_path),
+                "analysis_complete": analysis_complete,
+            }
+
+        except Exception as e:
+            bn.log_error(f"Failed to add binary: {e}")
+            raise ValueError(f"Failed to add binary: {e!s}")
+
     # ---------------- Multi-binary helpers ----------------
     def _prune_views(self) -> None:
         """Remove entries for BinaryViews that no longer exist and rebuild filename map."""

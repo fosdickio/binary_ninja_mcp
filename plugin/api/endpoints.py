@@ -96,6 +96,33 @@ class BinaryNinjaEndpoints:
             selected_entry["active"] = True
         return {"status": "ok", "selected": selected_entry}
 
+    def add_binary(self, file_path: str, wait_for_analysis: bool = True) -> dict[str, Any]:
+        """Add a binary to Binary Ninja, creating a new view and triggering analysis.
+
+        Args:
+            file_path: Path to the binary file to load
+            wait_for_analysis: If True, wait for initial analysis to complete
+
+        Returns:
+            Dictionary with information about the loaded binary
+        """
+        try:
+            result = self.binary_ops.add_binary(file_path, wait_for_analysis)
+            # Format the result similar to select_binary
+            formatted = self._format_binary_listing(self.binary_ops.list_open_binaries())
+            for entry in formatted:
+                if entry.get("view_id") == result.get("id") or entry.get("filename") == result.get(
+                    "filename"
+                ):
+                    result["selectors"] = entry.get("selectors", [])
+                    break
+            return result
+        except ValueError as e:
+            return {"error": str(e)}
+        except Exception as e:
+            bn.log_error(f"Error adding binary: {e}")
+            return {"error": f"Failed to add binary: {e!s}"}
+
     def get_function_info(self, identifier: str) -> dict[str, Any] | None:
         """Get detailed information about a function"""
         try:

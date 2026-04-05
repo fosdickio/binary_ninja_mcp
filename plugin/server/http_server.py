@@ -238,7 +238,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            # For all endpoints except /status, /convertNumber, /platforms, /binaries, /views, /selectBinary, check loaded
+            # For all endpoints except /status, /convertNumber, /platforms, /binaries, /views, /selectBinary, /addBinary, check loaded
             if (
                 not (
                     self.path.startswith("/status")
@@ -247,6 +247,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     or self.path.startswith("/binaries")
                     or self.path.startswith("/views")
                     or self.path.startswith("/selectBinary")
+                    or self.path.startswith("/addBinary")
                 )
                 and not self._check_binary_loaded()
             ):
@@ -308,6 +309,28 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     )
                 else:
                     self._send_json_response(self.endpoints.select_binary(ident))
+
+            elif path == "/addBinary":
+                file_path = (
+                    params.get("path")
+                    or params.get("file")
+                    or params.get("filepath")
+                    or params.get("file_path")
+                )
+                wait_param = params.get("wait", "true").lower()
+                wait_for_analysis = wait_param not in ("false", "0", "no")
+                if not file_path:
+                    self._send_json_response(
+                        {
+                            "error": "Missing parameter",
+                            "help": "Use ?path=<file_path> to add a binary",
+                        },
+                        400,
+                    )
+                else:
+                    result = self.endpoints.add_binary(file_path, wait_for_analysis)
+                    status_code = 200 if result.get("status") == "ok" else 400
+                    self._send_json_response(result, status_code)
 
             elif path == "/exports":
                 exports = self.endpoints.get_exports(offset, limit)

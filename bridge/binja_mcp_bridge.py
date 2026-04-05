@@ -660,6 +660,49 @@ def select_binary(view: str) -> str:
 
 
 @mcp.tool()
+def add_binary(file_path: str, wait_for_analysis: bool = True) -> str:
+    """
+    Add a binary to Binary Ninja, creating a new view and triggering automatic analysis.
+    The binary will be opened, analyzed, and set as the active binary for subsequent operations.
+
+    If the binary is already loaded in Binary Ninja, it will be selected as the active
+    binary instead of being opened again.
+
+    Args:
+        file_path: Path to the binary file to load (absolute or relative path)
+        wait_for_analysis: If True (default), wait for initial analysis to complete before returning.
+                          Set to False to return immediately after opening the binary.
+
+    Returns:
+        Information about the loaded binary including its ID, filename, and analysis status.
+    """
+    params = {"path": file_path, "wait": "true" if wait_for_analysis else "false"}
+    data = get_json("addBinary", params, timeout=None)  # No timeout for analysis
+    if not data:
+        return "Error: no response"
+    if isinstance(data, dict) and data.get("error"):
+        return f"Error: {data['error']}"
+    if isinstance(data, dict) and data.get("status") == "ok":
+        view_id = data.get("id") or "?"
+        filename = data.get("filename") or ""
+        basename = data.get("basename") or ""
+        analysis = "complete" if data.get("analysis_complete") else "in progress"
+        selectors = data.get("selectors") or []
+        selector_text = ", ".join(str(s) for s in selectors if s)
+        display_name = basename or filename or "(unknown)"
+        already_loaded = data.get("already_loaded", False)
+        action = "Selected existing binary" if already_loaded else "Added binary"
+        return (
+            f"{action}: {display_name}\n"
+            f"View ID: {view_id}\n"
+            f"Full path: {filename}\n"
+            f"Analysis: {analysis}\n"
+            f"Selectors: {selector_text}"
+        )
+    return str(data)
+
+
+@mcp.tool()
 def delete_comment(address: str) -> str:
     """
     Delete the comment at a specific address.
