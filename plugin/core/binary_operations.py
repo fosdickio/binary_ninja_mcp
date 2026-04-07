@@ -111,6 +111,28 @@ class BinaryOperations:
         except Exception:
             self._current_view = None
 
+    def _get_binary_name(self, bv: bn.BinaryView) -> str | None:
+        """Get the original binary name from a BinaryView.
+
+        For project files (.bnpr), extracts the original name from project_file.name,
+        stripping the .bndb suffix if present. Falls back to basename of filename.
+        """
+        import os
+
+        if bv and bv.file:
+            pf = getattr(bv.file, "project_file", None)
+            if pf:
+                name = getattr(pf, "name", None)
+                if name and name.endswith(".bndb"):
+                    return name[:-5]  # Strip .bndb
+                return name
+            # Fallback to basename of filename, handling missing filename safely
+            filename = getattr(bv.file, "filename", None)
+            if not filename:
+                return None
+            return os.path.basename(filename)
+        return None
+
     def _register_view(self, bv: bn.BinaryView) -> str:
         """Add a view to the managed list if not present, return its id."""
         self._prune_views()
@@ -194,7 +216,8 @@ class BinaryOperations:
         # Do NOT auto-register current_view here; UI monitor handles discovery.
         # This avoids re-introducing closed views via a stale strong reference.
         # Deduplicate by canonical filename; prefer the id mapped in _id_by_filename
-        entries: list[tuple[str, str, bool]] = []  # (id, filename, active)
+        # (id, filename, active, binary_view)
+        entries: list[tuple[str, str, bool, bn.BinaryView]] = []
         seen: set[str] = set()
         for vid, w in self._views_by_id.items():
             try:
@@ -218,11 +241,17 @@ class BinaryOperations:
                 vb_canon = vb_canon_ref() if vb_canon_ref else vb
             except Exception:
                 vb_canon = vb
-            entries.append((canonical_id, fn, bool(vb_canon is self._current_view)))
+            entries.append((canonical_id, fn, bool(vb_canon is self._current_view), vb_canon))
         # Sort by filename for stable ordering
         entries.sort(key=lambda t: (t[1] or ""))
-        for cid, fn, active in entries:
-            items.append({"id": cid, "filename": fn, "active": active})
+        for cid, fn, active, bv in entries:
+            binary_name = self._get_binary_name(bv)
+            items.append({
+                "id": cid,
+                "filename": fn,
+                "binary_name": binary_name,
+                "active": active,
+            })
         return items
 
     def select_view(self, ident: str) -> dict[str, str] | None:
