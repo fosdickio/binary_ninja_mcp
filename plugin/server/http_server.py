@@ -236,6 +236,15 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _dispatch_on_main_thread(self, func):
+        """Run func via the main-thread dispatch queue.
+
+        This avoids BN API deadlocks when called from the HTTP handler thread.
+        The func may freely call self._send_json_response etc.
+        """
+        from ..core.binary_operations import _run_on_main_thread
+        return _run_on_main_thread(func)
+
     def do_GET(self):
         try:
             # For all endpoints except /status, /convertNumber, /platforms, /binaries, /views, /selectBinary, check loaded
@@ -254,13 +263,8 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
             params = self._parse_query_params()
             path = urllib.parse.urlparse(self.path).path
-            offset = parse_int_or_default(params.get("offset"), 0)
-            # Support both `limit` and `count` (alias) for pagination
-            if params.get("count") is not None:
-                limit = parse_int_or_default(params.get("count"), 100)
-            else:
-                limit = parse_int_or_default(params.get("limit"), 100)
 
+            # Handle /status directly (no BN API needed)
             if path == "/status":
                 status = {
                     "loaded": self.binary_ops and self.binary_ops.current_view is not None,
@@ -269,8 +273,26 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                     else None,
                 }
                 self._send_json_response(status)
+                return
 
-            elif path == "/functions" or path == "/methods":
+            # All other GET endpoints: dispatch to main thread
+            self._dispatch_on_main_thread(lambda: self._do_GET_inner(params, path))
+        except TimeoutError:
+            self._send_json_response({"error": "Request timed out (main thread busy)"}, 504)
+        except Exception as e:
+            self._send_json_response({"error": str(e)}, 500)
+
+    def _do_GET_inner(self, params, path):
+        """Actual GET handler logic — runs on the main thread."""
+        try:
+            offset = parse_int_or_default(params.get("offset"), 0)
+            # Support both `limit` and `count` (alias) for pagination
+            if params.get("count") is not None:
+                limit = parse_int_or_default(params.get("count"), 100)
+            else:
+                limit = parse_int_or_default(params.get("limit"), 100)
+
+            if path == "/functions" or path == "/methods":
                 functions = self.binary_ops.get_function_names(offset, limit)
                 bn.log_info(f"Found {len(functions)} functions")
                 self._send_json_response({"functions": functions})
@@ -1910,6 +1932,17 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
             bn.log_info(f"POST {path} with params: {params}")
 
+            # Dispatch all POST handling to main thread
+            self._dispatch_on_main_thread(lambda: self._do_POST_inner(params, path))
+        except TimeoutError:
+            self._send_json_response({"error": "Request timed out (main thread busy)"}, 504)
+        except Exception as e:
+            bn.log_error(f"Error handling POST request: {e}")
+            self._send_json_response({"error": str(e)}, 500)
+
+    def _do_POST_inner(self, params, path):
+        """Actual POST handler logic — runs on the main thread."""
+        try:
             if path == "/load":
                 filepath = params.get("filepath")
                 if not filepath:

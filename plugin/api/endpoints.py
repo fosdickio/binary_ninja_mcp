@@ -210,25 +210,29 @@ class BinaryNinjaEndpoints:
         if not search_term:
             return []
 
-        matches = []
-        for func in self.binary_ops.current_view.functions:
-            if search_term.lower() in func.name.lower():
-                matches.append(
-                    {
-                        "name": func.name,
-                        "address": hex(func.start),
-                        "raw_name": func.raw_name if hasattr(func, "raw_name") else func.name,
-                        "symbol": {
-                            "type": str(func.symbol.type) if func.symbol else None,
-                            "full_name": func.symbol.full_name if func.symbol else None,
-                        }
-                        if func.symbol
-                        else None,
-                    }
-                )
+        from ..core.binary_operations import _run_on_main_thread
 
-        matches.sort(key=lambda x: x["name"])
-        return matches[offset : offset + limit]
+        def _inner():
+            matches = []
+            for func in self.binary_ops.current_view.functions:
+                if search_term.lower() in func.name.lower():
+                    matches.append(
+                        {
+                            "name": func.name,
+                            "address": hex(func.start),
+                            "raw_name": func.raw_name if hasattr(func, "raw_name") else func.name,
+                            "symbol": {
+                                "type": str(func.symbol.type) if func.symbol else None,
+                                "full_name": func.symbol.full_name if func.symbol else None,
+                            }
+                            if func.symbol
+                            else None,
+                        }
+                    )
+            matches.sort(key=lambda x: x["name"])
+            return matches[offset : offset + limit]
+
+        return _run_on_main_thread(_inner)
 
     def decompile_function(self, identifier: str) -> str | None:
         """Decompile a function by name or address"""
