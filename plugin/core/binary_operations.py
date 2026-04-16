@@ -1,6 +1,8 @@
 import platform
+import queue
 import re
 import subprocess
+import threading
 import weakref
 from typing import Any
 
@@ -9,6 +11,31 @@ from binaryninja.enums import StructureVariant, TypeClass
 
 from ..utils.string_utils import escape_non_ascii
 from .config import BinaryNinjaConfig
+
+# Global dispatch queue: HTTP thread puts (func, result_event, result_holder) tuples,
+# a QTimer on the main thread picks them up and executes.
+_main_thread_queue: queue.Queue = queue.Queue()
+
+# Thread ID of the main thread (set by QTimer on first tick)
+_main_thread_id: int | None = None
+
+
+def _run_on_main_thread(func, timeout=120):
+    """Dispatch func to the main thread via _main_thread_queue and wait for result.
+
+    If already on the main thread, execute directly (avoids nested deadlock).
+    """
+    if _main_thread_id is not None and threading.current_thread().ident == _main_thread_id:
+        return func()
+
+    result_holder = [None, None]  # [result, exception]
+    done_event = threading.Event()
+    _main_thread_queue.put((func, done_event, result_holder))
+    if not done_event.wait(timeout=timeout):
+        raise TimeoutError("Main-thread dispatch timed out")
+    if result_holder[1] is not None:
+        raise result_holder[1]
+    return result_holder[0]
 
 
 class BinaryOperations:
@@ -102,14 +129,11 @@ class BinaryOperations:
                 new_fn_map[fn] = vid
         self._views_by_id = alive
         self._id_by_filename = new_fn_map
-        # If current_view no longer exists among alive views, clear it
-        try:
-            if self._current_view is not None and all(
-                obj is not self._current_view for obj in alive_objs
-            ):
-                self._current_view = None
-        except Exception:
-            self._current_view = None
+        # NOTE: Do NOT clear _current_view here based on weakref liveness.
+        # _current_view is a strong reference and keeps the BV alive intentionally.
+        # It should only be cleared by explicit stop_server / close actions.
+        # The weakref-based _views_by_id may contain stale entries from UI wrapper
+        # objects that are different Python objects for the same underlying BV.
 
     def _register_view(self, bv: bn.BinaryView) -> str:
         """Add a view to the managed list if not present, return its id."""
@@ -313,42 +337,45 @@ class BinaryOperations:
         if not self._current_view:
             raise RuntimeError("No binary loaded")
 
-        # Handle address-based lookup
-        try:
-            if isinstance(identifier, str) and identifier.startswith("0x"):
-                addr = int(identifier, 16)
-            elif isinstance(identifier, (int, str)):
-                addr = int(identifier) if isinstance(identifier, str) else identifier
+        def _inner():
+            # Handle address-based lookup
+            try:
+                if isinstance(identifier, str) and identifier.startswith("0x"):
+                    addr = int(identifier, 16)
+                elif isinstance(identifier, (int, str)):
+                    addr = int(identifier) if isinstance(identifier, str) else identifier
 
-            func = self._current_view.get_function_at(addr)
-            if func:
-                bn.log_info(f"Found function at address {hex(addr)}: {func.name}")
-                return func
-        except ValueError:
-            pass
+                func = self._current_view.get_function_at(addr)
+                if func:
+                    bn.log_info(f"Found function at address {hex(addr)}: {func.name}")
+                    return func
+            except ValueError:
+                pass
 
-        # Handle name-based lookup with case sensitivity
-        for func in self._current_view.functions:
-            if func.name == identifier:
-                bn.log_info(f"Found function by name: {func.name}")
-                return func
+            # Handle name-based lookup with case sensitivity
+            for func in self._current_view.functions:
+                if func.name == identifier:
+                    bn.log_info(f"Found function by name: {func.name}")
+                    return func
 
-        # Try case-insensitive match as fallback
-        for func in self._current_view.functions:
-            if func.name.lower() == str(identifier).lower():
-                bn.log_info(f"Found function by case-insensitive name: {func.name}")
-                return func
+            # Try case-insensitive match as fallback
+            for func in self._current_view.functions:
+                if func.name.lower() == str(identifier).lower():
+                    bn.log_info(f"Found function by case-insensitive name: {func.name}")
+                    return func
 
-        # Try symbol table lookup as last resort
-        symbol = self._current_view.get_symbol_by_raw_name(str(identifier))
-        if symbol and symbol.address:
-            func = self._current_view.get_function_at(symbol.address)
-            if func:
-                bn.log_info(f"Found function through symbol lookup: {func.name}")
-                return func
+            # Try symbol table lookup as last resort
+            symbol = self._current_view.get_symbol_by_raw_name(str(identifier))
+            if symbol and symbol.address:
+                func = self._current_view.get_function_at(symbol.address)
+                if func:
+                    bn.log_info(f"Found function through symbol lookup: {func.name}")
+                    return func
 
-        bn.log_error(f"Could not find function: {identifier}")
-        return None
+            bn.log_error(f"Could not find function: {identifier}")
+            return None
+
+        return _run_on_main_thread(_inner)
 
     def _normalize_identifier_list(self, identifiers: Any) -> list[Any]:
         """Normalize comma-delimited strings or iterables into a list of identifiers."""
@@ -553,17 +580,19 @@ class BinaryOperations:
         if not self._current_view:
             raise RuntimeError("No binary loaded")
 
-        functions = []
-        for func in self._current_view.functions:
-            functions.append(
-                {
-                    "name": func.name,
-                    "address": hex(func.start),
-                    "raw_name": func.raw_name if hasattr(func, "raw_name") else func.name,
-                }
-            )
+        def _inner():
+            functions = []
+            for func in self._current_view.functions:
+                functions.append(
+                    {
+                        "name": func.name,
+                        "address": hex(func.start),
+                        "raw_name": func.raw_name if hasattr(func, "raw_name") else func.name,
+                    }
+                )
+            return functions[offset : offset + limit]
 
-        return functions[offset : offset + limit]
+        return _run_on_main_thread(_inner)
 
     def get_class_names(self, offset: int = 0, limit: int = 100) -> list[str]:
         """Get list of class names with pagination"""
@@ -857,14 +886,7 @@ class BinaryOperations:
         return info
 
     def decompile_function(self, identifier: str | int) -> str | None:
-        """Decompile a function and include addresses per statement.
-
-        Args:
-            identifier: Function name or address
-
-        Returns:
-            Decompiled HLIL-like code with address prefixes per line
-        """
+        """Decompile a function and include addresses per statement."""
         if not self._current_view:
             raise RuntimeError("No binary loaded")
 
@@ -872,49 +894,53 @@ class BinaryOperations:
         if not func:
             return None
 
-        # analyze func in case it was skipped
-        func.analysis_skipped = False
-        self._current_view.update_analysis_and_wait()
+        def _inner():
+            # analyze func in case it was skipped
+            func.analysis_skipped = False
+            # NOTE: Do NOT call update_analysis_and_wait() here as it blocks
+            # the main thread event loop when run from QTimer dispatch.
 
-        try:
-            il = getattr(func, "hlil", None)
-            if il and hasattr(il, "instructions"):
-                lines: list[str] = []
-                last_addr: int | None = None
-                for ins in il.instructions:
-                    try:
-                        addr = getattr(ins, "address", None)
-                    except Exception:
-                        addr = None
-                    if addr is None:
-                        addr = last_addr if last_addr is not None else func.start
-                    last_addr = addr
-                    addr_str = f"{int(addr):08x}"
-                    text = str(ins)
-                    lines.append(f"{addr_str}        {text}")
-                return "\n".join(lines)
-            # Fall back to MLIL with addresses
-            mil = getattr(func, "mlil", None)
-            if mil and hasattr(mil, "instructions"):
-                lines: list[str] = []
-                last_addr: int | None = None
-                for ins in mil.instructions:
-                    try:
-                        addr = getattr(ins, "address", None)
-                    except Exception:
-                        addr = None
-                    if addr is None:
-                        addr = last_addr if last_addr is not None else func.start
-                    last_addr = addr
-                    addr_str = f"{int(addr):08x}"
-                    text = str(ins)
-                    lines.append(f"{addr_str}        {text}")
-                return "\n".join(lines)
-            # Last resort
-            return str(func)
-        except Exception as e:
-            bn.log_error(f"Error decompiling function: {e!s}")
-            return None
+            try:
+                il = getattr(func, "hlil", None)
+                if il and hasattr(il, "instructions"):
+                    lines: list[str] = []
+                    last_addr: int | None = None
+                    for ins in il.instructions:
+                        try:
+                            addr = getattr(ins, "address", None)
+                        except Exception:
+                            addr = None
+                        if addr is None:
+                            addr = last_addr if last_addr is not None else func.start
+                        last_addr = addr
+                        addr_str = f"{int(addr):08x}"
+                        text = str(ins)
+                        lines.append(f"{addr_str}        {text}")
+                    return "\n".join(lines)
+                # Fall back to MLIL with addresses
+                mil = getattr(func, "mlil", None)
+                if mil and hasattr(mil, "instructions"):
+                    lines: list[str] = []
+                    last_addr: int | None = None
+                    for ins in mil.instructions:
+                        try:
+                            addr = getattr(ins, "address", None)
+                        except Exception:
+                            addr = None
+                        if addr is None:
+                            addr = last_addr if last_addr is not None else func.start
+                        last_addr = addr
+                        addr_str = f"{int(addr):08x}"
+                        text = str(ins)
+                        lines.append(f"{addr_str}        {text}")
+                    return "\n".join(lines)
+                # Last resort
+                return str(func)
+            except Exception as e:
+                bn.log_error(f"Error decompiling function: {e!s}")
+                return None
+
+        return _run_on_main_thread(_inner)
 
     def get_function_il(
         self, identifier: str | int, view: str = "hlil", ssa: bool = False
@@ -939,7 +965,7 @@ class BinaryOperations:
         # Ensure analysis has run for this function
         try:
             func.analysis_skipped = False
-            self._current_view.update_analysis_and_wait()
+            # NOTE: Do NOT call update_analysis_and_wait() here.
         except Exception:
             pass
 

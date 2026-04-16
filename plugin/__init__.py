@@ -525,6 +525,27 @@ def _start_bv_monitor():
             return found_fns
 
         def _tick():
+            # --- Drain the main-thread dispatch queue ---
+            try:
+                from .core.binary_operations import _main_thread_queue
+                from .core import binary_operations as _bo_mod
+                import threading as _threading
+                if _bo_mod._main_thread_id is None:
+                    _bo_mod._main_thread_id = _threading.current_thread().ident
+                while not _main_thread_queue.empty():
+                    try:
+                        func, done_event, result_holder = _main_thread_queue.get_nowait()
+                        try:
+                            result_holder[0] = func()
+                        except Exception as e:
+                            result_holder[1] = e
+                        finally:
+                            done_event.set()
+                    except Exception:
+                        break
+            except Exception:
+                pass
+
             try:
                 ops = (
                     plugin.server.binary_ops
@@ -532,6 +553,7 @@ def _start_bv_monitor():
                     else None
                 )
                 if not ops:
+                    bn.log_debug("MCP _tick: ops is None")
                     return
 
                 # First, prune internal weakrefs and get a snapshot of tracked views
@@ -542,17 +564,13 @@ def _start_bv_monitor():
 
                 # Discover all open BVs from UI and sync registry (returns filenames)
                 try:
-                    _discover_all_open_bvs(ops) or set()
-                except Exception:
-                    pass
+                    found = _discover_all_open_bvs(ops) or set()
+                    if found:
+                        bn.log_debug(f"MCP _tick: discovered BVs: {found}")
+                except Exception as e:
+                    bn.log_debug(f"MCP _tick: discover error: {e}")
 
-                # Do not prune solely based on UI heuristics; UI enumeration may miss open tabs.
-                # Rely on explicit close notifications and weakref pruning in ops.
-
-                # Keep MCP-selected active view independent of UI focus.
-                # Only adopt a UI-active view if there is no current selection
-                # (e.g., after the previously selected view was actually closed
-                # and pruned by weakrefs).
+                # Always try to adopt UI-active view if current_view is None
                 try:
                     if ops.current_view is None:
                         try:
@@ -562,14 +580,20 @@ def _start_bv_monitor():
                             act_bv = None
                             if act_ctx:
                                 vf = act_ctx.getCurrentViewFrame()
+                                bn.log_debug(f"MCP _tick: viewFrame={vf}, has getCurrentBinaryView={hasattr(vf, 'getCurrentBinaryView') if vf else 'N/A'}")
                                 if vf and hasattr(vf, "getCurrentBinaryView"):
                                     act_bv = vf.getCurrentBinaryView()
-                            ops.current_view = act_bv
-                            if act_bv:
+                                    bn.log_debug(f"MCP _tick: getCurrentBinaryView returned: {act_bv}, type={type(act_bv).__name__ if act_bv else 'None'}")
+                            else:
+                                bn.log_debug("MCP _tick: no active UIContext")
+                            if act_bv is not None:
+                                ops.current_view = act_bv
                                 ops.register_view(act_bv)
-                        except Exception:
-                            # If UI is unavailable or no active view, leave as None
-                            pass
+                                bn.log_info(f"MCP _tick: auto-set current_view to {act_bv.file.filename}")
+                            else:
+                                bn.log_debug("MCP _tick: current_view is None and no active BV found")
+                        except Exception as e:
+                            bn.log_debug(f"MCP _tick: error acquiring BV: {e}")
                 except Exception:
                     pass
             except Exception:
@@ -577,7 +601,7 @@ def _start_bv_monitor():
                 pass
 
         _bv_monitor_timer = QTimer()
-        _bv_monitor_timer.setInterval(1000)  # 1s; light periodic sync
+        _bv_monitor_timer.setInterval(200)  # 200ms; fast dispatch for HTTP API calls
         _bv_monitor_timer.timeout.connect(_tick)
 
         def _start():
