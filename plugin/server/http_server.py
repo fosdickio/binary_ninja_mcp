@@ -36,7 +36,6 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         try:
             self.send_response(status_code)
             self.send_header("Content-Type", content_type)
-            self.send_header("Access-Control-Allow-Origin", "*")
             # Encourage clients to close promptly; reduces BrokenPipe on abrupt disconnects
             self.send_header("Connection", "close")
             self.end_headers()
@@ -229,6 +228,27 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             return '""'
 
+    def _check_origin(self):
+        """Validate Origin header per MCP spec to prevent DNS rebinding."""
+        if self.headers.get("Origin") is None:
+            return True
+        self._set_headers(status_code=403)
+        try:
+            self.wfile.write(
+                json.dumps({"error": "Forbidden: browser requests are not allowed"}).encode("utf-8")
+            )
+        except (BrokenPipeError, OSError):
+            pass
+        return False
+
+    def do_OPTIONS(self):
+        """Reject CORS preflight requests."""
+        self._set_headers(status_code=403)
+        try:
+            self.wfile.write(json.dumps({"error": "Forbidden"}).encode("utf-8"))
+        except (BrokenPipeError, OSError):
+            pass
+
     def _check_binary_loaded(self):
         """Check if a binary is loaded and return appropriate error response if not"""
         if not self.binary_ops or not self.binary_ops.current_view:
@@ -238,6 +258,8 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
+            if not self._check_origin():
+                return
             # For all endpoints except /status, /convertNumber, /platforms, /binaries, /views, /selectBinary, check loaded
             if (
                 not (
@@ -1902,6 +1924,8 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if not self._check_origin():
+                return
             if not self._check_binary_loaded():
                 return
 
