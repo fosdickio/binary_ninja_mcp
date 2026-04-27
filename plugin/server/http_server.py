@@ -232,22 +232,14 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         """Validate Origin header per MCP spec to prevent DNS rebinding."""
         if self.headers.get("Origin") is None:
             return True
-        self._set_headers(status_code=403)
-        try:
-            self.wfile.write(
-                json.dumps({"error": "Forbidden: browser requests are not allowed"}).encode("utf-8")
-            )
-        except (BrokenPipeError, OSError):
-            pass
+        self._send_json_response(
+            {"error": "Forbidden: browser requests are not allowed"}, 403
+        )
         return False
 
     def do_OPTIONS(self):
         """Reject CORS preflight requests."""
-        self._set_headers(status_code=403)
-        try:
-            self.wfile.write(json.dumps({"error": "Forbidden"}).encode("utf-8"))
-        except (BrokenPipeError, OSError):
-            pass
+        self._send_json_response({"error": "Forbidden"}, 403)
 
     def _check_binary_loaded(self):
         """Check if a binary is loaded and return appropriate error response if not"""
