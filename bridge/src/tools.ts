@@ -936,7 +936,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     },
     async ({ name_or_address, prototype }) => {
       const ident = name_or_address.trim();
-      const params: Record<string, string> = { prototype };
+      const params: Record<string, string> = { signature: prototype };
       if (ident.toLowerCase().startsWith("0x") || /^\d+$/.test(ident)) {
         params.address = ident;
       } else {
