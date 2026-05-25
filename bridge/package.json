@@ -15,6 +15,8 @@
     ],
     "scripts": {
         "build": "tsc",
+        "prepare": "npm run build",
+        "prepack": "npm run build",
         "start": "node dist/index.js",
         "dev": "tsx src/index.ts",
         "typecheck": "tsc --noEmit"

@@ -279,7 +279,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
       address: z.string().describe("Address (hex like 0x401000)"),
     },
     async ({ address }) => {
-      const result = await client.post("comment", { address, _method: "DELETE" });
+      const result = await client.delete("comment", { address });
       return { content: [{ type: "text", text: result }] };
     }
   );
@@ -316,7 +316,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
       function_name: z.string().describe("Function name"),
     },
     async ({ function_name }) => {
-      const result = await client.post("comment/function", { name: function_name, _method: "DELETE" });
+      const result = await client.delete("comment/function", { name: function_name });
       return { content: [{ type: "text", text: result }] };
     }
   );
