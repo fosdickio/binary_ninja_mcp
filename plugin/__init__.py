@@ -664,6 +664,8 @@ try:
                         plugin.server.binary_ops.unregister_by_filename(fn)
             except Exception:
                 pass
+            finally:
+                return True
 
         def OnAfterCloseFile(self, *args):  # type: ignore[override]
             try:
