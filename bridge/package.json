@@ -15,6 +15,7 @@
     ],
     "scripts": {
         "build": "tsc",
+        "test:annotations": "node scripts/test-tool-annotations.mjs",
         "start": "node dist/index.js",
         "dev": "tsx src/index.ts",
         "typecheck": "tsc --noEmit"

@@ -97,6 +97,28 @@ export class BinjaHttpClient {
     }
   }
 
+  /**
+   * Perform a POST request and return parsed JSON.
+   */
+  async postJson<T = unknown>(
+    endpoint: string,
+    data: Record<string, unknown>,
+    timeout?: number,
+  ): Promise<T | { error: string }> {
+    try {
+      const response = await this.client.post(endpoint, data, { timeout });
+      if (response.status >= 200 && response.status < 300) {
+        return response.data as T;
+      }
+      if (response.data && typeof response.data === "object" && "error" in response.data) {
+        return response.data as T;
+      }
+      return { error: `Error ${response.status}: ${response.statusText}` };
+    } catch (error) {
+      return { error: `Request failed: ${this.getErrorMessage(error)}` };
+    }
+  }
+
   private handleError(error: unknown, method: string, endpoint: string): string {
     const msg = this.getErrorMessage(error);
     return `Error: ${method} ${endpoint} failed: ${msg}`;

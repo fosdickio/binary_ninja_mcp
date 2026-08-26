@@ -160,11 +160,14 @@ Your task is to analyze an unknown file which is currently open in Binary Ninja.
 
 ## Supported Capabilities
 
+MCP tools include safety annotations so clients can distinguish read-only inspection, additive analysis changes, and operations that may replace or delete state. Arbitrary Python execution is additionally marked as non-idempotent and open-world.
+
 The following table lists the available MCP functions for use:
 
 | Function                                                             | Description                                                                                                  |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `decompile_function`                                                 | Decompile a specific function by name and return HLIL-like code with addresses.                              |
+| `execute_python(code, timeout_seconds)`                              | Execute code in a persistent Binary Ninja Python scripting context with access to `bv` and other console magic variables. |
 | `get_il(name_or_address, view, ssa)`                                 | Get IL for a function in `hlil`, `mlil`, or `llil` (SSA supported for MLIL/LLIL).                            |
 | `define_types`                                                       | Add type definitions from a C string type definition.                                                        |
 | `delete_comment`                                                     | Delete the comment at a specific address.                                                                    |
@@ -220,6 +223,8 @@ The following table lists the available MCP functions for use:
 | `patch_bytes(address, data, save_to_file)`                           | Patch raw bytes at an address (byte-level, not assembly). Can patch entire instructions by providing their bytecode. Address: hex (e.g., "0x401000") or decimal. Data: hex string (e.g., "90 90"). `save_to_file` (default True) saves to disk and re-signs on macOS. |
 
 These are the list of HTTP endpoints that can be called:
+
+- `/executePython` (POST): Execute JSON `code` in the Binary Ninja Python scripting context. Optional `timeout_seconds` is 30 by default and limited to 300.
 
 - `/allStrings`: All strings in one response.
 - `/formatValue?address=<addr>&text=<value>&size=<n>`: Convert and set a comment at an address.

@@ -134,6 +134,25 @@ def safe_post(endpoint: str, data: dict | str) -> str:
         return f"Request failed: {e!s}"
 
 
+def post_json(endpoint: str, data: dict, timeout: float = 5):
+    """Perform a POST and return parsed JSON, including structured HTTP errors."""
+    try:
+        response = requests.post(f"{binja_server_url}/{endpoint}", json=data, timeout=timeout)
+        response.encoding = "utf-8"
+        try:
+            result = response.json()
+        except Exception:
+            result = None
+        if response.ok:
+            return result
+        if isinstance(result, dict):
+            result.setdefault("error", f"HTTP {response.status_code}")
+            return result
+        return {"error": f"Error {response.status_code}: {response.text.strip()}"}
+    except Exception as e:
+        return {"error": f"Request failed: {e!s}"}
+
+
 @mcp.tool()
 def list_methods(offset: int = 0, limit: int = 100) -> list:
     """
@@ -762,6 +781,34 @@ def get_stack_frame_vars(function_identifier: str) -> list:
     if isinstance(data, dict) and data.get("stack_frame_vars"):
         return data["stack_frame_vars"]
     return []
+
+
+@mcp.tool()
+def execute_python(code: str, timeout_seconds: float = 30) -> str:
+    """
+    Execute code in a persistent Binary Ninja Python scripting context.
+    Console magic variables such as bv, current_view, current_function, and here are available.
+    """
+    result = post_json(
+        "executePython",
+        {"code": code, "timeout_seconds": timeout_seconds},
+        timeout=timeout_seconds + 5,
+    )
+    if not isinstance(result, dict):
+        return "Error: no response"
+
+    sections = []
+    if result.get("output"):
+        sections.append(str(result["output"]))
+    if result.get("warnings"):
+        sections.append(f"Warnings:\n{result['warnings']}")
+    if result.get("errors"):
+        sections.append(f"Errors:\n{result['errors']}")
+    if result.get("error"):
+        sections.append(f"Error: {result['error']}")
+    if result.get("truncated"):
+        sections.append("[Output truncated after 1,000,000 characters]")
+    return "\n".join(sections) if sections else "(no output)"
 
 
 @mcp.tool()

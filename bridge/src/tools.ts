@@ -2,11 +2,126 @@
  * MCP Tool definitions for Binary Ninja integration.
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, type ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { BinjaHttpClient } from "./client.js";
 
+const READ_ONLY_TOOLS = new Set([
+  "list_methods",
+  "get_entry_points",
+  "search_functions_by_name",
+  "decompile_function",
+  "get_il",
+  "fetch_disassembly",
+  "get_comment",
+  "get_function_comment",
+  "list_local_types",
+  "search_types",
+  "get_user_defined_type",
+  "get_type_info",
+  "list_data_items",
+  "hexdump_address",
+  "hexdump_data",
+  "get_data_decl",
+  "get_xrefs_to",
+  "get_xrefs_to_field",
+  "get_xrefs_to_struct",
+  "get_xrefs_to_type",
+  "get_xrefs_to_enum",
+  "get_xrefs_to_union",
+  "function_at",
+  "get_stack_frame_vars",
+  "list_classes",
+  "list_namespaces",
+  "list_segments",
+  "list_sections",
+  "list_imports",
+  "list_exports",
+  "list_strings",
+  "list_strings_filter",
+  "list_all_strings",
+  "get_binary_status",
+  "list_binaries",
+  "list_platforms",
+  "convert_number",
+]);
+
+// MCP defines destructiveHint=false as "only additive updates". Keep this
+// list deliberately narrow: these tools change context or add analysis state
+// without replacing or deleting existing state.
+const ADDITIVE_MUTATING_TOOLS = new Set([
+  "select_binary",
+  "make_function_at",
+]);
+
+// These tools may replace, delete, or otherwise irreversibly alter analysis
+// state.
+const DESTRUCTIVE_TOOLS = new Set([
+  "rename_function",
+  "rename_single_variable",
+  "rename_multi_variables",
+  "rename_data",
+  "set_comment",
+  "delete_comment",
+  "set_function_comment",
+  "delete_function_comment",
+  "define_types",
+  "declare_c_type",
+  "retype_variable",
+  "set_local_variable_type",
+  "set_function_prototype",
+  "format_value",
+  "execute_python",
+  "patch_bytes",
+]);
+
+export function getToolAnnotations(name: string): ToolAnnotations {
+  if (READ_ONLY_TOOLS.has(name)) {
+    return {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    };
+  }
+  if (ADDITIVE_MUTATING_TOOLS.has(name)) {
+    return {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    };
+  }
+  if (DESTRUCTIVE_TOOLS.has(name)) {
+    return {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: name !== "execute_python",
+      openWorldHint: name === "execute_python",
+    };
+  }
+  throw new Error(`Missing MCP annotations for tool: ${name}`);
+}
+
 export function registerTools(server: McpServer, client: BinjaHttpClient): void {
+  function tool<Args extends z.ZodRawShape>(
+    name: string,
+    description: string,
+    inputSchema: Args,
+    callback: ToolCallback<Args>,
+  ) {
+    return server.registerTool(
+      name,
+      {
+        description,
+        inputSchema,
+        annotations: getToolAnnotations(name),
+      },
+      callback,
+    );
+  }
+
   // Helper function to get active filename
   async function getActiveFilename(): Promise<string> {
     const data = await client.getJson<{ filename?: string }>("status");
@@ -18,7 +133,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
 
   // ===== Function Analysis Tools =====
 
-  server.tool(
+  tool(
     "list_methods",
     "List all function names in the program with pagination.",
     {
@@ -34,7 +149,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_entry_points",
     "List entry point(s) of the loaded binary.",
     {},
@@ -53,7 +168,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "search_functions_by_name",
     "Search for functions whose name contains the given substring.",
     {
@@ -70,7 +185,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "decompile_function",
     "Decompile a specific function by name and return the decompiled C code.",
     {
@@ -90,7 +205,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_il",
     "Get IL for a function in the selected view (hlil, mlil, llil).",
     {
@@ -119,7 +234,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "fetch_disassembly",
     "Retrieve the disassembled code of a function as assembly mnemonic instructions.",
     {
@@ -141,7 +256,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
 
   // ===== Rename Tools =====
 
-  server.tool(
+  tool(
     "rename_function",
     "Rename a function by its current name. The configured prefix will be automatically prepended if not present.",
     {
@@ -154,7 +269,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "rename_single_variable",
     "Rename a variable in a function.",
     {
@@ -181,7 +296,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "rename_multi_variables",
     "Rename multiple local variables in one call.",
     {
@@ -232,7 +347,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "rename_data",
     "Rename a data label at the specified address.",
     {
@@ -247,7 +362,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
 
   // ===== Comment Tools =====
 
-  server.tool(
+  tool(
     "set_comment",
     "Set a comment at a specific address.",
     {
@@ -260,7 +375,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_comment",
     "Get the comment at a specific address.",
     {
@@ -272,7 +387,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "delete_comment",
     "Delete the comment at a specific address.",
     {
@@ -284,7 +399,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "set_function_comment",
     "Set a comment for a function.",
     {
@@ -297,7 +412,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_function_comment",
     "Get the comment for a function.",
     {
@@ -309,7 +424,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "delete_function_comment",
     "Delete the comment for a function.",
     {
@@ -323,7 +438,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
 
   // ===== Type Tools =====
 
-  server.tool(
+  tool(
     "define_types",
     "Define types from a C code string.",
     {
@@ -344,7 +459,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_local_types",
     "List all local types in the database (paginated).",
     {
@@ -362,7 +477,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "search_types",
     "Search local types whose name or declaration contains the substring.",
     {
@@ -382,7 +497,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_user_defined_type",
     "Retrieve definition of a user defined type (struct, enumeration, typedef, union).",
     {
@@ -394,7 +509,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_type_info",
     "Resolve a type name and return its declaration and details (kind, members, enum values).",
     {
@@ -412,7 +527,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "declare_c_type",
     "Create or update a local type from a C declaration.",
     {
@@ -435,7 +550,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "retype_variable",
     "Retype a variable in a function.",
     {
@@ -462,7 +577,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "set_local_variable_type",
     "Set a local variable's type.",
     {
@@ -492,7 +607,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
 
   // ===== Data Tools =====
 
-  server.tool(
+  tool(
     "list_data_items",
     "List defined data labels and their values with pagination.",
     {
@@ -505,7 +620,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "hexdump_address",
     "Hexdump data starting at an address.",
     {
@@ -522,7 +637,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "hexdump_data",
     "Hexdump a data symbol by name or address.",
     {
@@ -548,7 +663,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_data_decl",
     "Return a declaration-like string and hexdump for a data symbol.",
     {
@@ -588,7 +703,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
 
   // ===== Cross-Reference Tools =====
 
-  server.tool(
+  tool(
     "get_xrefs_to",
     "Get all cross references (code and data) to the given address.",
     {
@@ -600,7 +715,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_xrefs_to_field",
     "Get all cross references to a named struct field (member).",
     {
@@ -613,7 +728,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_xrefs_to_struct",
     "Get cross references/usages related to a struct name.",
     {
@@ -625,7 +740,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_xrefs_to_type",
     "Get xrefs/usages related to a struct or type name.",
     {
@@ -637,7 +752,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_xrefs_to_enum",
     "Get usages/xrefs of an enum by scanning for member values and matches.",
     {
@@ -649,7 +764,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_xrefs_to_union",
     "Get cross references/usages related to a union type by name.",
     {
@@ -663,7 +778,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
 
   // ===== Utility Tools =====
 
-  server.tool(
+  tool(
     "function_at",
     "Retrieve the name of the function the address belongs to.",
     {
@@ -675,7 +790,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_stack_frame_vars",
     "Get stack frame variable information for a function (names, offsets, sizes, types).",
     {
@@ -698,7 +813,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_classes",
     "List all namespace/class names in the program with pagination.",
     {
@@ -711,7 +826,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_namespaces",
     "List all non-global namespaces in the program with pagination.",
     {
@@ -724,7 +839,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_segments",
     "List all memory segments in the program with pagination.",
     {
@@ -737,7 +852,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_sections",
     "List sections in the program with pagination.",
     {
@@ -765,7 +880,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_imports",
     "List imported symbols in the program with pagination.",
     {
@@ -778,7 +893,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_exports",
     "List exported functions/symbols with pagination.",
     {
@@ -791,7 +906,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_strings",
     "List all strings in the database (paginated).",
     {
@@ -804,7 +919,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_strings_filter",
     "List matching strings in the database (paginated, filtered).",
     {
@@ -818,7 +933,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_all_strings",
     "List all strings in the database (aggregated across pages).",
     {
@@ -853,7 +968,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "get_binary_status",
     "Get the current status of the loaded binary.",
     {},
@@ -863,7 +978,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_binaries",
     "List managed/open binaries known to the server with ids and active flag.",
     {},
@@ -894,7 +1009,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "select_binary",
     "Select which binary to analyze by ordinal, internal view id, full path, or basename.",
     {
@@ -927,7 +1042,46 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
 
   // ===== Binary Modification Tools =====
 
-  server.tool(
+  tool(
+    "execute_python",
+    "Execute Python in a persistent Binary Ninja scripting context. The code can use console magic variables such as bv, current_view, current_function, and here. Standard output, warnings, and errors are returned.",
+    {
+      code: z.string().min(1).describe("Python code to execute"),
+      timeout_seconds: z.number().min(0.1).max(300).default(30).describe("Execution timeout in seconds"),
+    },
+    async ({ code, timeout_seconds = 30 }) => {
+      type ExecutionResult = {
+        success?: boolean;
+        timed_out?: boolean;
+        output?: string;
+        warnings?: string;
+        errors?: string;
+        truncated?: boolean;
+        error?: string;
+      };
+      const result = await client.postJson<ExecutionResult>(
+        "executePython",
+        { code, timeout_seconds },
+        (timeout_seconds + 5) * 1000,
+      );
+      const execution = result as ExecutionResult;
+
+      if (!execution || (execution.error && !execution.output && !execution.errors)) {
+        return { content: [{ type: "text", text: `Error: ${execution?.error || "no response"}` }] };
+      }
+
+      const sections: string[] = [];
+      if (execution.output) sections.push(execution.output);
+      if (execution.warnings) sections.push(`Warnings:\n${execution.warnings}`);
+      if (execution.errors) sections.push(`Errors:\n${execution.errors}`);
+      if (execution.error) sections.push(`Error: ${execution.error}`);
+      if (execution.truncated) sections.push("[Output truncated after 1,000,000 characters]");
+      if (!sections.length) sections.push("(no output)");
+      return { content: [{ type: "text", text: sections.join("\n") }] };
+    }
+  );
+
+  tool(
     "set_function_prototype",
     "Set a function's prototype by name or address.",
     {
@@ -956,7 +1110,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "make_function_at",
     "Create a function at the given address.",
     {
@@ -985,7 +1139,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "list_platforms",
     "List all available platform names from Binary Ninja.",
     {},
@@ -1005,7 +1159,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "patch_bytes",
     "Patch bytes at a given address in the binary.",
     {
@@ -1063,7 +1217,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "format_value",
     "Convert and annotate a value at an address in Binary Ninja.",
     {
@@ -1077,7 +1231,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     }
   );
 
-  server.tool(
+  tool(
     "convert_number",
     "Convert a number or string to multiple representations (hex/dec/bin, C literals).",
     {

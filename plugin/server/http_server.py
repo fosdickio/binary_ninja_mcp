@@ -10,12 +10,14 @@ from binaryninja.settings import Settings
 from ..api.endpoints import BinaryNinjaEndpoints
 from ..core.binary_operations import BinaryOperations
 from ..core.config import Config
+from ..core.scripting import PythonScriptingExecutor
 from ..utils.number_utils import convert_number as util_convert_number
 from ..utils.string_utils import parse_int_or_default
 
 
 class MCPRequestHandler(BaseHTTPRequestHandler):
     binary_ops = None  # Will be set by the server
+    scripting_executor = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -118,7 +120,7 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
         content_type = self.headers.get("Content-Type", "")
         post_data = self.rfile.read(content_length).decode("utf-8")
 
-        bn.log_info(f"Received POST data: {post_data}")
+        bn.log_info(f"Received POST body ({len(post_data)} characters)")
         bn.log_info(f"Content-Type: {content_type}")
 
         # Handle JSON data
@@ -1908,7 +1910,11 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             params = self._parse_post_params()
             path = urllib.parse.urlparse(self.path).path
 
-            bn.log_info(f"POST {path} with params: {params}")
+            logged_params = params
+            if path == "/executePython" and "code" in params:
+                logged_params = dict(params)
+                logged_params["code"] = f"<{len(str(params['code']))} characters>"
+            bn.log_info(f"POST {path} with params: {logged_params}")
 
             if path == "/load":
                 filepath = params.get("filepath")
@@ -1922,6 +1928,28 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         {"success": True, "message": f"Binary loaded: {filepath}"}
                     )
                 except Exception as e:
+                    self._send_json_response({"error": str(e)}, 500)
+
+            elif path == "/executePython":
+                code = params.get("code")
+                if not isinstance(code, str) or not code.strip():
+                    self._send_json_response(
+                        {"error": "Missing or empty Python code parameter"}, 400
+                    )
+                    return
+
+                try:
+                    timeout_seconds = float(params.get("timeout_seconds", 30))
+                    result = self.scripting_executor.execute(
+                        code,
+                        self.binary_ops.current_view,
+                        timeout_seconds,
+                    )
+                    self._send_json_response(result)
+                except (TypeError, ValueError) as e:
+                    self._send_json_response({"error": str(e)}, 400)
+                except Exception as e:
+                    bn.log_error(f"Python scripting execution failed: {e}")
                     self._send_json_response({"error": str(e)}, 500)
 
             elif path == "/rename/function" or path == "/renameFunction":
@@ -2355,6 +2383,7 @@ class MCPServer:
         self.server = None
         self.thread = None
         self.binary_ops = BinaryOperations(config.binary_ninja)
+        self.scripting_executor = PythonScriptingExecutor()
 
     def start(self):
         """Start the HTTP server in a background thread."""
@@ -2364,7 +2393,10 @@ class MCPServer:
         handler_class = type(
             "MCPRequestHandlerWithOps",
             (MCPRequestHandler,),
-            {"binary_ops": self.binary_ops},
+            {
+                "binary_ops": self.binary_ops,
+                "scripting_executor": self.scripting_executor,
+            },
         )
 
         self.server = HTTPServer(server_address, handler_class)
@@ -2384,3 +2416,4 @@ class MCPServer:
             self.thread = None
             self.server = None
             bn.log_info("Server stopped")
+        self.scripting_executor.close()
