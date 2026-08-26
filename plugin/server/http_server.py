@@ -2371,7 +2371,9 @@ class MCPServer:
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.daemon = True
         self.thread.start()
-        bn.log_info(f"Server started on {self.config.server.host}:{self.config.server.port}")
+        bn.log_info(
+            f"MCP server started on http://{self.config.server.host}:{self.config.server.port}"
+        )
 
     def stop(self):
         """Stop the HTTP server and clean up resources."""
