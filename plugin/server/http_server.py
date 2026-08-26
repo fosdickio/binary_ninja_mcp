@@ -1,7 +1,8 @@
 import json
 import threading
+import time
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 import binaryninja as bn
@@ -14,11 +15,74 @@ from ..utils.number_utils import convert_number as util_convert_number
 from ..utils.string_utils import parse_int_or_default
 
 
+class MCPThreadingHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
 class MCPRequestHandler(BaseHTTPRequestHandler):
     binary_ops = None  # Will be set by the server
+    mcp_server = None
+    slow_request_seconds = 10.0
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    def parse_request(self):
+        parsed = super().parse_request()
+        if parsed:
+            self._request_started_at = time.monotonic()
+            self._request_finished = False
+            request_path = urllib.parse.urlparse(self.path).path
+            if self.mcp_server:
+                self.mcp_server.request_started(id(self), self.command, request_path)
+            self._slow_request_timer = threading.Timer(
+                self.slow_request_seconds,
+                self._log_slow_request,
+            )
+            self._slow_request_timer.daemon = True
+            self._slow_request_timer.start()
+            bn.log_debug(f"MCP request started: {self.command} {request_path}")
+        return parsed
+
+    def handle_one_request(self):
+        try:
+            super().handle_one_request()
+        except Exception as exc:
+            method = getattr(self, "command", "UNKNOWN")
+            path = urllib.parse.urlparse(getattr(self, "path", "")).path
+            bn.log_error(f"MCP request failed: {method} {path}: {exc!r}")
+            raise
+        finally:
+            self._finish_request_tracking()
+
+    def _log_slow_request(self):
+        if getattr(self, "_request_finished", True):
+            return
+        method = getattr(self, "command", "UNKNOWN")
+        path = urllib.parse.urlparse(getattr(self, "path", "")).path
+        bn.log_warn(
+            f"MCP request still running after {self.slow_request_seconds:g}s: {method} {path}"
+        )
+
+    def _finish_request_tracking(self):
+        started_at = getattr(self, "_request_started_at", None)
+        if started_at is None or getattr(self, "_request_finished", False):
+            return
+        self._request_finished = True
+        timer = getattr(self, "_slow_request_timer", None)
+        if timer:
+            timer.cancel()
+        elapsed = time.monotonic() - started_at
+        if self.mcp_server:
+            self.mcp_server.request_finished(id(self))
+        method = getattr(self, "command", "UNKNOWN")
+        path = urllib.parse.urlparse(getattr(self, "path", "")).path
+        message = f"MCP request finished in {elapsed:.3f}s: {method} {path}"
+        if elapsed >= self.slow_request_seconds:
+            bn.log_warn(message)
+        else:
+            bn.log_debug(message)
 
     @property
     def endpoints(self):
@@ -238,10 +302,11 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            # For all endpoints except /status, /convertNumber, /platforms, /binaries, /views, /selectBinary, check loaded
+            # For all endpoints except server-level utilities, check that a binary is loaded.
             if (
                 not (
                     self.path.startswith("/status")
+                    or self.path.startswith("/health")
                     or self.path.startswith("/convertNumber")
                     or self.path.startswith("/platforms")
                     or self.path.startswith("/binaries")
@@ -261,7 +326,11 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
             else:
                 limit = parse_int_or_default(params.get("limit"), 100)
 
-            if path == "/status":
+            if path == "/health":
+                health = self.mcp_server.health() if self.mcp_server else {"status": "unknown"}
+                self._send_json_response(health)
+
+            elif path == "/status":
                 status = {
                     "loaded": self.binary_ops and self.binary_ops.current_view is not None,
                     "filename": self.binary_ops.current_view.file.filename
@@ -2355,32 +2424,89 @@ class MCPServer:
         self.server = None
         self.thread = None
         self.binary_ops = BinaryOperations(config.binary_ninja)
+        self._ready = threading.Event()
+        self._state_lock = threading.Lock()
+        self._active_requests: dict[int, dict[str, Any]] = {}
+        self._serve_error: str | None = None
+
+    @property
+    def is_running(self) -> bool:
+        return bool(self.server and self.thread and self.thread.is_alive())
+
+    def request_started(self, request_id: int, method: str, path: str):
+        with self._state_lock:
+            self._active_requests[request_id] = {
+                "method": method,
+                "path": path,
+                "started_at": time.monotonic(),
+            }
+
+    def request_finished(self, request_id: int):
+        with self._state_lock:
+            self._active_requests.pop(request_id, None)
+
+    def health(self) -> dict[str, Any]:
+        with self._state_lock:
+            active_requests = len(self._active_requests)
+        return {
+            "status": "ok" if self.is_running else "error",
+            "server_thread_alive": bool(self.thread and self.thread.is_alive()),
+            "active_requests": active_requests,
+            "binary_loaded": self.binary_ops.current_view is not None,
+            "last_server_error": self._serve_error,
+        }
+
+    def _serve(self):
+        self._ready.set()
+        try:
+            self.server.serve_forever()
+        except Exception as exc:
+            self._serve_error = repr(exc)
+            bn.log_error(f"MCP server thread stopped unexpectedly: {exc!r}")
 
     def start(self):
         """Start the HTTP server in a background thread."""
+        if self.is_running:
+            return
+        if self.server:
+            self.server.server_close()
+            self.server = None
+            self.thread = None
         server_address = (self.config.server.host, self.config.server.port)
 
         # Create handler with access to binary operations
         handler_class = type(
             "MCPRequestHandlerWithOps",
             (MCPRequestHandler,),
-            {"binary_ops": self.binary_ops},
+            {"binary_ops": self.binary_ops, "mcp_server": self},
         )
 
-        self.server = HTTPServer(server_address, handler_class)
-        self.thread = threading.Thread(target=self.server.serve_forever)
+        self._ready.clear()
+        self._serve_error = None
+        self.server = MCPThreadingHTTPServer(server_address, handler_class)
+        self.thread = threading.Thread(target=self._serve, name="BinaryNinjaMCPServer")
         self.thread.daemon = True
         self.thread.start()
+        if not self._ready.wait(timeout=2.0) or not self.thread.is_alive():
+            self.server.server_close()
+            self.server = None
+            self.thread = None
+            raise RuntimeError("MCP server thread failed to become ready")
         bn.log_info(f"Server started on {self.config.server.host}:{self.config.server.port}")
 
     def stop(self):
         """Stop the HTTP server and clean up resources."""
         if self.server:
-            self.server.shutdown()
+            if self.thread and self.thread.is_alive():
+                self.server.shutdown()
             self.server.server_close()
             if self.thread:
-                self.thread.join()
+                self.thread.join(timeout=5.0)
+                if self.thread.is_alive():
+                    bn.log_warn("MCP server thread did not stop within 5 seconds")
             # Clear references so callers can reliably detect stopped state
             self.thread = None
             self.server = None
+            with self._state_lock:
+                self._active_requests.clear()
             bn.log_info("Server stopped")

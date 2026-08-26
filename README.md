@@ -221,6 +221,8 @@ The following table lists the available MCP functions for use:
 
 These are the list of HTTP endpoints that can be called:
 
+- `/health`: Report server thread health, active request count, binary availability, and the last server error.
+
 - `/allStrings`: All strings in one response.
 - `/formatValue?address=<addr>&text=<value>&size=<n>`: Convert and set a comment at an address.
 - `/getXrefsTo?address=<addr>`: Xrefs to address (code+data).

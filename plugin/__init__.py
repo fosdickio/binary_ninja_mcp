@@ -1,3 +1,5 @@
+import atexit
+
 import binaryninja as bn
 from binaryninja import Settings
 
@@ -47,7 +49,7 @@ class BinaryNinjaMCP:
                 _show_no_bv_popup()
                 return
             # Avoid duplicate starts
-            if self.server and self.server.server:
+            if self.server and self.server.is_running:
                 bn.log_info("MCP Max server already running; skip new start")
                 # Ensure BV is set if not already
                 if self.server.binary_ops.current_view is None:
@@ -83,7 +85,7 @@ class BinaryNinjaMCP:
     def stop_server(self, bv):
         try:
             # If not running, inform the user
-            if not (self.server and self.server.server):
+            if not (self.server and self.server.is_running):
                 bn.log_info("MCP Max server stop requested but server is not running")
                 _show_popup("MCP Server", "Server is not running.")
                 return
@@ -181,6 +183,34 @@ _status_button = None
 _status_container = None
 _indicator_timer = None
 _bv_monitor_timer = None
+_runtime_shutdown = False
+
+
+def _shutdown_runtime():
+    """Stop plugin-owned runtime resources before Binary Ninja tears down."""
+    global _runtime_shutdown
+    if _runtime_shutdown:
+        return
+    _runtime_shutdown = True
+
+    for timer in (_indicator_timer, _bv_monitor_timer):
+        try:
+            if timer is not None and hasattr(timer, "stop"):
+                timer.stop()
+        except Exception:
+            pass
+
+    try:
+        if plugin.server and plugin.server.is_running:
+            plugin.server.stop()
+    except Exception as exc:
+        try:
+            bn.log_debug(f"MCP shutdown cleanup failed: {exc}")
+        except Exception:
+            pass
+
+
+atexit.register(_shutdown_runtime)
 
 
 def _sidebar_icon_margin_default() -> int:
@@ -266,7 +296,7 @@ def _ensure_status_indicator():
 
             # Set initial visible state so the indicator shows up immediately
             try:
-                running_now = bool(plugin.server and plugin.server.server)
+                running_now = bool(plugin.server and plugin.server.is_running)
             except Exception:
                 running_now = False
             if running_now:
@@ -283,7 +313,7 @@ def _ensure_status_indicator():
             # Click handler to toggle server state
             def _on_click():
                 try:
-                    running = bool(plugin.server and plugin.server.server)
+                    running = bool(plugin.server and plugin.server.is_running)
                     if running:
                         plugin.stop_server(None)
                     else:
@@ -304,7 +334,7 @@ def _ensure_status_indicator():
                             return
                         plugin.start_server(bv)
                 finally:
-                    _set_status_indicator(bool(plugin.server and plugin.server.server))
+                    _set_status_indicator(bool(plugin.server and plugin.server.is_running))
 
             _status_button.clicked.connect(_on_click)
 
@@ -376,7 +406,7 @@ def _start_indicator_watcher():
         def _tick():
             try:
                 _ensure_status_indicator()
-                _set_status_indicator(bool(plugin.server and plugin.server.server))
+                _set_status_indicator(bool(plugin.server and plugin.server.is_running))
                 if _status_button is not None and hasattr(_indicator_timer, "stop"):
                     _indicator_timer.stop()
             except Exception:
@@ -410,7 +440,7 @@ def _schedule_status_init():
         def _init_once():
             try:
                 _ensure_status_indicator()
-                _set_status_indicator(bool(plugin.server and plugin.server.server))
+                _set_status_indicator(bool(plugin.server and plugin.server.is_running))
             except Exception:
                 pass
 
@@ -603,7 +633,7 @@ try:
         def __init__(self):
             super().__init__()
             ui.UIContext.registerNotification(self)
-        
+
         def _get_active_bv(self):
             try:
                 ctx = ui.UIContext.activeContext()
@@ -620,7 +650,7 @@ try:
                 bv = self._get_active_bv()
                 # Ensure the status indicator exists and reflects current state
                 _ensure_status_indicator()
-                _set_status_indicator(bool(plugin.server and plugin.server.server))
+                _set_status_indicator(bool(plugin.server and plugin.server.is_running))
                 _start_indicator_watcher()
                 _start_bv_monitor()
                 if bv:
@@ -639,7 +669,7 @@ try:
                 bv = self._get_active_bv()
                 # Ensure the status indicator is present as soon as a file opens
                 _ensure_status_indicator()
-                _set_status_indicator(bool(plugin.server and plugin.server.server))
+                _set_status_indicator(bool(plugin.server and plugin.server.is_running))
                 _start_indicator_watcher()
                 _start_bv_monitor()
                 if bv:
@@ -677,8 +707,16 @@ try:
         def OnContextOpen(self, *args):  # type: ignore[override]
             try:
                 _ensure_status_indicator()
-                _set_status_indicator(bool(plugin.server and plugin.server.server))
+                _set_status_indicator(bool(plugin.server and plugin.server.is_running))
                 _start_indicator_watcher()
+            except Exception:
+                pass
+
+        def OnContextClose(self, *args):  # type: ignore[override]
+            try:
+                all_contexts = getattr(ui.UIContext, "allContexts", None)
+                if callable(all_contexts) and len(list(all_contexts())) <= 1:
+                    _shutdown_runtime()
             except Exception:
                 pass
 
@@ -732,7 +770,7 @@ except Exception:
 
 def _is_server_running() -> bool:
     try:
-        return bool(plugin.server and plugin.server.server)
+        return bool(plugin.server and plugin.server.is_running)
     except Exception:
         return False
 
