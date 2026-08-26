@@ -701,44 +701,46 @@ def get_xrefs_to(address: str) -> list:
 
 
 @mcp.tool()
-def get_xrefs_to_field(struct_name: str, field_name: str) -> list:
+def get_xrefs_to_field(struct_name: str, field_name: str, max_results: int = 100) -> list:
     """
     Get all cross references to a named struct field (member).
     """
-    return safe_get("getXrefsToField", {"struct": struct_name, "field": field_name})
+    return safe_get(
+        "getXrefsToField",
+        {"struct": struct_name, "field": field_name, "maxResults": max_results},
+    )
 
 
 @mcp.tool()
-def get_xrefs_to_struct(struct_name: str) -> list:
+def get_xrefs_to_struct(struct_name: str, max_results: int = 100) -> list:
     """
-    Get cross references/usages related to a struct name.
+    Get indexed, bounded code and data references to a struct type.
     """
-    return safe_get("getXrefsToStruct", {"name": struct_name})
+    return safe_get("getXrefsToStruct", {"name": struct_name, "maxResults": max_results})
 
 
 @mcp.tool()
-def get_xrefs_to_type(type_name: str) -> list:
+def get_xrefs_to_type(type_name: str, max_results: int = 100) -> list:
     """
-    Get xrefs/usages related to a struct or type name.
-    Includes global instances, code refs to those, HLIL matches, and functions whose signature mentions the type.
+    Get indexed, bounded code and data references to a named type.
     """
-    return safe_get("getXrefsToType", {"name": type_name})
+    return safe_get("getXrefsToType", {"name": type_name, "maxResults": max_results})
 
 
 @mcp.tool()
-def get_xrefs_to_enum(enum_name: str) -> list:
+def get_xrefs_to_enum(enum_name: str, max_results: int = 100) -> list:
     """
-    Get usages/xrefs of an enum by scanning for member values and matches.
+    Get indexed, bounded code and data references to an enum type.
     """
-    return safe_get("getXrefsToEnum", {"name": enum_name})
+    return safe_get("getXrefsToEnum", {"name": enum_name, "maxResults": max_results})
 
 
 @mcp.tool()
-def get_xrefs_to_union(union_name: str) -> list:
+def get_xrefs_to_union(union_name: str, max_results: int = 100) -> list:
     """
-    Get cross references/usages related to a union type by name.
+    Get indexed, bounded code and data references to a union type.
     """
-    return safe_get("getXrefsToUnion", {"name": union_name})
+    return safe_get("getXrefsToUnion", {"name": union_name, "maxResults": max_results})
 
 
 @mcp.tool()

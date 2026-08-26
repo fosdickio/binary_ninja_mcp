@@ -182,11 +182,11 @@ The following table lists the available MCP functions for use:
 | `get_data_decl(name_or_address, length)`                             | Return a C-like declaration and a hexdump for a data symbol or address.                                      |
 | `hexdump_address(address, length)`                                   | Text hexdump at address. `length < 0` reads exact defined size if available.                                 |
 | `hexdump_data(name_or_address, length)`                              | Hexdump by data symbol name or address. `length < 0` reads exact defined size if available.                  |
-| `get_xrefs_to_enum(enum_name)`                                       | Get usages related to an enum (matches member constants in code).                                            |
-| `get_xrefs_to_field(struct_name, field_name)`                        | Get all cross references to a named struct field.                                                            |
-| `get_xrefs_to_struct(struct_name)`                                   | Get xrefs/usages related to a struct (members, globals, code refs).                                          |
-| `get_xrefs_to_type(type_name)`                                       | Get xrefs/usages related to a struct/type (globals, refs, HLIL matches).                                     |
-| `get_xrefs_to_union(union_name)`                                     | Get xrefs/usages related to a union (members, globals, code refs).                                           |
+| `get_xrefs_to_enum(enum_name, max_results)`                          | Get indexed, bounded code and data references to an enum type.                                               |
+| `get_xrefs_to_field(struct_name, field_name, max_results)`           | Get indexed, bounded cross references to a named struct field.                                               |
+| `get_xrefs_to_struct(struct_name, max_results)`                      | Get indexed, bounded code and data references to a struct type.                                             |
+| `get_xrefs_to_type(type_name, max_results)`                          | Get indexed, bounded code and data references to a named type.                                              |
+| `get_xrefs_to_union(union_name, max_results)`                        | Get indexed, bounded code and data references to a union type.                                              |
 | `get_stack_frame_vars(function_identifier)`                          | Get stack frame variable information for a function (names, offsets, sizes, types).                           |
 | `get_type_info(type_name)`                                           | Resolve a type and return declaration, kind, and members.                                                    |
 | `get_callers(identifiers)`                                           | List callers plus call sites for one or more function identifiers.                                           |
@@ -232,11 +232,12 @@ These are the list of HTTP endpoints that can be called:
 - `/binaries` or `/views`: List managed/open binaries with ids and active flag.
 - `/selectBinary?view=<id|filename>`: Select active binary for subsequent operations.
 - `/data?offset=<n>&limit=<m>&length=<n>`: Defined data items with previews. `length` controls bytes read per item (capped at defined size). Default behavior reads exact defined size when available; `length=-1` forces exact-size.
-- `/getXrefsToEnum?name=<enum>`: Enum usages by matching member constants.
-- `/getXrefsToField?struct=<name>&field=<name>`: Xrefs to struct field.
-- `/getXrefsToType?name=<type>`: Xrefs/usages related to a struct/type name.
+- `/getXrefsToEnum?name=<enum>&maxResults=<n>`: Indexed enum type references, limited to 100 by default and 1000 maximum.
+- `/getXrefsToField?struct=<name>&field=<name>&maxResults=<n>`: Indexed struct-field references with the same limits.
+- `/getXrefsToStruct?name=<struct>&maxResults=<n>`: Indexed struct type references and members with the same limits.
+- `/getXrefsToType?name=<type>&maxResults=<n>`: Indexed named-type references with the same limits.
 - `/getTypeInfo?name=<type>`: Resolve a type and return declaration and details.
-- `/getXrefsToUnion?name=<union>`: Union xrefs/usages (members, globals, refs).
+- `/getXrefsToUnion?name=<union>&maxResults=<n>`: Indexed union type references and members with the same limits.
 - `/getStackFrameVars?name=<function>|address=<addr>`: Get stack frame variable information for a function.
 - `/getCallers?identifiers=<name|addr>[,...]`: Return caller summaries (functions, call sites, HLIL/IL snippets) for one or more identifiers. Accepts `identifiers`, `identifier`, `names`, or `addresses` query params.
 - `/getCallees?identifiers=<name|addr>[,...]`: Return callee summaries with the same schema as `/getCallers`, detailing every outgoing call target per request identifier.
