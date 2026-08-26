@@ -603,7 +603,7 @@ try:
         def __init__(self):
             super().__init__()
             ui.UIContext.registerNotification(self)
-        
+
         def _get_active_bv(self):
             try:
                 ctx = ui.UIContext.activeContext()
