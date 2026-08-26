@@ -379,33 +379,32 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                             400,
                         )
                         return
-                    # support count=-1 to return all
-                    eff_limit = (
-                        -1
-                        if (params.get("count") == "-1" or params.get("limit") == "-1")
-                        else limit
-                    )
+                    search_limit = max(1, min(limit, 1000))
+                    max_scan = parse_int_or_default(params.get("maxScan"), 2000)
+                    max_scan = max(1, min(max_scan, 20_000))
                     include_libs = params.get("includeLibraries") in (
                         "1",
                         "true",
                         "True",
                     )
-                    # First compute total
-                    all_matches = self.binary_ops.search_local_types(
-                        term, 0, -1, include_libraries=include_libs
+                    self._set_request_stage("bounded_type_search")
+                    page = self.binary_ops.search_local_types(
+                        term,
+                        offset,
+                        search_limit,
+                        include_libraries=include_libs,
+                        max_scan=max_scan,
                     )
-                    page = (
-                        all_matches[offset:]
-                        if eff_limit < 0
-                        else all_matches[offset : offset + eff_limit]
-                    )
+                    self._set_request_stage("format_response")
                     self._send_json_response(
                         {
                             "types": page,
                             "query": term,
-                            "total": len(all_matches),
+                            "total": None,
                             "offset": offset,
-                            "limit": eff_limit,
+                            "limit": search_limit,
+                            "maxScan": max_scan,
+                            "bounded": True,
                             "includeLibraries": include_libs,
                         }
                     )

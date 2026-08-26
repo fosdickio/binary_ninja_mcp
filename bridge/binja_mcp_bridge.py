@@ -514,10 +514,14 @@ def list_local_types(offset: int = 0, count: int = 200, include_libraries: bool 
 
 @mcp.tool()
 def search_types(
-    query: str, offset: int = 0, count: int = 200, include_libraries: bool = False
+    query: str,
+    offset: int = 0,
+    count: int = 100,
+    max_scan: int = 2000,
+    include_libraries: bool = False,
 ) -> list:
     """
-    Search local types whose name or declaration contains the substring.
+    Search local type names with bounded enumeration and an exact-name fast path.
     """
     return safe_get(
         "searchTypes",
@@ -525,6 +529,7 @@ def search_types(
             "query": query,
             "offset": offset,
             "limit": count,
+            "maxScan": max_scan,
             "includeLibraries": int(bool(include_libraries)),
         },
         timeout=None,

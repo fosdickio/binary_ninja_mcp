@@ -220,7 +220,7 @@ class BinaryOperations:
                 vb_canon = vb
             entries.append((canonical_id, fn, bool(vb_canon is self._current_view)))
         # Sort by filename for stable ordering
-        entries.sort(key=lambda t: (t[1] or ""))
+        entries.sort(key=lambda t: t[1] or "")
         for cid, fn, active in entries:
             items.append({"id": cid, "filename": fn, "active": active})
         return items
@@ -1647,31 +1647,147 @@ class BinaryOperations:
         return results[offset : offset + limit]
 
     def search_local_types(
-        self, query: str, offset: int = 0, limit: int = 100, include_libraries: bool = False
+        self,
+        query: str,
+        offset: int = 0,
+        limit: int = 100,
+        include_libraries: bool = False,
+        max_scan: int = 2000,
     ) -> list[dict[str, Any]]:
-        """Search local/view types whose name or declaration contains the substring.
-
-        Returns entries with {name, kind, type_class, decl}.
-        """
+        """Search type names with bounded enumeration and exact-name fast path."""
         if not self._current_view:
             raise RuntimeError("No binary loaded")
         if not query:
             return []
-        ql = str(query).lower()
-        # Only local types by default (fast). Optionally include libraries.
-        all_types = self.list_local_types(0, 1_000_000, include_libraries=include_libraries)
+
+        query_str = str(query).strip()
+        query_lower = query_str.lower()
+        offset = max(0, int(offset))
+        limit = max(1, min(int(limit), 1000))
+        max_scan = max(1, min(int(max_scan), 20_000))
         matches: list[dict[str, Any]] = []
-        for t in all_types:
+        seen_names: set[str] = set()
+        matched_count = 0
+        scanned_count = 0
+
+        def describe_type(name: str, type_obj: Any) -> dict[str, Any]:
+            type_class = getattr(type_obj, "type_class", None)
+            kind = "unknown"
             try:
-                name = t.get("name") or ""
-                decl = t.get("decl") or ""
-                if (ql in str(name).lower()) or (ql in str(decl).lower()):
-                    matches.append(t)
+                if type_class == TypeClass.StructureTypeClass:
+                    variant = getattr(type_obj, "type", None)
+                    if variant == StructureVariant.UnionStructureType:
+                        kind = "union"
+                    elif variant == StructureVariant.ClassStructureType:
+                        kind = "class"
+                    else:
+                        kind = "struct"
+                elif type_class == TypeClass.EnumerationTypeClass:
+                    kind = "enum"
+                elif type_class == TypeClass.NamedTypeReferenceClass:
+                    kind = "typedef"
+                elif type_class == TypeClass.FunctionTypeClass:
+                    kind = "function"
             except Exception:
-                continue
-        if isinstance(limit, int) and limit < 0:
-            return matches[offset:]
-        return matches[offset : offset + limit]
+                pass
+
+            try:
+                declaration = str(type_obj)
+            except Exception:
+                declaration = None
+            return {
+                "name": name,
+                "kind": kind,
+                "type_class": str(type_class) if type_class is not None else None,
+                "decl": declaration,
+            }
+
+        def add_match(name: Any, type_obj: Any) -> bool:
+            nonlocal matched_count
+            try:
+                name_str = str(name).strip()
+            except Exception:
+                return False
+            if not name_str or name_str in seen_names:
+                return False
+            seen_names.add(name_str)
+            if query_lower not in name_str.lower():
+                return False
+            if matched_count >= offset:
+                matches.append(describe_type(name_str, type_obj))
+            matched_count += 1
+            return len(matches) >= limit
+
+        # Exact lookups avoid enumerating a large type collection entirely.
+        get_type = getattr(self._current_view, "get_type_by_name", None)
+        if callable(get_type):
+            try:
+                exact_type = get_type(query_str)
+                if exact_type is not None:
+                    if offset > 0:
+                        return []
+                    return [describe_type(query_str, exact_type)]
+            except Exception:
+                pass
+
+        def scan_entries(entries) -> bool:
+            nonlocal scanned_count
+            for name, type_obj in entries:
+                if scanned_count >= max_scan:
+                    return True
+                scanned_count += 1
+                if add_match(name, type_obj):
+                    return True
+            return False
+
+        try:
+            user_types = getattr(
+                getattr(self._current_view, "user_type_container", None), "types", None
+            )
+            if user_types:
+
+                def user_entries():
+                    for _type_id, entry in user_types.items():
+                        if isinstance(entry, (tuple, list)) and len(entry) >= 2:
+                            yield entry[0], entry[1]
+                        else:
+                            yield getattr(entry, "name", None), getattr(entry, "type", entry)
+
+                if scan_entries(user_entries()):
+                    return matches
+        except Exception as e:
+            bn.log_warn(f"Error scanning user type names: {e}")
+
+        try:
+            view_types = self._current_view.types
+
+            def view_entries():
+                for key, value in view_types.items():
+                    if isinstance(value, (tuple, list)) and len(value) >= 2:
+                        yield value[0], value[1]
+                    else:
+                        yield getattr(value, "name", None) or key, value
+
+            if scan_entries(view_entries()):
+                return matches
+        except Exception as e:
+            bn.log_warn(f"Error scanning view type names: {e}")
+
+        if include_libraries and scanned_count < max_scan:
+            try:
+                platform = getattr(self._current_view, "platform", None)
+                for library in getattr(platform, "type_libraries", []) or []:
+                    named_types = getattr(library, "named_types", None)
+                    if not isinstance(named_types, dict):
+                        continue
+                    if scan_entries(named_types.items()):
+                        return matches
+            except Exception as e:
+                bn.log_warn(f"Error scanning library type names: {e}")
+
+        if scanned_count >= max_scan:
+            bn.log_warn(f"Type search stopped after {max_scan} names: query={query_str!r}")
+        return matches
 
     def get_type_info(self, name: str) -> dict[str, Any]:
         """Resolve a type by name and return detailed information.

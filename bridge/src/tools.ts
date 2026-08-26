@@ -364,18 +364,20 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
 
   server.tool(
     "search_types",
-    "Search local types whose name or declaration contains the substring.",
+    "Search local type names with bounded enumeration and an exact-name fast path.",
     {
       query: z.string().describe("Search query"),
       offset: z.number().default(0).describe("Offset for pagination"),
-      count: z.number().default(200).describe("Number of results to return"),
+      count: z.number().int().min(1).max(1000).default(100).describe("Number of results to return"),
+      max_scan: z.number().int().min(1).max(20000).default(2000).describe("Maximum type names to scan"),
       include_libraries: z.boolean().default(false).describe("Include library types"),
     },
-    async ({ query, offset = 0, count = 200, include_libraries = false }) => {
+    async ({ query, offset = 0, count = 100, max_scan = 2000, include_libraries = false }) => {
       const lines = await client.getLines("searchTypes", {
         query,
         offset,
         limit: count,
+        maxScan: max_scan,
         includeLibraries: include_libraries ? 1 : 0,
       });
       return { content: [{ type: "text", text: lines.join("\n") }] };
