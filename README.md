@@ -179,7 +179,7 @@ The following table lists the available MCP functions for use:
 | `get_function_comment`                                               | Get the comment for a function.                                                                              |
 | `get_user_defined_type`                                              | Retrieve definition of a user-defined type (struct, enumeration, typedef, union).                            |
 | `get_xrefs_to(address)`                                              | Get all cross references (code and data) to an address.                                                      |
-| `get_data_decl(name_or_address, length)`                             | Return a C-like declaration and a hexdump for a data symbol or address.                                      |
+| `get_data_decl(name_or_address, length)`                             | Return a C-like declaration and a bounded hexdump preview for a data symbol or address.                      |
 | `hexdump_address(address, length)`                                   | Text hexdump at address. `length < 0` reads exact defined size if available.                                 |
 | `hexdump_data(name_or_address, length)`                              | Hexdump by data symbol name or address. `length < 0` reads exact defined size if available.                  |
 | `get_xrefs_to_enum(enum_name)`                                       | Get usages related to an enum (matches member constants in code).                                            |
@@ -224,7 +224,7 @@ These are the list of HTTP endpoints that can be called:
 - `/allStrings`: All strings in one response.
 - `/formatValue?address=<addr>&text=<value>&size=<n>`: Convert and set a comment at an address.
 - `/getXrefsTo?address=<addr>`: Xrefs to address (code+data).
-- `/getDataDecl?name=<symbol>|address=<addr>&length=<n>`: JSON with declaration-style string and a hexdump for a data symbol or address. Keys: `address`, `name`, `size`, `type`, `decl`, `hexdump`. `length < 0` reads exact defined size if available.
+- `/getDataDecl?name=<symbol>|address=<addr>&length=<n>`: JSON with a declaration and hexdump for a data symbol or address. Negative `length` returns at most 4096 preview bytes; explicit lengths are limited to 1 MiB. Responses include `size`, `size_known`, `bytes_read`, and `truncated` so callers can fetch the remaining bytes in chunks.
 - `/hexdump?address=<addr>&length=<n>`: Text hexdump aligned at address; `length < 0` reads exact defined size if available.
 - `/hexdumpByName?name=<symbol>&length=<n>`: Text hexdump by symbol name. Recognizes BN auto-labels like `data_<hex>`, `byte_<hex>`, `word_<hex>`, `dword_<hex>`, `qword_<hex>`, `off_<hex>`, `unk_<hex>`, and plain hex addresses.
 - `/makeFunctionAt?address=<addr>&platform=<name|default>`: Create a function at an address (idempotent if already exists). `platform=default` uses the BinaryView/platform default.

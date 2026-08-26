@@ -313,7 +313,7 @@ def get_data_decl(name_or_address: str, length: int = -1) -> str:
     params = {"name": ident} if not ident.startswith("0x") else {"address": ident}
     if length is not None:
         params["length"] = length
-    data = get_json("getDataDecl", params, timeout=None)
+    data = get_json("getDataDecl", params, timeout=30)
     if not data:
         return "Error: no response"
     if "error" in data:
@@ -322,7 +322,14 @@ def get_data_decl(name_or_address: str, length: int = -1) -> str:
     hexdump = data.get("hexdump") or ""
     addr = data.get("address", "")
     name = data.get("name", ident)
-    return f"Declaration ({addr} {name}):\n{decl}\n\nHexdump:\n{hexdump}"
+    truncation_note = ""
+    if data.get("truncated"):
+        truncation_note = (
+            f"\n[Hexdump truncated: showing {data.get('bytes_read', 0)} of "
+            f"{data.get('size', 'unknown')} bytes. Request an explicit length or use "
+            "hexdump_address in chunks.]"
+        )
+    return f"Declaration ({addr} {name}):\n{decl}\n\nHexdump:\n{hexdump}{truncation_note}"
 
 
 @mcp.tool()

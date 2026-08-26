@@ -1,5 +1,4 @@
 import platform
-import re
 import subprocess
 import weakref
 from typing import Any
@@ -220,7 +219,7 @@ class BinaryOperations:
                 vb_canon = vb
             entries.append((canonical_id, fn, bool(vb_canon is self._current_view)))
         # Sort by filename for stable ordering
-        entries.sort(key=lambda t: (t[1] or ""))
+        entries.sort(key=lambda t: t[1] or "")
         for cid, fn, active in entries:
             items.append({"id": cid, "filename": fn, "active": active})
         return items
@@ -1243,7 +1242,13 @@ class BinaryOperations:
             raise RuntimeError("No binary loaded")
 
         data_items = []
-        for var in self._current_view.data_vars:
+        start = max(0, int(offset))
+        page_limit = int(limit)
+        for index, var in enumerate(self._current_view.data_vars):
+            if index < start:
+                continue
+            if page_limit >= 0 and len(data_items) >= page_limit:
+                break
             data_type = None  # may be a BN Type or a DataVariable
             value = None
             width = None
@@ -1317,7 +1322,7 @@ class BinaryOperations:
                 data_type = None
                 typ_obj = None
 
-            # If BN doesn't expose a width, try to infer size from call sites
+            # If BN doesn't expose a width, retry the constant-time type lookup.
             if width is None:
                 try:
                     inferred = self.infer_data_size(int(var))
@@ -1359,21 +1364,13 @@ class BinaryOperations:
                 }
             )
 
-        return data_items[offset : offset + limit]
+        return data_items
 
     def infer_data_size(self, address: int) -> int | None:
-        """Infer size for data at address when BN hasn't defined a type width.
-
-        Strategy:
-        - Prefer BN's DataVariable.type.width or get_type_at().width if available.
-        - Otherwise scan HLIL for calls like memcmp/strncmp/memcpy/strncpy where
-          an argument equals this address and extract the last numeric argument
-          as a best-effort length. Returns the maximum constant seen.
-        """
+        """Return a defined data type width without scanning program IL."""
         if not self._current_view:
             return None
 
-        # 1) BN-provided width if available
         try:
             dv = None
             if hasattr(self._current_view, "get_data_var_at"):
@@ -1385,47 +1382,6 @@ class BinaryOperations:
                 t = self._current_view.get_type_at(address)
             if t is not None and hasattr(t, "width") and t.width:
                 return int(t.width)
-        except Exception:
-            pass
-
-        # 2) HLIL heuristic
-        try:
-            addr_hex = hex(address)
-            candidates: list[int] = []
-            names = ("memcmp", "strncmp", "memcpy", "strncpy")
-            for func in list(self._current_view.functions):
-                try:
-                    il = getattr(func, "hlil", None)
-                    if not il:
-                        continue
-                    for ins in il.instructions:
-                        try:
-                            text = str(ins)
-                            if addr_hex not in text:
-                                continue
-                            if not any(n in text for n in names):
-                                continue
-                            # Extract all numeric constants
-                            nums = re.findall(r"0x[0-9a-fA-F]+|\b\d+\b", text)
-                            vals: list[int] = []
-                            for n in nums:
-                                try:
-                                    v = int(n, 16) if n.startswith("0x") else int(n)
-                                    vals.append(v)
-                                except Exception:
-                                    continue
-                            if vals:
-                                # Heuristic: last constant in call string is likely the size
-                                candidates.append(vals[-1])
-                        except Exception:
-                            continue
-                except Exception:
-                    continue
-            if candidates:
-                # Use the maximum plausible size
-                best = max(c for c in candidates if c > 0)
-                if best > 0:
-                    return best
         except Exception:
             pass
         return None

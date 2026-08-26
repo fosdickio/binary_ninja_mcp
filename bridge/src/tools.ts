@@ -553,7 +553,7 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
     "Return a declaration-like string and hexdump for a data symbol.",
     {
       name_or_address: z.string().describe("Symbol name or address (hex)"),
-      length: z.number().default(-1).describe("Number of bytes"),
+      length: z.number().default(-1).describe("Number of bytes; -1 returns a bounded preview"),
     },
     async ({ name_or_address, length = -1 }) => {
       const ident = name_or_address.trim();
@@ -569,6 +569,9 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
         hexdump?: string;
         address?: string;
         name?: string;
+        size?: number;
+        bytes_read?: number;
+        truncated?: boolean;
       }>("getDataDecl", params);
       if (!data) {
         return { content: [{ type: "text", text: "Error: no response" }] };
@@ -580,8 +583,16 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
       const hexdump = (data as { hexdump?: string }).hexdump || "";
       const addr = (data as { address?: string }).address || "";
       const name = (data as { name?: string }).name || ident;
+      const truncationNote = data.truncated
+        ? `\n[Hexdump truncated: showing ${data.bytes_read ?? 0} of ${data.size ?? "unknown"} bytes. Request an explicit length or use hexdump_address in chunks.]`
+        : "";
       return {
-        content: [{ type: "text", text: `Declaration (${addr} ${name}):\n${decl}\n\nHexdump:\n${hexdump}` }],
+        content: [
+          {
+            type: "text",
+            text: `Declaration (${addr} ${name}):\n${decl}\n\nHexdump:\n${hexdump}${truncationNote}`,
+          },
+        ],
       };
     }
   );
