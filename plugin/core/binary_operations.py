@@ -20,6 +20,7 @@ class BinaryOperations:
         self._views_by_id: dict[str, weakref.ReferenceType] = {}
         self._next_view_id: int = 1
         self._id_by_filename: dict[str, str] = {}
+        self._renamed_function_addresses: dict[str, dict[str, int]] = {}
 
     @property
     def current_view(self) -> bn.BinaryView | None:
@@ -36,6 +37,13 @@ class BinaryOperations:
                 pass
         else:
             bn.log_info("Cleared current binary view")
+
+    @staticmethod
+    def _view_filename(bv: bn.BinaryView | None) -> str | None:
+        try:
+            return str(bv.file.filename) if bv and bv.file else None
+        except Exception:
+            return None
 
     def load_binary(self, filepath: str) -> bn.BinaryView:
         """Load a binary file using the appropriate method based on the Binary Ninja API version"""
@@ -220,7 +228,7 @@ class BinaryOperations:
                 vb_canon = vb
             entries.append((canonical_id, fn, bool(vb_canon is self._current_view)))
         # Sort by filename for stable ordering
-        entries.sort(key=lambda t: (t[1] or ""))
+        entries.sort(key=lambda t: t[1] or "")
         for cid, fn, active in entries:
             items.append({"id": cid, "filename": fn, "active": active})
         return items
@@ -327,25 +335,88 @@ class BinaryOperations:
         except ValueError:
             pass
 
-        # Handle name-based lookup with case sensitivity
-        for func in self._current_view.functions:
-            if func.name == identifier:
-                bn.log_info(f"Found function by name: {func.name}")
-                return func
+        identifier_str = str(identifier).strip()
+        identifier_candidates = [identifier_str]
+        try:
+            prefix = bn.Settings().get_string("mcp.renamePrefix")
+            if prefix and not identifier_str.startswith(prefix):
+                identifier_candidates.append(prefix + identifier_str)
+        except Exception:
+            pass
+        identifier_keys = {candidate.casefold() for candidate in identifier_candidates}
 
-        # Try case-insensitive match as fallback
-        for func in self._current_view.functions:
-            if func.name.lower() == str(identifier).lower():
-                bn.log_info(f"Found function by case-insensitive name: {func.name}")
-                return func
+        view_key = self._view_filename(self._current_view) or str(id(self._current_view))
+        cached_functions = self._renamed_function_addresses.get(view_key, {})
+        for candidate in identifier_candidates:
+            cached_address = cached_functions.get(candidate.casefold())
+            if cached_address is not None:
+                func = self._current_view.get_function_at(cached_address)
+                if func:
+                    bn.log_info(f"Found renamed function through address cache: {func.name}")
+                    return func
 
-        # Try symbol table lookup as last resort
-        symbol = self._current_view.get_symbol_by_raw_name(str(identifier))
-        if symbol and symbol.address:
-            func = self._current_view.get_function_at(symbol.address)
-            if func:
-                bn.log_info(f"Found function through symbol lookup: {func.name}")
-                return func
+        indexed_lookup_available = False
+        get_functions_by_name = getattr(self._current_view, "get_functions_by_name", None)
+        if callable(get_functions_by_name):
+            indexed_lookup_available = True
+            for candidate in identifier_candidates:
+                try:
+                    functions = get_functions_by_name(candidate)
+                    for func in functions or []:
+                        bn.log_info(f"Found function through name index: {func.name}")
+                        return func
+                except Exception:
+                    continue
+
+        get_symbols_by_name = getattr(self._current_view, "get_symbols_by_name", None)
+        if callable(get_symbols_by_name):
+            indexed_lookup_available = True
+            for candidate in identifier_candidates:
+                try:
+                    for symbol in get_symbols_by_name(candidate) or []:
+                        address = getattr(symbol, "address", None)
+                        if address is None:
+                            continue
+                        func = self._current_view.get_function_at(address)
+                        if func:
+                            bn.log_info(f"Found function through symbol index: {func.name}")
+                            return func
+                except Exception:
+                    continue
+
+        get_symbol_by_raw_name = getattr(self._current_view, "get_symbol_by_raw_name", None)
+        if callable(get_symbol_by_raw_name):
+            indexed_lookup_available = True
+            for candidate in identifier_candidates:
+                try:
+                    symbol = get_symbol_by_raw_name(candidate)
+                    address = getattr(symbol, "address", None)
+                    if address is not None:
+                        func = self._current_view.get_function_at(address)
+                        if func:
+                            bn.log_info(f"Found function through raw symbol lookup: {func.name}")
+                            return func
+                except Exception:
+                    continue
+
+        # Older Binary Ninja versions lack indexed name APIs. Scan once while also
+        # checking qualified symbol names instead of scanning functions twice.
+        if not indexed_lookup_available:
+            for func in self._current_view.functions:
+                candidate_names = [getattr(func, "name", None)]
+                symbol = getattr(func, "symbol", None)
+                if symbol is not None:
+                    candidate_names.extend(
+                        getattr(symbol, attribute, None)
+                        for attribute in ("name", "raw_name", "full_name")
+                    )
+                if any(
+                    str(name).casefold() in identifier_keys
+                    for name in candidate_names
+                    if name is not None
+                ):
+                    bn.log_info(f"Found function through legacy name scan: {func.name}")
+                    return func
 
         bn.log_error(f"Could not find function: {identifier}")
         return None
@@ -786,6 +857,12 @@ class BinaryOperations:
                 func.name = new_name
 
                 if func.name == new_name:
+                    view_key = self._view_filename(self._current_view) or str(
+                        id(self._current_view)
+                    )
+                    self._renamed_function_addresses.setdefault(view_key, {})[
+                        new_name.casefold()
+                    ] = int(func.start)
                     bn.log_info(f"Successfully renamed function from {old_name} to {new_name}")
                     return True
 
@@ -801,6 +878,12 @@ class BinaryOperations:
                             else None,
                         )
                         self._current_view.define_user_symbol(new_symbol)
+                        view_key = self._view_filename(self._current_view) or str(
+                            id(self._current_view)
+                        )
+                        self._renamed_function_addresses.setdefault(view_key, {})[
+                            new_name.casefold()
+                        ] = int(func.start)
                         bn.log_info("Successfully renamed function using symbol table")
                         return True
                     except Exception as e:
@@ -812,6 +895,12 @@ class BinaryOperations:
                         func_copy = func
                         func_copy.name = new_name
                         self._current_view.update_function(func)
+                        view_key = self._view_filename(self._current_view) or str(
+                            id(self._current_view)
+                        )
+                        self._renamed_function_addresses.setdefault(view_key, {})[
+                            new_name.casefold()
+                        ] = int(func.start)
                         bn.log_info("Successfully renamed function using update method")
                         return True
                     except Exception as e:

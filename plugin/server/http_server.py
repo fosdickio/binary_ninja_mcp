@@ -1217,12 +1217,24 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         )
                         return
 
-                    success = self.binary_ops.set_function_comment(function_name, comment)
+                    function = self.binary_ops.get_function_by_name_or_address(function_name)
+                    if function is None:
+                        self._send_json_response(
+                            {
+                                "error": "Function not found",
+                                "function": function_name,
+                            },
+                            404,
+                        )
+                        return
+
+                    success = self.binary_ops.set_function_comment(function.start, comment)
                     if success:
                         self._send_json_response(
                             {
                                 "success": True,
                                 "message": f"Successfully set comment for function {function_name}",
+                                "address": hex(function.start),
                                 "comment": comment,
                             }
                         )
@@ -2191,12 +2203,25 @@ class MCPRequestHandler(BaseHTTPRequestHandler):
                         )
                         return
 
-                    success = self.binary_ops.set_function_comment(function_name, comment)
+                    function = self.binary_ops.get_function_by_name_or_address(function_name)
+                    if function is None:
+                        self._send_json_response(
+                            {
+                                "error": "Function not found",
+                                "function": function_name,
+                            },
+                            404,
+                        )
+                        return
+
+                    success = self.binary_ops.set_function_comment(function.start, comment)
                     if success:
                         self._send_json_response(
                             {
                                 "success": True,
                                 "message": f"Successfully set comment for function {function_name}",
+                                "resolved_function": function.name,
+                                "address": hex(function.start),
                                 "comment": comment,
                             }
                         )
