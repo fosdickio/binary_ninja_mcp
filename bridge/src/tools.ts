@@ -686,15 +686,17 @@ export function registerTools(server: McpServer, client: BinjaHttpClient): void 
       const params: Record<string, string> = ident.toLowerCase().startsWith("0x") || /^\d+$/.test(ident)
         ? { address: ident }
         : { name: ident };
-      const data = await client.getJson<{ error?: string; stack_frame_vars?: string[] }>("getStackFrameVars", params);
+      const data = await client.getJson<{ error?: string; stack_frame_vars?: unknown[] }>("getStackFrameVars", params);
       if (!data) {
         return { content: [{ type: "text", text: "" }] };
       }
-      if ("error" in data) {
-        return { content: [{ type: "text", text: "" }] };
+      if (data.error) {
+        return { content: [{ type: "text", text: `Error: ${data.error}` }] };
       }
-      const vars = (data as { stack_frame_vars?: string[] }).stack_frame_vars;
-      return { content: [{ type: "text", text: (vars || []).join("\n") }] };
+      const vars = "stack_frame_vars" in data ? data.stack_frame_vars || [] : [];
+      return {
+        content: [{ type: "text", text: JSON.stringify(vars, null, 2) }],
+      };
     }
   );
 
